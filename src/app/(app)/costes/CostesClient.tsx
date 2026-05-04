@@ -202,7 +202,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const totalSueldos = sueldos.reduce((s, r) => s + Number(r.coste_total ?? 0), 0)
   const totalCombinado = totalGastos + totalSueldos
 
-  // ── Annual cell editing ───────────────────────────────────────────────
+  // ── Annual cell editing (gastos) ─────────────────────────────────────
   const [editingAnnualCell, setEditingAnnualCell] = useState<{ concepto: string; mes: number } | null>(null)
   const [annualCellValue, setAnnualCellValue] = useState('')
   const annualCellRef = useRef<HTMLInputElement>(null)
@@ -213,6 +213,31 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
       annualCellRef.current.select()
     }
   }, [editingAnnualCell])
+
+  // ── Annual cell editing (sueldos) ─────────────────────────────────────
+  const [editingAnnualSueldoCell, setEditingAnnualSueldoCell] = useState<{ empId: string; mes: number } | null>(null)
+  const [annualSueldoCellValue, setAnnualSueldoCellValue] = useState('')
+  const annualSueldoCellRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingAnnualSueldoCell && annualSueldoCellRef.current) {
+      annualSueldoCellRef.current.focus()
+      annualSueldoCellRef.current.select()
+    }
+  }, [editingAnnualSueldoCell])
+
+  const saveAnnualSueldoCell = async (empId: string, m: number) => {
+    const valor = parseFloat(annualSueldoCellValue)
+    const isEmpty = annualSueldoCellValue.trim() === '' || isNaN(valor)
+    setEditingAnnualSueldoCell(null)
+    if (isEmpty) return
+    await fetch('/api/sueldos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_empleado: empId, coste_total: valor, mes: m, anio }),
+    })
+    router.refresh()
+  }
 
   const saveAnnualCell = async (concepto: string, mes: number) => {
     const cellGastos = gastosDetail.get(concepto)?.get(mes) ?? []
@@ -418,7 +443,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-800">
               <h3 className="text-white font-semibold">Sueldos {anio}</h3>
-              <p className="text-gray-500 text-xs mt-0.5">Pincha en un mes para editar · coste total por empleado y mes</p>
+              <p className="text-gray-500 text-xs mt-0.5">Pincha en cualquier celda para editar · coste total por empleado y mes</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -444,11 +469,38 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                         <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium">{nombre}</td>
                         {Array.from({ length: 12 }, (_, i) => {
                           const v = meses.get(i + 1)
+                          const isEditingSueldo = editingAnnualSueldoCell?.empId === empId && editingAnnualSueldoCell?.mes === i + 1
                           return (
-                            <td key={i} className="py-2 px-1 text-center">
-                              {v != null
-                                ? <span className="text-blue-300 font-medium">{fmt(Number(v))}</span>
-                                : <span className="text-gray-700">—</span>}
+                            <td key={i} className="py-1 px-1 text-center">
+                              {isEditingSueldo ? (
+                                <input
+                                  ref={annualSueldoCellRef}
+                                  type="number"
+                                  value={annualSueldoCellValue}
+                                  onChange={e => setAnnualSueldoCellValue(e.target.value)}
+                                  onBlur={() => saveAnnualSueldoCell(empId, i + 1)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') e.currentTarget.blur()
+                                    if (e.key === 'Escape') setEditingAnnualSueldoCell(null)
+                                  }}
+                                  className="w-16 bg-blue-900/40 border border-blue-500 rounded text-center text-white text-xs px-1 py-1 focus:outline-none"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setEditingAnnualSueldoCell({ empId, mes: i + 1 })
+                                    setAnnualSueldoCellValue(v != null ? String(v) : '')
+                                  }}
+                                  title={v != null ? 'Clic para editar' : 'Clic para añadir'}
+                                  className={`w-full min-w-[60px] py-1 rounded transition-colors text-center ${
+                                    v != null
+                                      ? 'text-blue-300 font-medium hover:bg-blue-900/20 cursor-pointer'
+                                      : 'text-gray-700 hover:bg-gray-800/40 cursor-pointer'
+                                  }`}
+                                >
+                                  {v != null ? fmt(Number(v)) : '—'}
+                                </button>
+                              )}
                             </td>
                           )
                         })}
