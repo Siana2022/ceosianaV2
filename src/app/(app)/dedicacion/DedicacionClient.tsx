@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-interface Empleado { id: string; nombre: string }
+interface Empleado { id: string; nombre: string; activo: boolean }
 interface Departamento { id: string; nombre: string }
 
 interface DedicacionRow {
@@ -205,11 +205,14 @@ export default function DedicacionClient({ empleados, departamentos, dedicacion,
                   onClick={() => openEmpleado(emp.id)}
                   className={`w-full flex items-center justify-between px-6 py-3 text-left transition-colors ${
                     isSelected ? 'bg-blue-600/20 border-l-2 border-blue-500' : 'hover:bg-gray-800/50'
-                  }`}
+                  } ${!emp.activo ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-center gap-3">
                     <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getDotColor(t)}`} />
                     <span className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-gray-300'}`}>{emp.nombre}</span>
+                    {!emp.activo && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-500 font-medium">inactivo</span>
+                    )}
                   </div>
                   <span className={`text-xs font-mono ${t === 100 ? 'text-green-400' : t > 0 ? 'text-yellow-400' : 'text-gray-600'}`}>
                     {t > 0 ? `${t}%` : '—'}

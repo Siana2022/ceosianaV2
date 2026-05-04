@@ -20,7 +20,7 @@ export default async function DedicacionPage({
     { data: departamentos },
     { data: dedicacion },
   ] = await Promise.all([
-    supabase.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('empleados').select('id, nombre, activo').order('nombre'),
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
     supabase
       .from('empleado_dedicacion')
