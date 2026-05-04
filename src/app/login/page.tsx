@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/server/supabase'
 import { login } from './actions'
 
 export default async function LoginPage({
@@ -5,6 +7,10 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session) redirect('/dashboard')
+
   const { error } = await searchParams
 
   return (
