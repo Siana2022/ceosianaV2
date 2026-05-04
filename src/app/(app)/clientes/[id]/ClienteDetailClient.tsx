@@ -75,6 +75,13 @@ interface ResponsableData {
 
 interface TipoServicio { id: string; nombre: string }
 
+interface GastoRef {
+  concepto: string
+  valor: number
+  tipo: string
+  id_departamento: string | null
+}
+
 interface Props {
   cliente: Cliente
   servicios: Servicio[]
@@ -86,7 +93,7 @@ interface Props {
   responsablesIniciales: ResponsableData[]
   empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]>
   tiposServicio: TipoServicio[]
-  conceptosGastos: string[]
+  gastosExistentes: GastoRef[]
   mrr: number
   total_facturado: number
   total_costes: number
@@ -122,7 +129,7 @@ export default function ClienteDetailClient({
   responsablesIniciales,
   empleadosPorDepartamento,
   tiposServicio,
-  conceptosGastos,
+  gastosExistentes,
   mrr,
   total_facturado,
   total_costes,
@@ -1171,15 +1178,38 @@ export default function ClienteDetailClient({
                 </button>
                 {gastoTodoElAnio && <p className="text-orange-400/80 text-xs -mt-2 px-1">Se crearán 12 entradas, una por cada mes de {year}</p>}
 
-                {/* Concepto con datalist */}
+                {/* Concepto con datalist — auto-rellena valor/tipo/depto al seleccionar */}
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Concepto *</label>
-                  <input type="text" list="conceptos-list-cliente" value={gastoForm.concepto}
-                    onChange={e => setGastoForm(f => ({ ...f, concepto: e.target.value }))}
-                    className={inputCls} placeholder="Ej: Alquiler, Comisión venta…" autoFocus />
+                  <input
+                    type="text"
+                    list="conceptos-list-cliente"
+                    value={gastoForm.concepto}
+                    onChange={e => {
+                      const val = e.target.value
+                      const ref = gastosExistentes.find(g => g.concepto === val)
+                      if (ref) {
+                        setGastoForm(f => ({
+                          ...f,
+                          concepto: val,
+                          valor: String(ref.valor),
+                          tipo: (ref.tipo as 'general' | 'departamento' | 'comision') ?? 'general',
+                          id_departamento: ref.id_departamento ?? '',
+                        }))
+                      } else {
+                        setGastoForm(f => ({ ...f, concepto: val }))
+                      }
+                    }}
+                    className={inputCls}
+                    placeholder="Ej: Alquiler, Comisión venta…"
+                    autoFocus
+                  />
                   <datalist id="conceptos-list-cliente">
-                    {conceptosGastos.map(c => <option key={c} value={c} />)}
+                    {gastosExistentes.map(g => <option key={g.concepto} value={g.concepto} />)}
                   </datalist>
+                  {gastosExistentes.find(g => g.concepto === gastoForm.concepto) && (
+                    <p className="text-green-600 text-xs mt-1">✓ Concepto existente — valores pre-rellenados</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

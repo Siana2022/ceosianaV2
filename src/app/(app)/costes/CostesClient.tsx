@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 const fmt = (v: number) =>
@@ -202,13 +202,67 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const totalSueldos = sueldos.reduce((s, r) => s + Number(r.coste_total ?? 0), 0)
   const totalCombinado = totalGastos + totalSueldos
 
+  // ── Annual cell editing ───────────────────────────────────────────────
+  const [editingAnnualCell, setEditingAnnualCell] = useState<{ concepto: string; mes: number } | null>(null)
+  const [annualCellValue, setAnnualCellValue] = useState('')
+  const annualCellRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingAnnualCell && annualCellRef.current) {
+      annualCellRef.current.focus()
+      annualCellRef.current.select()
+    }
+  }, [editingAnnualCell])
+
+  const saveAnnualCell = async (concepto: string, mes: number) => {
+    const cellGastos = gastosDetail.get(concepto)?.get(mes) ?? []
+    const valor = parseFloat(annualCellValue)
+    const isEmpty = annualCellValue.trim() === '' || isNaN(valor)
+    setEditingAnnualCell(null)
+
+    if (isEmpty && cellGastos.length === 0) return
+
+    if ((isEmpty || valor === 0) && cellGastos.length === 1) {
+      await fetch(`/api/costes?id=${cellGastos[0].id}`, { method: 'DELETE' })
+    } else if (!isEmpty && valor > 0 && cellGastos.length === 1) {
+      await fetch('/api/costes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: cellGastos[0].id, valor }),
+      })
+    } else if (!isEmpty && valor > 0 && cellGastos.length === 0) {
+      // Create new entry inheriting tipo/dept/cliente from another month
+      const template = Array.from(gastosDetail.get(concepto)?.values() ?? []).flat()[0]
+      if (template) {
+        await fetch('/api/costes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            concepto, valor, mes, anio,
+            tipo: template.tipo,
+            id_departamento: template.id_departamento,
+            id_cliente: template.id_cliente,
+          }),
+        })
+      }
+    }
+    router.refresh()
+  }
+
   // ── Annual matrices (only used in vistaAnual) ─────────────────────────
-  // Gastos: concepto → (mes → sum)
+  // Gastos: concepto → (mes → sum) AND concepto → (mes → Gasto[]) for editing
   const gastoMatriz = new Map<string, Map<number, number>>()
+  const gastosDetail = new Map<string, Map<number, Gasto[]>>()
   for (const g of gastos) {
+    // aggregated values
     if (!gastoMatriz.has(g.concepto)) gastoMatriz.set(g.concepto, new Map())
     const m = gastoMatriz.get(g.concepto)!
     m.set(g.mes, (m.get(g.mes) ?? 0) + Number(g.valor))
+    // individual records
+    if (!gastosDetail.has(g.concepto)) gastosDetail.set(g.concepto, new Map())
+    const dm = gastosDetail.get(g.concepto)!
+    if (!dm.has(g.mes)) dm.set(g.mes, [])
+    dm.get(g.mes)!.push(g)
   }
   const conceptos = Array.from(gastoMatriz.keys()).sort()
 
@@ -291,18 +345,49 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                     const rowTotal = Array.from(mesMap.values()).reduce((a, b) => a + b, 0)
                     return (
                       <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                        <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium truncate max-w-[180px]" title={concepto}>{concepto}</td>
+                        <td className="py-1.5 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium truncate max-w-[180px]" title={concepto}>{concepto}</td>
                         {Array.from({ length: 12 }, (_, i) => {
-                          const v = mesMap.get(i + 1) ?? 0
+                          const mes = i + 1
+                          const v = mesMap.get(mes) ?? 0
+                          const cellGastos = gastosDetail.get(concepto)?.get(mes) ?? []
+                          const hasMultiple = cellGastos.length > 1
+                          const isEditing = editingAnnualCell?.concepto === concepto && editingAnnualCell?.mes === mes
                           return (
-                            <td key={i} className="py-2 px-1 text-center">
-                              {v > 0
-                                ? <span className="text-red-400 font-medium">{fmt(v)}</span>
-                                : <span className="text-gray-700">—</span>}
+                            <td key={i} className="py-1 px-1 text-center">
+                              {isEditing ? (
+                                <input
+                                  ref={annualCellRef}
+                                  type="number"
+                                  value={annualCellValue}
+                                  onChange={e => setAnnualCellValue(e.target.value)}
+                                  onBlur={() => saveAnnualCell(concepto, mes)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') e.currentTarget.blur()
+                                    if (e.key === 'Escape') setEditingAnnualCell(null)
+                                  }}
+                                  className="w-16 bg-blue-900/40 border border-blue-500 rounded text-center text-white text-xs px-1 py-1 focus:outline-none"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    if (hasMultiple) { goTo(mes, anio); return }
+                                    setEditingAnnualCell({ concepto, mes })
+                                    setAnnualCellValue(v > 0 ? String(v) : '')
+                                  }}
+                                  title={hasMultiple ? `${cellGastos.length} entradas · ir al mes para editar` : v > 0 ? 'Clic para editar' : 'Clic para añadir'}
+                                  className={`w-full min-w-[60px] py-1 rounded transition-colors text-center ${
+                                    hasMultiple ? 'text-yellow-400 hover:bg-yellow-900/10 cursor-pointer' :
+                                    v > 0 ? 'text-red-400 font-medium hover:bg-red-900/20 cursor-pointer' :
+                                    'text-gray-700 hover:bg-gray-800/40 cursor-pointer'
+                                  }`}
+                                >
+                                  {v > 0 ? fmt(v) : '—'}
+                                </button>
+                              )}
                             </td>
                           )
                         })}
-                        <td className="py-2 px-4 text-right text-white font-semibold">{fmt(rowTotal)}</td>
+                        <td className="py-1.5 px-4 text-right text-white font-semibold">{fmt(rowTotal)}</td>
                       </tr>
                     )
                   })}

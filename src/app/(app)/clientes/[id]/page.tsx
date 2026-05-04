@@ -58,7 +58,7 @@ export default async function ClienteDetailPage({
       .from('departamento_empleados')
       .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
     supabase.from('tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
-    supabase.from('gastos_fijos').select('concepto').order('concepto'),
+    supabase.from('gastos_fijos').select('concepto, valor, tipo, id_departamento').order('anio', { ascending: false }).order('mes', { ascending: false }),
   ])
 
   if (!cliente) notFound()
@@ -106,7 +106,16 @@ export default async function ClienteDetailPage({
     empleadosPorDepartamento[m.id_departamento].push(emp)
   }
 
-  const conceptosGastos = [...new Set((todosConceptos ?? []).map(g => g.concepto))].sort()
+  // Build gastosExistentes: most recent value per concepto (sorted by anio+mes desc)
+  const gastosRefMap = new Map<string, { valor: number; tipo: string; id_departamento: string | null }>()
+  for (const g of todosConceptos ?? []) {
+    if (!gastosRefMap.has(g.concepto)) {
+      gastosRefMap.set(g.concepto, { valor: Number(g.valor), tipo: g.tipo ?? 'general', id_departamento: g.id_departamento ?? null })
+    }
+  }
+  const gastosExistentes = Array.from(gastosRefMap.entries())
+    .map(([concepto, data]) => ({ concepto, ...data }))
+    .sort((a, b) => a.concepto.localeCompare(b.concepto))
 
   const mrr = (servicios ?? [])
     .filter(s => s.activo && s.tipo === 'recurrente')
@@ -127,7 +136,7 @@ export default async function ClienteDetailPage({
       responsablesIniciales={responsablesData}
       empleadosPorDepartamento={empleadosPorDepartamento}
       tiposServicio={tiposServicio ?? []}
-      conceptosGastos={conceptosGastos}
+      gastosExistentes={gastosExistentes}
       mrr={mrr}
       total_facturado={total_facturado}
       total_costes={total_costes}
