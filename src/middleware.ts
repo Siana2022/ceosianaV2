@@ -1,46 +1,32 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+// Check auth by looking for the Supabase session cookie directly.
+// This avoids instantiating @supabase/ssr in the Edge Runtime which
+// causes ByteString errors with non-ASCII cookie values on Vercel.
+const PROJECT_REF = 'vbrkedtaesuoabxxyhan'
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll().map(({ name, value }) => ({
-            name,
-            value: (() => { try { return decodeURIComponent(value) } catch { return value } })(),
-          }))
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, encodeURIComponent(value))
-          )
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, encodeURIComponent(value), options)
-          )
-        },
-      },
-    }
+function hasSession(request: NextRequest): boolean {
+  const cookies = request.cookies
+  return (
+    cookies.has(`sb-${PROJECT_REF}-auth-token`) ||
+    cookies.has(`sb-${PROJECT_REF}-auth-token.0`) ||
+    cookies.has(`sb-${PROJECT_REF}-auth-token-code-verifier`)
   )
+}
 
-  const { data: { session } } = await supabase.auth.getSession()
-
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const authenticated = hasSession(request)
 
-  if (!session && !pathname.startsWith('/login')) {
+  if (!authenticated && !pathname.startsWith('/login')) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (session && pathname === '/login') {
+  if (authenticated && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {
