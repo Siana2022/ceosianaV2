@@ -23,6 +23,7 @@ export default async function ClienteDetailPage({
     { data: empleados },
     { data: departamentos },
     { data: gastos },
+    { data: miembrosDepto },
   ] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
     supabase
@@ -51,16 +52,61 @@ export default async function ClienteDetailPage({
       .eq('id_cliente', id)
       .eq('anio', year)
       .order('mes'),
+    supabase
+      .from('departamento_empleados')
+      .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
   ])
 
   if (!cliente) notFound()
+
+  // Fetch responsables for all services of this client in this year
+  const servicioIds = (servicios ?? []).map(s => s.id)
+  let responsablesData: {
+    id_servicio: string
+    id_empleado: string
+    nombre: string
+    mes: number
+    anio: number
+    porcentaje: number
+  }[] = []
+
+  if (servicioIds.length > 0) {
+    const { data: resps } = await supabase
+      .from('servicio_responsables')
+      .select('id_servicio, id_empleado, mes, anio, porcentaje, empleado:id_empleado(id,nombre)')
+      .in('id_servicio', servicioIds)
+      .eq('anio', year)
+
+    responsablesData = (resps ?? []).map((r: Record<string, unknown>) => {
+      const emp = r.empleado as { id: string; nombre: string } | null
+      return {
+        id_servicio: r.id_servicio as string,
+        id_empleado: r.id_empleado as string,
+        nombre: emp?.nombre ?? '',
+        mes: r.mes as number,
+        anio: r.anio as number,
+        porcentaje: Number(r.porcentaje ?? 100),
+      }
+    })
+  }
+
+  // Build empleadosPorDepartamento map
+  const empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]> = {}
+  for (const m of miembrosDepto ?? []) {
+    const empRaw = m.empleado
+    const emp = (Array.isArray(empRaw) ? empRaw[0] : empRaw) as { id: string; nombre: string } | null
+    if (!emp) continue
+    if (!empleadosPorDepartamento[m.id_departamento]) {
+      empleadosPorDepartamento[m.id_departamento] = []
+    }
+    empleadosPorDepartamento[m.id_departamento].push(emp)
+  }
 
   const mrr = (servicios ?? [])
     .filter(s => s.activo && s.tipo === 'recurrente')
     .reduce((sum, s) => sum + Number(s.precio_base ?? 0), 0)
 
   const total_facturado = (ingresos ?? []).reduce((sum, i) => sum + Number(i.valor ?? 0), 0)
-
   const total_costes = (gastos ?? []).reduce((sum, g) => sum + Number(g.valor ?? 0), 0)
 
   return (
@@ -72,6 +118,8 @@ export default async function ClienteDetailPage({
       gastos={gastos ?? []}
       empleados={empleados ?? []}
       departamentos={departamentos ?? []}
+      responsablesIniciales={responsablesData}
+      empleadosPorDepartamento={empleadosPorDepartamento}
       mrr={mrr}
       total_facturado={total_facturado}
       total_costes={total_costes}
