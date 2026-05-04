@@ -22,6 +22,7 @@ export default async function ClienteDetailPage({
     { data: ingresos },
     { data: empleados },
     { data: departamentos },
+    { data: gastos },
   ] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
     supabase
@@ -44,6 +45,12 @@ export default async function ClienteDetailPage({
       .order('mes'),
     supabase.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase
+      .from('gastos_fijos')
+      .select('id, concepto, valor, mes, anio, tipo')
+      .eq('id_cliente', id)
+      .eq('anio', year)
+      .order('mes'),
   ])
 
   if (!cliente) notFound()
@@ -54,16 +61,20 @@ export default async function ClienteDetailPage({
 
   const total_facturado = (ingresos ?? []).reduce((sum, i) => sum + Number(i.valor ?? 0), 0)
 
+  const total_costes = (gastos ?? []).reduce((sum, g) => sum + Number(g.valor ?? 0), 0)
+
   return (
     <ClienteDetailClient
       cliente={cliente}
       servicios={servicios ?? []}
       captacion={captacion?.[0] ?? null}
       ingresos={ingresos ?? []}
+      gastos={gastos ?? []}
       empleados={empleados ?? []}
       departamentos={departamentos ?? []}
       mrr={mrr}
       total_facturado={total_facturado}
+      total_costes={total_costes}
       year={year}
     />
   )

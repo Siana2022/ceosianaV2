@@ -54,15 +54,26 @@ interface Cliente {
   notas: string | null
 }
 
+interface Gasto {
+  id: string
+  concepto: string
+  valor: number
+  mes: number
+  anio: number
+  tipo: string
+}
+
 interface Props {
   cliente: Cliente
   servicios: Servicio[]
   captacion: Captacion | null
   ingresos: Ingreso[]
+  gastos: Gasto[]
   empleados: Empleado[]
   departamentos: Departamento[]
   mrr: number
   total_facturado: number
+  total_costes: number
   year: number
 }
 
@@ -85,10 +96,12 @@ export default function ClienteDetailClient({
   servicios,
   captacion,
   ingresos,
+  gastos,
   empleados,
   departamentos,
   mrr,
   total_facturado,
+  total_costes,
   year,
 }: Props) {
   const router = useRouter()
@@ -389,7 +402,7 @@ export default function ClienteDetailClient({
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">MRR</p>
           <p className={`text-2xl font-bold mt-1 ${mrr > 0 ? 'text-green-400' : 'text-gray-500'}`}>{fmt(mrr)}</p>
@@ -399,9 +412,22 @@ export default function ClienteDetailClient({
           <p className="text-2xl font-bold text-white mt-1">{fmt(grandTotal)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Servicios activos</p>
-          <p className="text-2xl font-bold text-white mt-1">{numActivos}</p>
-          <p className="text-gray-500 text-xs mt-0.5">{servicios.length} en total</p>
+          <p className="text-gray-400 text-sm">Costes imputados {year}</p>
+          <p className="text-2xl font-bold text-red-400 mt-1">{fmt(total_costes)}</p>
+          <p className="text-gray-500 text-xs mt-0.5">{gastos.length} gastos</p>
+        </div>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p className="text-gray-400 text-sm">Margen {year}</p>
+          {(() => {
+            const margen = grandTotal - total_costes
+            const pct = grandTotal > 0 ? (margen / grandTotal) * 100 : 0
+            return (
+              <>
+                <p className={`text-2xl font-bold mt-1 ${margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(margen)}</p>
+                <p className="text-gray-500 text-xs mt-0.5">{pct.toFixed(1)}% sobre facturado</p>
+              </>
+            )
+          })()}
         </div>
       </div>
 
@@ -578,6 +604,40 @@ export default function ClienteDetailClient({
           </table>
         </div>
       </div>
+
+      {/* Costes imputados */}
+      {gastos.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-800">
+            <h3 className="text-white font-semibold">Costes imputados {year}</h3>
+            <p className="text-gray-500 text-xs mt-0.5">Gastos de la agencia asignados a este cliente</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                <th className="text-left px-6 py-3">Concepto</th>
+                <th className="text-left px-4 py-3">Mes</th>
+                <th className="text-right px-6 py-3">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gastos.map(g => (
+                <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td className="px-6 py-3 text-white">{g.concepto}</td>
+                  <td className="px-4 py-3 text-gray-400">{MESES_CORTO[g.mes - 1]}</td>
+                  <td className="px-6 py-3 text-right text-red-400 font-medium">{fmt(Number(g.valor))}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-gray-700 bg-gray-800/30">
+                <td colSpan={2} className="px-6 py-3 text-gray-400 text-sm font-medium">Total costes</td>
+                <td className="px-6 py-3 text-right text-white font-bold">{fmt(total_costes)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
 
       {/* Captacion */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">

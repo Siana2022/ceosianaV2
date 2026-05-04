@@ -18,10 +18,11 @@ export default async function CostesPage({
     { data: sueldosRaw },
     { data: empleados },
     { data: departamentos },
+    { data: clientes },
   ] = await Promise.all([
     supabase
       .from('gastos_fijos')
-      .select('*, departamento:id_departamento(id,nombre)')
+      .select('*, departamento:id_departamento(id,nombre), cliente:id_cliente(id,nombre)')
       .eq('mes', mes)
       .eq('anio', anio)
       .order('concepto'),
@@ -32,6 +33,7 @@ export default async function CostesPage({
       .eq('anio', anio),
     supabase.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
   ])
 
   // Merge sueldos with empleados names
@@ -54,6 +56,7 @@ export default async function CostesPage({
       gastos={gastos ?? []}
       sueldos={sueldos}
       departamentos={departamentos ?? []}
+      clientes={clientes ?? []}
       mes={mes}
       anio={anio}
     />

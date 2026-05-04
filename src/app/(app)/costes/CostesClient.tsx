@@ -18,6 +18,8 @@ interface Gasto {
   tipo: 'general' | 'departamento'
   id_departamento: string | null
   departamento: { id: string; nombre: string } | null
+  id_cliente: string | null
+  cliente: { id: string; nombre: string } | null
   mes: number
   anio: number
 }
@@ -35,6 +37,7 @@ interface Props {
   gastos: Gasto[]
   sueldos: SueldoRow[]
   departamentos: Departamento[]
+  clientes: { id: string; nombre: string }[]
   mes: number
   anio: number
 }
@@ -44,9 +47,10 @@ interface GastoForm {
   valor: string
   tipo: 'general' | 'departamento'
   id_departamento: string
+  id_cliente: string
 }
 
-export default function CostesClient({ gastos, sueldos, departamentos, mes, anio }: Props) {
+export default function CostesClient({ gastos, sueldos, departamentos, clientes, mes, anio }: Props) {
   const router = useRouter()
   const currentYear = new Date().getFullYear()
   const years = [currentYear - 1, currentYear, currentYear + 1]
@@ -55,7 +59,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, mes, anio
   const [showGastoModal, setShowGastoModal] = useState(false)
   const [gastoEditMode, setGastoEditMode] = useState(false)
   const [editGastoId, setEditGastoId] = useState<string | null>(null)
-  const [gastoForm, setGastoForm] = useState<GastoForm>({ concepto: '', valor: '', tipo: 'general', id_departamento: '' })
+  const [gastoForm, setGastoForm] = useState<GastoForm>({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
 
   // Sueldo edit
   const [editSueldoId, setEditSueldoId] = useState<string | null>(null)
@@ -70,7 +74,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, mes, anio
   const openCreateGasto = () => {
     setGastoEditMode(false)
     setEditGastoId(null)
-    setGastoForm({ concepto: '', valor: '', tipo: 'general', id_departamento: '' })
+    setGastoForm({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
     setError('')
     setShowGastoModal(true)
   }
@@ -78,7 +82,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, mes, anio
   const openEditGasto = (g: Gasto) => {
     setGastoEditMode(true)
     setEditGastoId(g.id)
-    setGastoForm({ concepto: g.concepto, valor: String(g.valor), tipo: g.tipo, id_departamento: g.id_departamento ?? '' })
+    setGastoForm({ concepto: g.concepto, valor: String(g.valor), tipo: g.tipo, id_departamento: g.id_departamento ?? '', id_cliente: g.id_cliente ?? '' })
     setError('')
     setShowGastoModal(true)
   }
@@ -90,8 +94,8 @@ export default function CostesClient({ gastos, sueldos, departamentos, mes, anio
     setSaving(true); setError('')
     try {
       const body = gastoEditMode
-        ? { id: editGastoId, concepto: gastoForm.concepto, valor: parseFloat(gastoForm.valor), tipo: gastoForm.tipo, id_departamento: gastoForm.id_departamento || null, mes, anio }
-        : { concepto: gastoForm.concepto, valor: parseFloat(gastoForm.valor), tipo: gastoForm.tipo, id_departamento: gastoForm.id_departamento || null, mes, anio }
+        ? { id: editGastoId, concepto: gastoForm.concepto, valor: parseFloat(gastoForm.valor), tipo: gastoForm.tipo, id_departamento: gastoForm.id_departamento || null, id_cliente: gastoForm.id_cliente || null, mes, anio }
+        : { concepto: gastoForm.concepto, valor: parseFloat(gastoForm.valor), tipo: gastoForm.tipo, id_departamento: gastoForm.id_departamento || null, id_cliente: gastoForm.id_cliente || null, mes, anio }
 
       const res = await fetch('/api/costes', {
         method: gastoEditMode ? 'PUT' : 'POST',
@@ -210,27 +214,31 @@ export default function CostesClient({ gastos, sueldos, departamentos, mes, anio
             <thead>
               <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
                 <th className="text-left px-6 py-3">Concepto</th>
-                <th className="text-left px-6 py-3">Tipo</th>
-                <th className="text-left px-6 py-3">Dpto.</th>
+                <th className="text-left px-4 py-3">Tipo</th>
+                <th className="text-left px-4 py-3">Dpto.</th>
+                <th className="text-left px-4 py-3">Cliente</th>
                 <th className="text-right px-6 py-3">Valor</th>
-                <th className="text-center px-6 py-3">Acc.</th>
+                <th className="text-center px-4 py-3">Acc.</th>
               </tr>
             </thead>
             <tbody>
               {gastos.length === 0 && (
-                <tr><td colSpan={5} className="text-center text-gray-500 py-8 text-sm">Sin gastos este mes</td></tr>
+                <tr><td colSpan={6} className="text-center text-gray-500 py-8 text-sm">Sin gastos este mes</td></tr>
               )}
               {gastos.map(g => (
                 <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                   <td className="px-6 py-3 text-white">{g.concepto}</td>
-                  <td className="px-6 py-3">
+                  <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded ${g.tipo === 'general' ? 'bg-gray-700 text-gray-300' : 'bg-blue-900/50 text-blue-400'}`}>
                       {g.tipo}
                     </span>
                   </td>
-                  <td className="px-6 py-3 text-gray-400 text-xs">{g.departamento?.nombre ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{g.departamento?.nombre ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {g.cliente ? <span className="text-purple-400">{g.cliente.nombre}</span> : <span className="text-gray-600">—</span>}
+                  </td>
                   <td className="px-6 py-3 text-right text-red-400 font-medium">{fmt(Number(g.valor))}</td>
-                  <td className="px-6 py-3 text-center">
+                  <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => openEditGasto(g)} className="text-gray-400 hover:text-white text-xs px-1.5 py-1 rounded hover:bg-gray-700">✎</button>
                       <button onClick={() => handleDeleteGasto(g.id)} className="text-red-500 hover:text-red-400 text-xs px-1.5 py-1 rounded hover:bg-gray-700">✕</button>
@@ -242,7 +250,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, mes, anio
             {gastos.length > 0 && (
               <tfoot>
                 <tr className="border-t border-gray-700 bg-gray-800/50">
-                  <td colSpan={3} className="px-6 py-3 text-gray-400 text-sm font-medium">Total gastos</td>
+                  <td colSpan={4} className="px-6 py-3 text-gray-400 text-sm font-medium">Total gastos</td>
                   <td className="px-6 py-3 text-right text-white font-bold">{fmt(totalGastos)}</td>
                   <td />
                 </tr>
@@ -365,6 +373,14 @@ export default function CostesClient({ gastos, sueldos, departamentos, mes, anio
                     </select>
                   </div>
                 )}
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Imputar a cliente <span className="text-gray-600">(opcional)</span></label>
+                  <select value={gastoForm.id_cliente} onChange={e => setGastoForm(f => ({ ...f, id_cliente: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Sin cliente asociado</option>
+                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
                 <button type="button" onClick={() => setShowGastoModal(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>

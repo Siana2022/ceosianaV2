@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('gastos_fijos')
-    .select('*, departamento:id_departamento(id,nombre)')
+    .select('*, departamento:id_departamento(id,nombre), cliente:id_cliente(id,nombre)')
     .order('concepto')
 
   if (mes) query = query.eq('mes', parseInt(mes))
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
-  const { concepto, valor, tipo, id_departamento, mes, anio } = body
+  const { concepto, valor, tipo, id_departamento, id_cliente, mes, anio } = body
 
   if (!concepto || valor === undefined || !mes || !anio) {
     return NextResponse.json({ error: 'concepto, valor, mes y anio son obligatorios' }, { status: 400 })
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('gastos_fijos')
-    .insert({ concepto, valor, tipo, id_departamento: tipo === 'departamento' ? id_departamento : null, mes, anio })
-    .select('*, departamento:id_departamento(id,nombre)')
+    .insert({ concepto, valor, tipo, id_departamento: tipo === 'departamento' ? id_departamento : null, id_cliente: id_cliente || null, mes, anio })
+    .select('*, departamento:id_departamento(id,nombre), cliente:id_cliente(id,nombre)')
     .single()
 
   if (error) {
@@ -48,13 +48,13 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
-  const { id, concepto, valor, tipo, id_departamento, mes, anio } = body
+  const { id, concepto, valor, tipo, id_departamento, id_cliente, mes, anio } = body
 
   const { data, error } = await supabase
     .from('gastos_fijos')
-    .update({ concepto, valor, tipo, id_departamento: tipo === 'departamento' ? id_departamento : null, mes, anio })
+    .update({ concepto, valor, tipo, id_departamento: tipo === 'departamento' ? id_departamento : null, id_cliente: id_cliente || null, mes, anio })
     .eq('id', id)
-    .select('*, departamento:id_departamento(id,nombre)')
+    .select('*, departamento:id_departamento(id,nombre), cliente:id_cliente(id,nombre)')
     .single()
 
   if (error) {
