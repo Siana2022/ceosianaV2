@@ -15,7 +15,7 @@ interface Gasto {
   id: string
   concepto: string
   valor: number
-  tipo: 'general' | 'departamento'
+  tipo: 'general' | 'departamento' | 'comision'
   id_departamento: string | null
   departamento: { id: string; nombre: string } | null
   id_cliente: string | null
@@ -46,7 +46,7 @@ interface Props {
 interface GastoForm {
   concepto: string
   valor: string
-  tipo: 'general' | 'departamento'
+  tipo: 'general' | 'departamento' | 'comision'
   id_departamento: string
   id_cliente: string
 }
@@ -97,6 +97,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     e.preventDefault()
     if (!gastoForm.concepto.trim()) { setError('El concepto es obligatorio'); return }
     if (!gastoForm.valor) { setError('El valor es obligatorio'); return }
+    if (gastoForm.tipo === 'comision' && !gastoForm.id_cliente) { setError('La comisión debe asignarse a un cliente'); return }
     setSaving(true); setError('')
     try {
       const baseBody = {
@@ -430,7 +431,11 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                 <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                   <td className="px-6 py-3 text-white">{g.concepto}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded ${g.tipo === 'general' ? 'bg-gray-700 text-gray-300' : 'bg-blue-900/50 text-blue-400'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      g.tipo === 'general' ? 'bg-gray-700 text-gray-300' :
+                      g.tipo === 'departamento' ? 'bg-blue-900/50 text-blue-400' :
+                      'bg-orange-900/50 text-orange-400'
+                    }`}>
                       {g.tipo}
                     </span>
                   </td>
@@ -592,10 +597,11 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                   </div>
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">Tipo</label>
-                    <select value={gastoForm.tipo} onChange={e => setGastoForm(f => ({ ...f, tipo: e.target.value as 'general' | 'departamento' }))}
+                    <select value={gastoForm.tipo} onChange={e => setGastoForm(f => ({ ...f, tipo: e.target.value as 'general' | 'departamento' | 'comision', id_departamento: '', id_cliente: '' }))}
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                       <option value="general">General</option>
                       <option value="departamento">Departamento</option>
+                      <option value="comision">Comisión</option>
                     </select>
                   </div>
                 </div>
@@ -609,14 +615,20 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                     </select>
                   </div>
                 )}
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Imputar a cliente <span className="text-gray-600">(opcional)</span></label>
-                  <select value={gastoForm.id_cliente} onChange={e => setGastoForm(f => ({ ...f, id_cliente: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                    <option value="">Sin cliente asociado</option>
-                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                </div>
+                {/* Cliente: obligatorio para comisión, opcional para el resto */}
+                {(gastoForm.tipo === 'comision' || gastoForm.tipo === 'general') && (
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">
+                      Cliente {gastoForm.tipo === 'comision' ? <span className="text-orange-400">*</span> : <span className="text-gray-600">(opcional)</span>}
+                    </label>
+                    <select value={gastoForm.id_cliente} onChange={e => setGastoForm(f => ({ ...f, id_cliente: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                      {gastoForm.tipo !== 'comision' && <option value="">Sin cliente asociado</option>}
+                      {gastoForm.tipo === 'comision' && <option value="">Selecciona un cliente…</option>}
+                      {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
                 <button type="button" onClick={() => setShowGastoModal(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>

@@ -61,7 +61,7 @@ interface Gasto {
   valor: number
   mes: number
   anio: number
-  tipo: string
+  tipo: 'general' | 'departamento' | 'comision'
 }
 
 interface ResponsableData {
@@ -86,6 +86,7 @@ interface Props {
   responsablesIniciales: ResponsableData[]
   empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]>
   tiposServicio: TipoServicio[]
+  conceptosGastos: string[]
   mrr: number
   total_facturado: number
   total_costes: number
@@ -121,12 +122,63 @@ export default function ClienteDetailClient({
   responsablesIniciales,
   empleadosPorDepartamento,
   tiposServicio,
+  conceptosGastos,
   mrr,
   total_facturado,
   total_costes,
   year,
 }: Props) {
   const router = useRouter()
+
+  // ── Gastos locales ───────────────────────────────────────────────────
+  const [localGastos, setLocalGastos] = useState<Gasto[]>(gastos)
+  const localTotalCostes = localGastos.reduce((s, g) => s + Number(g.valor), 0)
+
+  const [showGastoModal, setShowGastoModal] = useState(false)
+  const [gastoForm, setGastoForm] = useState({
+    concepto: '',
+    valor: '',
+    mes: String(new Date().getMonth() + 1),
+    tipo: 'general' as 'general' | 'comision',
+  })
+
+  const openCreateGasto = () => {
+    setGastoForm({ concepto: '', valor: '', mes: String(new Date().getMonth() + 1), tipo: 'general' })
+    setError('')
+    setShowGastoModal(true)
+  }
+
+  const saveGasto = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!gastoForm.concepto.trim()) { setError('El concepto es obligatorio'); return }
+    if (!gastoForm.valor) { setError('El valor es obligatorio'); return }
+    setSaving(true); setError('')
+    try {
+      const res = await fetch('/api/costes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          concepto: gastoForm.concepto,
+          valor: parseFloat(gastoForm.valor),
+          tipo: gastoForm.tipo,
+          id_cliente: cliente.id,
+          id_departamento: null,
+          mes: parseInt(gastoForm.mes),
+          anio: year,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
+      const created = await res.json()
+      setLocalGastos(prev => [...prev, { id: created.id, concepto: created.concepto, valor: created.valor, mes: created.mes, anio: created.anio, tipo: created.tipo }])
+      setShowGastoModal(false)
+    } finally { setSaving(false) }
+  }
+
+  const deleteGasto = async (id: string) => {
+    if (!confirm('¿Eliminar este gasto?')) return
+    await fetch(`/api/costes?id=${id}`, { method: 'DELETE' })
+    setLocalGastos(prev => prev.filter(g => g.id !== id))
+  }
 
   // ── Ingreso map ──────────────────────────────────────────────────────
   const [ingresoMap, setIngresoMap] = useState<Map<string, Ingreso>>(() => {
@@ -508,13 +560,13 @@ export default function ClienteDetailClient({
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Costes imputados {year}</p>
-          <p className="text-2xl font-bold text-red-400 mt-1">{fmt(total_costes)}</p>
-          <p className="text-gray-500 text-xs mt-0.5">{gastos.length} gastos</p>
+          <p className="text-2xl font-bold text-red-400 mt-1">{fmt(localTotalCostes)}</p>
+          <p className="text-gray-500 text-xs mt-0.5">{localGastos.length} gastos</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Margen {year}</p>
           {(() => {
-            const margen = grandTotal - total_costes
+            const margen = grandTotal - localTotalCostes
             const pct = grandTotal > 0 ? (margen / grandTotal) * 100 : 0
             return (
               <>
@@ -711,38 +763,60 @@ export default function ClienteDetailClient({
       </div>
 
       {/* Costes imputados */}
-      {gastos.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-800">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div>
             <h3 className="text-white font-semibold">Costes imputados {year}</h3>
             <p className="text-gray-500 text-xs mt-0.5">Gastos de la agencia asignados a este cliente</p>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-                <th className="text-left px-6 py-3">Concepto</th>
-                <th className="text-left px-4 py-3">Mes</th>
-                <th className="text-right px-6 py-3">Valor</th>
+          <button onClick={openCreateGasto}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+            + Añadir gasto
+          </button>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+              <th className="text-left px-6 py-3">Concepto</th>
+              <th className="text-left px-4 py-3">Tipo</th>
+              <th className="text-left px-4 py-3">Mes</th>
+              <th className="text-right px-6 py-3">Valor</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {localGastos.length === 0 && (
+              <tr><td colSpan={5} className="text-center text-gray-500 py-8 text-sm">Sin gastos imputados en {year}</td></tr>
+            )}
+            {localGastos.map(g => (
+              <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                <td className="px-6 py-3 text-white">{g.concepto}</td>
+                <td className="px-4 py-3">
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    g.tipo === 'comision' ? 'bg-orange-900/50 text-orange-400' :
+                    g.tipo === 'departamento' ? 'bg-blue-900/50 text-blue-400' :
+                    'bg-gray-700 text-gray-300'
+                  }`}>{g.tipo}</span>
+                </td>
+                <td className="px-4 py-3 text-gray-400">{MESES_CORTO[g.mes - 1]}</td>
+                <td className="px-6 py-3 text-right text-red-400 font-medium">{fmt(Number(g.valor))}</td>
+                <td className="px-4 py-3 text-center">
+                  <button onClick={() => deleteGasto(g.id)} className="text-gray-600 hover:text-red-400 text-xs px-1.5 py-1 rounded hover:bg-gray-700 transition-colors">✕</button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {gastos.map(g => (
-                <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="px-6 py-3 text-white">{g.concepto}</td>
-                  <td className="px-4 py-3 text-gray-400">{MESES_CORTO[g.mes - 1]}</td>
-                  <td className="px-6 py-3 text-right text-red-400 font-medium">{fmt(Number(g.valor))}</td>
-                </tr>
-              ))}
-            </tbody>
+            ))}
+          </tbody>
+          {localGastos.length > 0 && (
             <tfoot>
               <tr className="border-t border-gray-700 bg-gray-800/30">
-                <td colSpan={2} className="px-6 py-3 text-gray-400 text-sm font-medium">Total costes</td>
-                <td className="px-6 py-3 text-right text-white font-bold">{fmt(total_costes)}</td>
+                <td colSpan={3} className="px-6 py-3 text-gray-400 text-sm font-medium">Total costes</td>
+                <td className="px-6 py-3 text-right text-white font-bold">{fmt(localTotalCostes)}</td>
+                <td />
               </tr>
             </tfoot>
-          </table>
-        </div>
-      )}
+          )}
+        </table>
+      </div>
 
       {/* Captacion */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
@@ -1043,6 +1117,80 @@ export default function ClienteDetailClient({
                 <button type="button" onClick={() => setShowServicioModal(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>
                 <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
                   {saving ? 'Guardando...' : servicioMode === 'create' ? 'Añadir' : 'Guardar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Gasto ────────────────────────────────────────────────── */}
+      {showGastoModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <h3 className="text-white font-semibold">Añadir gasto — {cliente.nombre}</h3>
+              <button onClick={() => setShowGastoModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+            <form onSubmit={saveGasto}>
+              <div className="p-6 space-y-4">
+                {error && <div className="bg-red-900/30 border border-red-800 rounded-lg px-4 py-2 text-red-400 text-sm">{error}</div>}
+
+                {/* Concepto con datalist */}
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Concepto *</label>
+                  <input
+                    type="text"
+                    list="conceptos-list"
+                    value={gastoForm.concepto}
+                    onChange={e => setGastoForm(f => ({ ...f, concepto: e.target.value }))}
+                    className={inputCls}
+                    placeholder="Ej: Alquiler, Comisión venta…"
+                    autoFocus
+                  />
+                  <datalist id="conceptos-list">
+                    {conceptosGastos.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Valor (€) *</label>
+                    <input type="number" min="0" step="0.01" value={gastoForm.valor}
+                      onChange={e => setGastoForm(f => ({ ...f, valor: e.target.value }))}
+                      className={inputCls} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Mes</label>
+                    <select value={gastoForm.mes} onChange={e => setGastoForm(f => ({ ...f, mes: e.target.value }))} className={inputCls}>
+                      {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                        <option key={i} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Tipo</label>
+                  <div className="flex gap-2">
+                    {(['general', 'comision'] as const).map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setGastoForm(f => ({ ...f, tipo: t }))}
+                        className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                          gastoForm.tipo === t
+                            ? t === 'comision' ? 'bg-orange-900/30 border-orange-700/50 text-orange-300' : 'bg-blue-900/30 border-blue-700/50 text-blue-300'
+                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                        }`}>
+                        {t === 'comision' ? 'Comisión' : 'General'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
+                <button type="button" onClick={() => setShowGastoModal(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>
+                <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                  {saving ? 'Guardando...' : 'Añadir'}
                 </button>
               </div>
             </form>
