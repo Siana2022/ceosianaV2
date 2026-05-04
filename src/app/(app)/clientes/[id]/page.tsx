@@ -24,11 +24,12 @@ export default async function ClienteDetailPage({
     { data: departamentos },
     { data: gastos },
     { data: miembrosDepto },
+    { data: tiposServicio },
   ] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
     supabase
       .from('servicios')
-      .select('*, departamento:id_departamento(id,nombre), responsable:id_responsable(id,nombre)')
+      .select('*, departamento:id_departamento(id,nombre), responsable:id_responsable(id,nombre), tipo_servicio:id_tipo_servicio(id,nombre)')
       .eq('id_cliente', id)
       .order('activo', { ascending: false })
       .order('nombre'),
@@ -55,6 +56,7 @@ export default async function ClienteDetailPage({
     supabase
       .from('departamento_empleados')
       .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
+    supabase.from('tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
   ])
 
   if (!cliente) notFound()
@@ -120,6 +122,7 @@ export default async function ClienteDetailPage({
       departamentos={departamentos ?? []}
       responsablesIniciales={responsablesData}
       empleadosPorDepartamento={empleadosPorDepartamento}
+      tiposServicio={tiposServicio ?? []}
       mrr={mrr}
       total_facturado={total_facturado}
       total_costes={total_costes}
