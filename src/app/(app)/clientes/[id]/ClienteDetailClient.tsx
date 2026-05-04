@@ -135,15 +135,18 @@ export default function ClienteDetailClient({
   const localTotalCostes = localGastos.reduce((s, g) => s + Number(g.valor), 0)
 
   const [showGastoModal, setShowGastoModal] = useState(false)
+  const [gastoTodoElAnio, setGastoTodoElAnio] = useState(false)
   const [gastoForm, setGastoForm] = useState({
     concepto: '',
     valor: '',
     mes: String(new Date().getMonth() + 1),
-    tipo: 'general' as 'general' | 'comision',
+    tipo: 'general' as 'general' | 'departamento' | 'comision',
+    id_departamento: '',
   })
 
   const openCreateGasto = () => {
-    setGastoForm({ concepto: '', valor: '', mes: String(new Date().getMonth() + 1), tipo: 'general' })
+    setGastoForm({ concepto: '', valor: '', mes: String(new Date().getMonth() + 1), tipo: 'general', id_departamento: '' })
+    setGastoTodoElAnio(false)
     setError('')
     setShowGastoModal(true)
   }
@@ -154,22 +157,42 @@ export default function ClienteDetailClient({
     if (!gastoForm.valor) { setError('El valor es obligatorio'); return }
     setSaving(true); setError('')
     try {
-      const res = await fetch('/api/costes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          concepto: gastoForm.concepto,
-          valor: parseFloat(gastoForm.valor),
-          tipo: gastoForm.tipo,
-          id_cliente: cliente.id,
-          id_departamento: null,
-          mes: parseInt(gastoForm.mes),
-          anio: year,
-        }),
-      })
-      if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
-      const created = await res.json()
-      setLocalGastos(prev => [...prev, { id: created.id, concepto: created.concepto, valor: created.valor, mes: created.mes, anio: created.anio, tipo: created.tipo }])
+      const baseBody = {
+        concepto: gastoForm.concepto,
+        valor: parseFloat(gastoForm.valor),
+        tipo: gastoForm.tipo,
+        id_cliente: cliente.id,
+        id_departamento: gastoForm.tipo === 'departamento' ? gastoForm.id_departamento || null : null,
+        anio: year,
+      }
+
+      if (gastoTodoElAnio) {
+        const results = await Promise.all(
+          Array.from({ length: 12 }, (_, i) =>
+            fetch('/api/costes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...baseBody, mes: i + 1 }),
+            })
+          )
+        )
+        const failed = results.find(r => !r.ok)
+        if (failed) { setError('Error al guardar'); return }
+        const created = await Promise.all(results.map(r => r.json()))
+        setLocalGastos(prev => [
+          ...prev,
+          ...created.map((g: Gasto) => ({ id: g.id, concepto: g.concepto, valor: g.valor, mes: g.mes, anio: g.anio, tipo: g.tipo })),
+        ])
+      } else {
+        const res = await fetch('/api/costes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...baseBody, mes: parseInt(gastoForm.mes) }),
+        })
+        if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
+        const created = await res.json()
+        setLocalGastos(prev => [...prev, { id: created.id, concepto: created.concepto, valor: created.valor, mes: created.mes, anio: created.anio, tipo: created.tipo }])
+      }
       setShowGastoModal(false)
     } finally { setSaving(false) }
   }
@@ -1127,8 +1150,8 @@ export default function ClienteDetailClient({
       {/* ── MODAL: Gasto ────────────────────────────────────────────────── */}
       {showGastoModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 sticky top-0 bg-gray-900">
               <h3 className="text-white font-semibold">Añadir gasto — {cliente.nombre}</h3>
               <button onClick={() => setShowGastoModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
@@ -1136,19 +1159,25 @@ export default function ClienteDetailClient({
               <div className="p-6 space-y-4">
                 {error && <div className="bg-red-900/30 border border-red-800 rounded-lg px-4 py-2 text-red-400 text-sm">{error}</div>}
 
+                {/* Toggle todo el año */}
+                <button type="button" onClick={() => setGastoTodoElAnio(v => !v)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                    gastoTodoElAnio ? 'bg-orange-900/20 border-orange-700/50 text-orange-300' : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-600'
+                  }`}>
+                  <span>Mismo gasto todo el año ({year})</span>
+                  <span className={`w-9 h-5 rounded-full flex items-center px-0.5 transition-colors ${gastoTodoElAnio ? 'bg-orange-500' : 'bg-gray-600'}`}>
+                    <span className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${gastoTodoElAnio ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </span>
+                </button>
+                {gastoTodoElAnio && <p className="text-orange-400/80 text-xs -mt-2 px-1">Se crearán 12 entradas, una por cada mes de {year}</p>}
+
                 {/* Concepto con datalist */}
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Concepto *</label>
-                  <input
-                    type="text"
-                    list="conceptos-list"
-                    value={gastoForm.concepto}
+                  <input type="text" list="conceptos-list-cliente" value={gastoForm.concepto}
                     onChange={e => setGastoForm(f => ({ ...f, concepto: e.target.value }))}
-                    className={inputCls}
-                    placeholder="Ej: Alquiler, Comisión venta…"
-                    autoFocus
-                  />
-                  <datalist id="conceptos-list">
+                    className={inputCls} placeholder="Ej: Alquiler, Comisión venta…" autoFocus />
+                  <datalist id="conceptos-list-cliente">
                     {conceptosGastos.map(c => <option key={c} value={c} />)}
                   </datalist>
                 </div>
@@ -1161,6 +1190,33 @@ export default function ClienteDetailClient({
                       className={inputCls} placeholder="0" />
                   </div>
                   <div>
+                    <label className="block text-gray-400 text-sm mb-1">Tipo</label>
+                    <select value={gastoForm.tipo}
+                      onChange={e => setGastoForm(f => ({ ...f, tipo: e.target.value as 'general' | 'departamento' | 'comision', id_departamento: '' }))}
+                      className={inputCls}>
+                      <option value="general">General</option>
+                      <option value="departamento">Departamento</option>
+                      <option value="comision">Comisión</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Departamento — solo cuando tipo=departamento */}
+                {gastoForm.tipo === 'departamento' && (
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Departamento</label>
+                    <select value={gastoForm.id_departamento}
+                      onChange={e => setGastoForm(f => ({ ...f, id_departamento: e.target.value }))}
+                      className={inputCls}>
+                      <option value="">Seleccionar…</option>
+                      {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {/* Mes — solo cuando no es todo el año */}
+                {!gastoTodoElAnio && (
+                  <div>
                     <label className="block text-gray-400 text-sm mb-1">Mes</label>
                     <select value={gastoForm.mes} onChange={e => setGastoForm(f => ({ ...f, mes: e.target.value }))} className={inputCls}>
                       {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
@@ -1168,29 +1224,12 @@ export default function ClienteDetailClient({
                       ))}
                     </select>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Tipo</label>
-                  <div className="flex gap-2">
-                    {(['general', 'comision'] as const).map(t => (
-                      <button key={t} type="button"
-                        onClick={() => setGastoForm(f => ({ ...f, tipo: t }))}
-                        className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                          gastoForm.tipo === t
-                            ? t === 'comision' ? 'bg-orange-900/30 border-orange-700/50 text-orange-300' : 'bg-blue-900/30 border-blue-700/50 text-blue-300'
-                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
-                        }`}>
-                        {t === 'comision' ? 'Comisión' : 'General'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                )}
               </div>
               <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
                 <button type="button" onClick={() => setShowGastoModal(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>
                 <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                  {saving ? 'Guardando...' : 'Añadir'}
+                  {saving ? 'Guardando...' : gastoTodoElAnio ? 'Añadir 12 meses' : 'Añadir'}
                 </button>
               </div>
             </form>

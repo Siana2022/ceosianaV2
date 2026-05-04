@@ -262,7 +262,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-wrap gap-2">
               <div>
                 <h3 className="text-white font-semibold">Gastos fijos {anio}</h3>
-                <p className="text-gray-500 text-xs mt-0.5">Selecciona un mes para editar entradas individuales</p>
+                <p className="text-gray-500 text-xs mt-0.5">Pincha en un mes para ver y editar · o usa el selector de arriba</p>
               </div>
               <button onClick={openCreateGasto}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
@@ -274,8 +274,10 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                 <thead>
                   <tr className="border-b border-gray-800 bg-gray-800/50">
                     <th className="text-left text-gray-400 font-medium py-2.5 px-4 min-w-[180px] sticky left-0 bg-gray-800/50 z-10">Concepto</th>
-                    {MESES_CORTO.map(m => (
-                      <th key={m} className="text-center text-gray-400 font-medium py-2.5 px-2 min-w-[70px]">{m}</th>
+                    {MESES_CORTO.map((m, i) => (
+                      <th key={m} className="text-center font-medium py-2.5 px-2 min-w-[70px]">
+                        <button onClick={() => goTo(i + 1, anio)} className="text-gray-400 hover:text-blue-400 transition-colors w-full">{m}</button>
+                      </th>
                     ))}
                     <th className="text-right text-gray-400 font-medium py-2.5 px-4 min-w-[80px]">Total</th>
                   </tr>
@@ -331,15 +333,17 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-800">
               <h3 className="text-white font-semibold">Sueldos {anio}</h3>
-              <p className="text-gray-500 text-xs mt-0.5">Coste total por empleado y mes</p>
+              <p className="text-gray-500 text-xs mt-0.5">Pincha en un mes para editar · coste total por empleado y mes</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-800 bg-gray-800/50">
                     <th className="text-left text-gray-400 font-medium py-2.5 px-4 min-w-[150px] sticky left-0 bg-gray-800/50 z-10">Empleado</th>
-                    {MESES_CORTO.map(m => (
-                      <th key={m} className="text-center text-gray-400 font-medium py-2.5 px-2 min-w-[70px]">{m}</th>
+                    {MESES_CORTO.map((m, i) => (
+                      <th key={m} className="text-center font-medium py-2.5 px-2 min-w-[70px]">
+                        <button onClick={() => goTo(i + 1, anio)} className="text-gray-400 hover:text-blue-400 transition-colors w-full">{m}</button>
+                      </th>
                     ))}
                     <th className="text-right text-gray-400 font-medium py-2.5 px-4 min-w-[80px]">Total</th>
                   </tr>
