@@ -38,8 +38,9 @@ interface Props {
   sueldos: SueldoRow[]
   departamentos: Departamento[]
   clientes: { id: string; nombre: string }[]
-  mes: number
+  mes: number | null
   anio: number
+  vistaAnual: boolean
 }
 
 interface GastoForm {
@@ -50,7 +51,7 @@ interface GastoForm {
   id_cliente: string
 }
 
-export default function CostesClient({ gastos, sueldos, departamentos, clientes, mes, anio }: Props) {
+export default function CostesClient({ gastos, sueldos, departamentos, clientes, mes, anio, vistaAnual }: Props) {
   const router = useRouter()
   const currentYear = new Date().getFullYear()
   const years = [currentYear - 1, currentYear, currentYear + 1]
@@ -61,6 +62,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const [editGastoId, setEditGastoId] = useState<string | null>(null)
   const [gastoForm, setGastoForm] = useState<GastoForm>({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
   const [todoElAnio, setTodoElAnio] = useState(false)
+  const [mesSingle, setMesSingle] = useState(new Date().getMonth() + 1)
 
   // Sueldo edit
   const [editSueldoId, setEditSueldoId] = useState<string | null>(null)
@@ -76,7 +78,8 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     setGastoEditMode(false)
     setEditGastoId(null)
     setGastoForm({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
-    setTodoElAnio(false)
+    setTodoElAnio(vistaAnual) // default ON in annual view
+    setMesSingle(mes ?? new Date().getMonth() + 1)
     setError('')
     setShowGastoModal(true)
   }
@@ -104,11 +107,13 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
         id_cliente: gastoForm.id_cliente || null,
       }
 
+      const targetMes = vistaAnual ? mesSingle : mes!
+
       if (gastoEditMode) {
         const res = await fetch('/api/costes', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editGastoId, ...baseBody, mes, anio }),
+          body: JSON.stringify({ id: editGastoId, ...baseBody, mes: targetMes, anio }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
       } else if (todoElAnio) {
@@ -128,7 +133,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
         const res = await fetch('/api/costes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...baseBody, mes, anio }),
+          body: JSON.stringify({ ...baseBody, mes: targetMes, anio }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
       }
@@ -148,8 +153,8 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     if (!confirm('¿Copiar los gastos fijos del mes anterior a este mes?')) return
     setCopying(true)
     try {
-      const prevMes = mes === 1 ? 12 : mes - 1
-      const prevAnio = mes === 1 ? anio - 1 : anio
+      const prevMes = (mes ?? 1) === 1 ? 12 : (mes ?? 1) - 1
+      const prevAnio = (mes ?? 1) === 1 ? anio - 1 : anio
       const res = await fetch(`/api/costes?mes=${prevMes}&anio=${prevAnio}`)
       const prevGastos: Gasto[] = await res.json()
       if (!Array.isArray(prevGastos) || prevGastos.length === 0) {
@@ -196,34 +201,200 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const totalSueldos = sueldos.reduce((s, r) => s + Number(r.coste_total ?? 0), 0)
   const totalCombinado = totalGastos + totalSueldos
 
+  // ── Annual matrices (only used in vistaAnual) ─────────────────────────
+  // Gastos: concepto → (mes → sum)
+  const gastoMatriz = new Map<string, Map<number, number>>()
+  for (const g of gastos) {
+    if (!gastoMatriz.has(g.concepto)) gastoMatriz.set(g.concepto, new Map())
+    const m = gastoMatriz.get(g.concepto)!
+    m.set(g.mes, (m.get(g.mes) ?? 0) + Number(g.valor))
+  }
+  const conceptos = Array.from(gastoMatriz.keys()).sort()
+
+  // Sueldos: empleado → (mes → coste_total)
+  const sueldosAnualesMap = new Map<string, { nombre: string; meses: Map<number, number | null> }>()
+  for (const s of sueldos) {
+    if (!sueldosAnualesMap.has(s.id_empleado))
+      sueldosAnualesMap.set(s.id_empleado, { nombre: s.nombre, meses: new Map() })
+    sueldosAnualesMap.get(s.id_empleado)!.meses.set(s.mes, s.coste_total)
+  }
+  const empAnuales = Array.from(sueldosAnualesMap.entries())
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-white">Costes</h2>
-        <p className="text-gray-400 text-sm mt-1">{MESES[mes - 1]} {anio}</p>
+        <p className="text-gray-400 text-sm mt-1">{vistaAnual ? `Año completo ${anio}` : `${MESES[(mes ?? 1) - 1]} ${anio}`}</p>
       </div>
 
       {/* Month selector */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
         <div className="flex items-center gap-2 flex-wrap">
           {years.map(y => (
-            <button key={y} onClick={() => goTo(mes, y)}
+            <button key={y} onClick={() => router.push(vistaAnual ? `/costes?anio=${y}` : `/costes?mes=${mes ?? 1}&anio=${y}`)}
               className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${y === anio ? 'bg-blue-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}>
               {y}
             </button>
           ))}
           <span className="text-gray-600">|</span>
+          <button
+            onClick={() => router.push(`/costes?anio=${anio}`)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${vistaAnual ? 'bg-blue-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}
+          >
+            Año completo
+          </button>
           {MESES_CORTO.map((m, i) => (
             <button key={i} onClick={() => goTo(i + 1, anio)}
-              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${mes === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}>
+              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${!vistaAnual && mes === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}>
               {m}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Two columns */}
+      {/* ── VISTA ANUAL ─────────────────────────────────────────────────── */}
+      {vistaAnual && (
+        <div className="space-y-6">
+          {/* Gastos matrix */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-wrap gap-2">
+              <div>
+                <h3 className="text-white font-semibold">Gastos fijos {anio}</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Selecciona un mes para editar entradas individuales</p>
+              </div>
+              <button onClick={openCreateGasto}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                + Añadir gasto
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-800/50">
+                    <th className="text-left text-gray-400 font-medium py-2.5 px-4 min-w-[180px] sticky left-0 bg-gray-800/50 z-10">Concepto</th>
+                    {MESES_CORTO.map(m => (
+                      <th key={m} className="text-center text-gray-400 font-medium py-2.5 px-2 min-w-[70px]">{m}</th>
+                    ))}
+                    <th className="text-right text-gray-400 font-medium py-2.5 px-4 min-w-[80px]">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conceptos.length === 0 && (
+                    <tr><td colSpan={14} className="text-center text-gray-500 py-10">Sin gastos en {anio}</td></tr>
+                  )}
+                  {conceptos.map(concepto => {
+                    const mesMap = gastoMatriz.get(concepto)!
+                    const rowTotal = Array.from(mesMap.values()).reduce((a, b) => a + b, 0)
+                    return (
+                      <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20">
+                        <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium truncate max-w-[180px]" title={concepto}>{concepto}</td>
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const v = mesMap.get(i + 1) ?? 0
+                          return (
+                            <td key={i} className="py-2 px-1 text-center">
+                              {v > 0
+                                ? <span className="text-red-400 font-medium">{fmt(v)}</span>
+                                : <span className="text-gray-700">—</span>}
+                            </td>
+                          )
+                        })}
+                        <td className="py-2 px-4 text-right text-white font-semibold">{fmt(rowTotal)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                {conceptos.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-700 bg-gray-800/30">
+                      <td className="py-3 px-4 sticky left-0 bg-gray-800/30 z-10 text-gray-400 font-semibold text-xs uppercase">Total</td>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const colTotal = conceptos.reduce((sum, c) => sum + (gastoMatriz.get(c)?.get(i + 1) ?? 0), 0)
+                        return (
+                          <td key={i} className="py-3 px-1 text-center">
+                            <span className={`font-semibold ${colTotal > 0 ? 'text-white' : 'text-gray-700'}`}>
+                              {colTotal > 0 ? fmt(colTotal) : '—'}
+                            </span>
+                          </td>
+                        )
+                      })}
+                      <td className="py-3 px-4 text-right text-white font-bold">{fmt(totalGastos)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+
+          {/* Sueldos matrix */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-800">
+              <h3 className="text-white font-semibold">Sueldos {anio}</h3>
+              <p className="text-gray-500 text-xs mt-0.5">Coste total por empleado y mes</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-800/50">
+                    <th className="text-left text-gray-400 font-medium py-2.5 px-4 min-w-[150px] sticky left-0 bg-gray-800/50 z-10">Empleado</th>
+                    {MESES_CORTO.map(m => (
+                      <th key={m} className="text-center text-gray-400 font-medium py-2.5 px-2 min-w-[70px]">{m}</th>
+                    ))}
+                    <th className="text-right text-gray-400 font-medium py-2.5 px-4 min-w-[80px]">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {empAnuales.length === 0 && (
+                    <tr><td colSpan={14} className="text-center text-gray-500 py-10">Sin empleados</td></tr>
+                  )}
+                  {empAnuales.map(([empId, { nombre, meses }]) => {
+                    const rowTotal = Array.from(meses.values()).reduce((a: number, v) => a + Number(v ?? 0), 0)
+                    return (
+                      <tr key={empId} className="border-b border-gray-800/30 hover:bg-gray-800/20">
+                        <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium">{nombre}</td>
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const v = meses.get(i + 1)
+                          return (
+                            <td key={i} className="py-2 px-1 text-center">
+                              {v != null
+                                ? <span className="text-blue-300 font-medium">{fmt(Number(v))}</span>
+                                : <span className="text-gray-700">—</span>}
+                            </td>
+                          )
+                        })}
+                        <td className="py-2 px-4 text-right">
+                          <span className={rowTotal > 0 ? 'text-white font-semibold' : 'text-gray-600'}>{rowTotal > 0 ? fmt(rowTotal) : '—'}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                {empAnuales.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-700 bg-gray-800/30">
+                      <td className="py-3 px-4 sticky left-0 bg-gray-800/30 z-10 text-gray-400 font-semibold text-xs uppercase">Total</td>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const colTotal = empAnuales.reduce((sum, [, { meses: ms }]) => sum + Number(ms.get(i + 1) ?? 0), 0)
+                        return (
+                          <td key={i} className="py-3 px-1 text-center">
+                            <span className={`font-semibold ${colTotal > 0 ? 'text-white' : 'text-gray-700'}`}>
+                              {colTotal > 0 ? fmt(colTotal) : '—'}
+                            </span>
+                          </td>
+                        )
+                      })}
+                      <td className="py-3 px-4 text-right text-white font-bold">{fmt(totalSueldos)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── VISTA MENSUAL ────────────────────────────────────────────────── */}
+      {!vistaAnual && (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Gastos fijos */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -352,11 +523,12 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
           </table>
         </div>
       </div>
+      )}
 
       {/* Combined total */}
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 flex items-center justify-between">
         <div>
-          <p className="text-gray-400 text-sm">Total costes combinados</p>
+          <p className="text-gray-400 text-sm">Total costes {vistaAnual ? anio : ''}</p>
           <p className="text-gray-500 text-xs mt-0.5">Gastos {fmt(totalGastos)} + Sueldos {fmt(totalSueldos)}</p>
         </div>
         <p className="text-2xl font-bold text-white">{fmt(totalCombinado)}</p>
@@ -395,6 +567,16 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                   <p className="text-orange-400/80 text-xs -mt-2 px-1">
                     Se crearán 12 entradas, una por cada mes de {anio}
                   </p>
+                )}
+                {/* Month picker: only shown in annual view when todoElAnio is off */}
+                {vistaAnual && !todoElAnio && !gastoEditMode && (
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Mes</label>
+                    <select value={mesSingle} onChange={e => setMesSingle(parseInt(e.target.value))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                      {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                    </select>
+                  </div>
                 )}
 
                 <div>
