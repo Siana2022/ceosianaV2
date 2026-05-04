@@ -60,6 +60,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const [gastoEditMode, setGastoEditMode] = useState(false)
   const [editGastoId, setEditGastoId] = useState<string | null>(null)
   const [gastoForm, setGastoForm] = useState<GastoForm>({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
+  const [todoElAnio, setTodoElAnio] = useState(false)
 
   // Sueldo edit
   const [editSueldoId, setEditSueldoId] = useState<string | null>(null)
@@ -75,6 +76,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     setGastoEditMode(false)
     setEditGastoId(null)
     setGastoForm({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
+    setTodoElAnio(false)
     setError('')
     setShowGastoModal(true)
   }
@@ -83,6 +85,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     setGastoEditMode(true)
     setEditGastoId(g.id)
     setGastoForm({ concepto: g.concepto, valor: String(g.valor), tipo: g.tipo, id_departamento: g.id_departamento ?? '', id_cliente: g.id_cliente ?? '' })
+    setTodoElAnio(false)
     setError('')
     setShowGastoModal(true)
   }
@@ -93,16 +96,43 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     if (!gastoForm.valor) { setError('El valor es obligatorio'); return }
     setSaving(true); setError('')
     try {
-      const body = gastoEditMode
-        ? { id: editGastoId, concepto: gastoForm.concepto, valor: parseFloat(gastoForm.valor), tipo: gastoForm.tipo, id_departamento: gastoForm.id_departamento || null, id_cliente: gastoForm.id_cliente || null, mes, anio }
-        : { concepto: gastoForm.concepto, valor: parseFloat(gastoForm.valor), tipo: gastoForm.tipo, id_departamento: gastoForm.id_departamento || null, id_cliente: gastoForm.id_cliente || null, mes, anio }
+      const baseBody = {
+        concepto: gastoForm.concepto,
+        valor: parseFloat(gastoForm.valor),
+        tipo: gastoForm.tipo,
+        id_departamento: gastoForm.id_departamento || null,
+        id_cliente: gastoForm.id_cliente || null,
+      }
 
-      const res = await fetch('/api/costes', {
-        method: gastoEditMode ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
+      if (gastoEditMode) {
+        const res = await fetch('/api/costes', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editGastoId, ...baseBody, mes, anio }),
+        })
+        if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
+      } else if (todoElAnio) {
+        // Create one entry per month of the year in parallel
+        const results = await Promise.all(
+          Array.from({ length: 12 }, (_, i) =>
+            fetch('/api/costes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...baseBody, mes: i + 1, anio }),
+            })
+          )
+        )
+        const failed = results.find(r => !r.ok)
+        if (failed) { setError('Error al guardar algún mes'); return }
+      } else {
+        const res = await fetch('/api/costes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...baseBody, mes, anio }),
+        })
+        if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
+      }
+
       setShowGastoModal(false)
       router.refresh()
     } finally { setSaving(false) }
@@ -343,6 +373,30 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
             <form onSubmit={handleGastoSubmit}>
               <div className="p-6 space-y-4">
                 {error && <div className="bg-red-900/30 border border-red-800 rounded-lg px-4 py-2 text-red-400 text-sm">{error}</div>}
+
+                {/* Toggle: todo el año (solo en creación) */}
+                {!gastoEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => setTodoElAnio(v => !v)}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                      todoElAnio
+                        ? 'bg-orange-900/20 border-orange-700/50 text-orange-300'
+                        : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    <span>Mismo gasto todo el año ({anio})</span>
+                    <span className={`w-9 h-5 rounded-full flex items-center transition-colors px-0.5 ${todoElAnio ? 'bg-orange-500' : 'bg-gray-600'}`}>
+                      <span className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${todoElAnio ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </span>
+                  </button>
+                )}
+                {todoElAnio && (
+                  <p className="text-orange-400/80 text-xs -mt-2 px-1">
+                    Se crearán 12 entradas, una por cada mes de {anio}
+                  </p>
+                )}
+
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Concepto *</label>
                   <input type="text" value={gastoForm.concepto} onChange={e => setGastoForm(f => ({ ...f, concepto: e.target.value }))}
@@ -385,7 +439,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
               <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
                 <button type="button" onClick={() => setShowGastoModal(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>
                 <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                  {saving ? 'Guardando...' : gastoEditMode ? 'Guardar' : 'Añadir'}
+                  {saving ? 'Guardando...' : gastoEditMode ? 'Guardar' : todoElAnio ? `Añadir 12 meses` : 'Añadir'}
                 </button>
               </div>
             </form>
