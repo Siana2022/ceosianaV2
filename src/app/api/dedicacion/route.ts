@@ -26,12 +26,30 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
 
-  // Bulk upsert array of { id_empleado, id_departamento, porcentaje, mes, anio }
+  // Bulk replace: for each unique (id_empleado, mes, anio), delete existing then insert new
   const records = Array.isArray(body) ? body : [body]
 
+  // Find unique (id_empleado, mes, anio) combinations to replace
+  const combos = new Map<string, { id_empleado: string; mes: number; anio: number }>()
+  for (const r of records) {
+    const key = `${r.id_empleado}_${r.mes}_${r.anio}`
+    combos.set(key, { id_empleado: r.id_empleado, mes: r.mes, anio: r.anio })
+  }
+
+  // Delete existing records for each combo
+  for (const { id_empleado, mes, anio } of combos.values()) {
+    await supabase
+      .from('empleado_dedicacion')
+      .delete()
+      .eq('id_empleado', id_empleado)
+      .eq('mes', mes)
+      .eq('anio', anio)
+  }
+
+  // Insert new records
   const { data, error } = await supabase
     .from('empleado_dedicacion')
-    .upsert(records, { onConflict: 'id_empleado,id_departamento,mes,anio' })
+    .insert(records)
     .select()
 
   if (error) {
