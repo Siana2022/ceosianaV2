@@ -8,11 +8,9 @@ import { useRouter } from 'next/navigation'
 const menu = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/clientes', label: 'Clientes', icon: '🏢' },
-  { href: '/servicios', label: 'Servicios', icon: '📋' },
   { href: '/ingresos', label: 'Ingresos', icon: '💶' },
   { href: '/equipo', label: 'Equipo', icon: '👥' },
   { href: '/comercial', label: 'Comercial', icon: '🎯' },
-  { href: '/dedicacion', label: 'Dedicación', icon: '⏱️' },
   { href: '/departamentos', label: 'Departamentos', icon: '🗂️' },
   { href: '/costes', label: 'Costes', icon: '💰' },
   { href: '/administracion', label: 'Administración', icon: '🧾' },

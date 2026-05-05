@@ -24,7 +24,6 @@ export default async function ClienteDetailPage({
     { data: departamentos },
     { data: gastos },
     { data: miembrosDepto },
-    { data: tiposServicio },
     { data: todosConceptos },
   ] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
@@ -57,7 +56,6 @@ export default async function ClienteDetailPage({
     supabase
       .from('departamento_empleados')
       .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
-    supabase.from('tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('gastos_fijos').select('concepto, valor, tipo, id_departamento').order('anio', { ascending: false }).order('mes', { ascending: false }),
   ])
 
@@ -135,7 +133,6 @@ export default async function ClienteDetailPage({
       departamentos={departamentos ?? []}
       responsablesIniciales={responsablesData}
       empleadosPorDepartamento={empleadosPorDepartamento}
-      tiposServicio={tiposServicio ?? []}
       gastosExistentes={gastosExistentes}
       mrr={mrr}
       total_facturado={total_facturado}

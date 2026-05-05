@@ -15,10 +15,31 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
+async function saveDedicacion(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id_departamento: string,
+  empleados: { id_empleado: string; porcentaje: number }[]
+) {
+  if (empleados.length === 0) return
+  const anio = new Date().getFullYear()
+  const records = Array.from({ length: 12 }, (_, i) => i + 1).flatMap(mes =>
+    empleados.map(e => ({
+      id_empleado: e.id_empleado,
+      id_departamento,
+      porcentaje: e.porcentaje,
+      mes,
+      anio,
+    }))
+  )
+  await supabase
+    .from('empleado_dedicacion')
+    .upsert(records, { onConflict: 'id_empleado,id_departamento,mes,anio' })
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
-  const { nombre, empleado_ids } = body
+  const { nombre, empleados } = body // empleados: [{id_empleado, porcentaje}]
 
   const { data, error } = await supabase
     .from('departamentos')
@@ -31,11 +52,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Insert members
-  if (empleado_ids?.length > 0) {
+  if (empleados?.length > 0) {
     await supabase.from('departamento_empleados').insert(
-      empleado_ids.map((id_empleado: string) => ({ id_departamento: data.id, id_empleado }))
+      empleados.map((e: { id_empleado: string }) => ({ id_departamento: data.id, id_empleado: e.id_empleado }))
     )
+    await saveDedicacion(supabase, data.id, empleados)
   }
 
   return NextResponse.json(data)
@@ -44,7 +65,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
-  const { id, nombre, activo, empleado_ids } = body
+  const { id, nombre, activo, empleados } = body // empleados: [{id_empleado, porcentaje}]
 
   const updateData: Record<string, unknown> = {}
   if (nombre !== undefined) updateData.nombre = nombre
@@ -62,13 +83,14 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Sync members if provided
-  if (empleado_ids !== undefined) {
+  // Sync members + dedicacion if provided
+  if (empleados !== undefined) {
     await supabase.from('departamento_empleados').delete().eq('id_departamento', id)
-    if (empleado_ids.length > 0) {
+    if (empleados.length > 0) {
       await supabase.from('departamento_empleados').insert(
-        empleado_ids.map((id_empleado: string) => ({ id_departamento: id, id_empleado }))
+        empleados.map((e: { id_empleado: string }) => ({ id_departamento: id, id_empleado: e.id_empleado }))
       )
+      await saveDedicacion(supabase, id, empleados)
     }
   }
 

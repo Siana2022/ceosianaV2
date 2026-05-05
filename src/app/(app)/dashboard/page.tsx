@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/server/supabase'
+import EvolucionChart from '@/components/EvolucionChart'
+import BeneficioChart from '@/components/BeneficioChart'
 
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -16,36 +18,45 @@ export default async function DashboardPage({
 
   const supabase = await createClient()
 
-  // Parallel fetches
-  let ingresosQuery = supabase.from('ingresos').select('valor, mes, anio, id_cliente, concepto').eq('anio', year)
-  let sueldosQuery = supabase.from('sueldos').select('coste_total, mes, anio').eq('anio', year)
-  let gastosQuery = supabase.from('gastos_fijos').select('valor, mes, anio, concepto').eq('anio', year)
-  const clientesQuery = supabase.from('clientes').select('id, nombre')
-
-  if (mes) {
-    ingresosQuery = ingresosQuery.eq('mes', mes)
-    sueldosQuery = sueldosQuery.eq('mes', mes)
-    gastosQuery = gastosQuery.eq('mes', mes)
-  }
-
+  // Always fetch full year for charts; filter for KPIs client-side
   const [
-    { data: ingresos },
-    { data: sueldos },
-    { data: gastos },
+    { data: ingresosAno },
+    { data: sueldosAno },
+    { data: gastosAno },
     { data: clientes },
-  ] = await Promise.all([ingresosQuery, sueldosQuery, gastosQuery, clientesQuery])
+  ] = await Promise.all([
+    supabase.from('ingresos').select('valor, mes, anio, id_cliente').eq('anio', year),
+    supabase.from('sueldos').select('coste_total, mes, anio').eq('anio', year),
+    supabase.from('gastos_fijos').select('valor, mes, anio').eq('anio', year),
+    supabase.from('clientes').select('id, nombre'),
+  ])
 
-  const totalFacturacion = (ingresos ?? []).reduce((s, r) => s + Number(r.valor), 0)
-  const totalSueldos = (sueldos ?? []).reduce((s, r) => s + Number(r.coste_total), 0)
-  const totalGastos = (gastos ?? []).reduce((s, r) => s + Number(r.valor), 0)
-  const totalCostes = totalSueldos + totalGastos
-  const beneficio = totalFacturacion - totalCostes
-  const margen_pct = totalFacturacion > 0 ? (beneficio / totalFacturacion) * 100 : 0
+  // KPIs: filter by month if selected
+  const ingresosPeriod = mes ? (ingresosAno ?? []).filter(r => r.mes === mes) : (ingresosAno ?? [])
+  const sueldosPeriod  = mes ? (sueldosAno  ?? []).filter(r => r.mes === mes) : (sueldosAno  ?? [])
+  const gastosPeriod   = mes ? (gastosAno   ?? []).filter(r => r.mes === mes) : (gastosAno   ?? [])
+
+  const totalFacturacion = ingresosPeriod.reduce((s, r) => s + Number(r.valor), 0)
+  const totalSueldos     = sueldosPeriod.reduce((s, r)  => s + Number(r.coste_total), 0)
+  const totalGastos      = gastosPeriod.reduce((s, r)   => s + Number(r.valor), 0)
+  const totalCostes      = totalSueldos + totalGastos
+  const beneficio        = totalFacturacion - totalCostes
+  const margen_pct       = totalFacturacion > 0 ? (beneficio / totalFacturacion) * 100 : 0
+
+  // Monthly breakdown for charts (always full year)
+  const porMes = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1
+    const facMes  = (ingresosAno ?? []).filter(r => r.mes === m).reduce((s, r) => s + Number(r.valor), 0)
+    const sueMes  = (sueldosAno  ?? []).filter(r => r.mes === m).reduce((s, r) => s + Number(r.coste_total), 0)
+    const gasMes  = (gastosAno   ?? []).filter(r => r.mes === m).reduce((s, r) => s + Number(r.valor), 0)
+    const costesMes = sueMes + gasMes
+    return { mes: MESES_CORTO[i], facturacion: facMes, costes: costesMes, beneficio: facMes - costesMes }
+  })
 
   // Revenue by client
   const clienteMap = new Map((clientes ?? []).map(c => [c.id, c.nombre]))
   const revByClient = new Map<string, number>()
-  for (const r of ingresos ?? []) {
+  for (const r of ingresosPeriod) {
     if (!r.id_cliente) continue
     revByClient.set(r.id_cliente, (revByClient.get(r.id_cliente) ?? 0) + Number(r.valor))
   }
@@ -69,41 +80,20 @@ export default async function DashboardPage({
 
         {/* Period selector */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Year buttons */}
           {years.map(y => (
-            <a
-              key={y}
-              href={`/dashboard?year=${y}${mes ? `&mes=${mes}` : ''}`}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                y === year
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 hover:bg-gray-600 text-white'
-              }`}
-            >
+            <a key={y} href={`/dashboard?year=${y}${mes ? `&mes=${mes}` : ''}`}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${y === year ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'}`}>
               {y}
             </a>
           ))}
           <span className="text-gray-600">|</span>
-          {/* All year */}
-          <a
-            href={`/dashboard?year=${year}`}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              !mes ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-            }`}
-          >
+          <a href={`/dashboard?year=${year}`}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${!mes ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'}`}>
             Todo el año
           </a>
-          {/* Month buttons */}
           {MESES_CORTO.map((m, i) => (
-            <a
-              key={i}
-              href={`/dashboard?year=${year}&mes=${i + 1}`}
-              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                mes === i + 1
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-              }`}
-            >
+            <a key={i} href={`/dashboard?year=${year}&mes=${i + 1}`}
+              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${mes === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}>
               {m}
             </a>
           ))}
@@ -120,25 +110,23 @@ export default async function DashboardPage({
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Costes totales</p>
           <p className="text-2xl font-bold text-white mt-1">{fmt(totalCostes)}</p>
-          <p className="text-gray-500 text-xs mt-1">
-            Sueldos {fmt(totalSueldos)} · Gastos {fmt(totalGastos)}
-          </p>
+          <p className="text-gray-500 text-xs mt-1">Sueldos {fmt(totalSueldos)} · Gastos {fmt(totalGastos)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Beneficio</p>
-          <p className={`text-2xl font-bold mt-1 ${beneficio >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {fmt(beneficio)}
-          </p>
+          <p className={`text-2xl font-bold mt-1 ${beneficio >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(beneficio)}</p>
           <p className="text-gray-500 text-xs mt-1">{periodLabel}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Margen</p>
-          <p className={`text-2xl font-bold mt-1 ${margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {margen_pct.toFixed(1)}%
-          </p>
+          <p className={`text-2xl font-bold mt-1 ${margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>{margen_pct.toFixed(1)}%</p>
           <p className="text-gray-500 text-xs mt-1">sobre facturación</p>
         </div>
       </div>
+
+      {/* Charts */}
+      <EvolucionChart data={porMes} />
+      <BeneficioChart data={porMes} />
 
       {/* Top clients table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">

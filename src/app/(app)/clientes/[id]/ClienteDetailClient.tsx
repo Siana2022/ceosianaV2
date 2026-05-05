@@ -73,8 +73,6 @@ interface ResponsableData {
   porcentaje: number
 }
 
-interface TipoServicio { id: string; nombre: string }
-
 interface GastoRef {
   concepto: string
   valor: number
@@ -92,7 +90,6 @@ interface Props {
   departamentos: Departamento[]
   responsablesIniciales: ResponsableData[]
   empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]>
-  tiposServicio: TipoServicio[]
   gastosExistentes: GastoRef[]
   mrr: number
   total_facturado: number
@@ -128,7 +125,6 @@ export default function ClienteDetailClient({
   departamentos,
   responsablesIniciales,
   empleadosPorDepartamento,
-  tiposServicio,
   gastosExistentes,
   mrr,
   total_facturado,
@@ -268,7 +264,7 @@ export default function ClienteDetailClient({
         const res = await fetch('/api/ingresos', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: existing.id, valor, concepto: s.tipo_servicio?.nombre ?? s.nombre }),
+          body: JSON.stringify({ id: existing.id, valor, concepto: s.departamento?.nombre ?? s.nombre }),
         })
         if (res.ok) {
           const updated = await res.json()
@@ -429,7 +425,7 @@ export default function ClienteDetailClient({
   const [servicioMode, setServicioMode] = useState<'create' | 'edit'>('create')
   const [editServicioId, setEditServicioId] = useState<string | null>(null)
   const [servicioForm, setServicioForm] = useState({
-    id_tipo_servicio: '', tipo: 'recurrente' as 'recurrente' | 'oneshot',
+    tipo: 'recurrente' as 'recurrente' | 'oneshot',
     precio_base: '', id_departamento: '', fecha_inicio: '', fecha_fin: '', notas: '',
   })
   const [servicioResponsables, setServicioResponsables] = useState<string[]>([])
@@ -463,7 +459,7 @@ export default function ClienteDetailClient({
 
   const openCreateServicio = () => {
     setServicioMode('create'); setEditServicioId(null)
-    setServicioForm({ id_tipo_servicio: '', tipo: 'recurrente', precio_base: '', id_departamento: '', fecha_inicio: '', fecha_fin: '', notas: '' })
+    setServicioForm({ tipo: 'recurrente', precio_base: '', id_departamento: '', fecha_inicio: '', fecha_fin: '', notas: '' })
     setServicioResponsables([])
     setError(''); setShowServicioModal(true)
   }
@@ -471,7 +467,6 @@ export default function ClienteDetailClient({
   const openEditServicio = (s: Servicio) => {
     setServicioMode('edit'); setEditServicioId(s.id)
     setServicioForm({
-      id_tipo_servicio: s.tipo_servicio?.id ?? '',
       tipo: s.tipo,
       precio_base: s.precio_base?.toString() ?? '',
       id_departamento: s.departamento?.id ?? '',
@@ -485,16 +480,16 @@ export default function ClienteDetailClient({
 
   const saveServicio = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (servicioMode === 'create' && !servicioForm.id_tipo_servicio) { setError('Selecciona un tipo de servicio'); return }
+    if (!servicioForm.id_departamento) { setError('Selecciona un departamento'); return }
     setSaving(true); setError('')
     try {
-      const tipoNombre = tiposServicio.find(t => t.id === servicioForm.id_tipo_servicio)?.nombre ?? ''
+      const deptNombre = departamentos.find(d => d.id === servicioForm.id_departamento)?.nombre ?? ''
       const base = {
-        nombre: tipoNombre || (editServicioId ? undefined : ''),
-        id_tipo_servicio: servicioForm.id_tipo_servicio || null,
+        nombre: deptNombre,
+        id_tipo_servicio: null,
         tipo: servicioForm.tipo,
         precio_base: servicioForm.precio_base ? parseFloat(servicioForm.precio_base) : null,
-        id_departamento: servicioForm.id_departamento || null,
+        id_departamento: servicioForm.id_departamento,
         fecha_inicio: servicioForm.fecha_inicio || null,
         fecha_fin: servicioForm.fecha_fin || null,
         notas: servicioForm.notas || null,
@@ -656,7 +651,7 @@ export default function ClienteDetailClient({
                     <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 border-r border-gray-800/50">
                       <div className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.activo ? 'bg-green-400' : 'bg-gray-600'}`} />
-                        <span className="text-white font-medium truncate max-w-[140px]" title={s.tipo_servicio?.nombre ?? s.nombre}>{s.tipo_servicio?.nombre ?? s.nombre}</span>
+                        <span className="text-white font-medium truncate max-w-[140px]" title={s.departamento?.nombre ?? s.nombre}>{s.departamento?.nombre ?? s.nombre}</span>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5 ml-3.5">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.tipo === 'recurrente' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
@@ -877,7 +872,7 @@ export default function ClienteDetailClient({
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
               <div>
                 <h3 className="text-white font-semibold">Responsables — {year}</h3>
-                <p className="text-gray-400 text-xs mt-0.5">{respServicio.tipo_servicio?.nombre ?? respServicio.nombre}</p>
+                <p className="text-gray-400 text-xs mt-0.5">{respServicio.departamento?.nombre ?? respServicio.nombre}</p>
               </div>
               <button onClick={() => setRespServicio(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
@@ -1045,17 +1040,20 @@ export default function ClienteDetailClient({
               <div className="p-6 space-y-4">
                 {error && <div className="bg-red-900/30 border border-red-800 rounded-lg px-4 py-2 text-red-400 text-sm">{error}</div>}
 
-                {/* Tipo de servicio */}
+                {/* Departamento (= servicio) */}
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">Tipo de servicio *</label>
+                  <label className="block text-gray-400 text-sm mb-1">Departamento *</label>
                   <select
-                    value={servicioForm.id_tipo_servicio}
-                    onChange={e => setServicioForm(f => ({ ...f, id_tipo_servicio: e.target.value }))}
+                    value={servicioForm.id_departamento}
+                    onChange={e => {
+                      setServicioForm(f => ({ ...f, id_departamento: e.target.value }))
+                      setServicioResponsables([])
+                    }}
                     className={inputCls}
                     autoFocus
                   >
-                    <option value="">Selecciona un tipo…</option>
-                    {tiposServicio.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                    <option value="">Selecciona un departamento…</option>
+                    {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
                   </select>
                 </div>
 
@@ -1071,22 +1069,6 @@ export default function ClienteDetailClient({
                     <label className="block text-gray-400 text-sm mb-1">Precio para este cliente (€)</label>
                     <input type="number" min="0" step="0.01" value={servicioForm.precio_base} onChange={e => setServicioForm(f => ({ ...f, precio_base: e.target.value }))} className={inputCls} placeholder="0" />
                   </div>
-                </div>
-
-                {/* Departamento */}
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Departamento</label>
-                  <select
-                    value={servicioForm.id_departamento}
-                    onChange={e => {
-                      setServicioForm(f => ({ ...f, id_departamento: e.target.value }))
-                      setServicioResponsables([])
-                    }}
-                    className={inputCls}
-                  >
-                    <option value="">Sin departamento</option>
-                    {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-                  </select>
                 </div>
 
                 {/* Responsables — multi-checkbox */}
