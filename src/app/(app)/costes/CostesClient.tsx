@@ -166,6 +166,15 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     router.refresh()
   }
 
+  const handleDeleteConceptoRow = async (concepto: string) => {
+    const allGastos = Array.from(gastosDetail.get(concepto)?.values() ?? []).flat()
+    if (allGastos.length === 0) return
+    const plural = allGastos.length === 1 ? '1 entrada' : `${allGastos.length} entradas`
+    if (!confirm(`¿Eliminar "${concepto}" (${plural})?`)) return
+    await Promise.all(allGastos.map(g => fetch(`/api/costes?id=${g.id}`, { method: 'DELETE' })))
+    router.refresh()
+  }
+
   const handleCopiarMesAnterior = async () => {
     if (!confirm('¿Copiar los gastos fijos del mes anterior a este mes?')) return
     setCopying(true)
@@ -369,17 +378,18 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                   </th>
                 ))}
                 <th className="text-right text-gray-400 font-medium py-2.5 px-4 min-w-[80px]">Total</th>
+                <th className="text-center text-gray-400 font-medium py-2.5 px-2 min-w-[40px]"></th>
               </tr>
             </thead>
             <tbody>
               {conceptos.length === 0 && (
-                <tr><td colSpan={14} className="text-center text-gray-500 py-8">Sin entradas en {anio}</td></tr>
+                <tr><td colSpan={15} className="text-center text-gray-500 py-8">Sin entradas en {anio}</td></tr>
               )}
               {conceptos.map(concepto => {
                 const mesMap = matriz.get(concepto)!
                 const rowTotal = Array.from(mesMap.values()).reduce((a, b) => a + b, 0)
                 return (
-                  <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20">
+                  <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20 group">
                     <td className="py-1.5 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium truncate max-w-[180px]" title={concepto}>{concepto}</td>
                     {Array.from({ length: 12 }, (_, i) => {
                       const m = i + 1
@@ -423,6 +433,15 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                       )
                     })}
                     <td className="py-1.5 px-4 text-right text-white font-semibold">{fmt(rowTotal)}</td>
+                    <td className="py-1.5 px-2 text-center">
+                      <button
+                        onClick={() => handleDeleteConceptoRow(concepto)}
+                        title="Eliminar todas las entradas de este concepto"
+                        className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all text-xs px-1 py-0.5 rounded hover:bg-gray-700"
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -442,6 +461,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                     )
                   })}
                   <td className="py-3 px-4 text-right text-white font-bold">{fmt(totalGroup)}</td>
+                  <td />
                 </tr>
               </tfoot>
             )}
