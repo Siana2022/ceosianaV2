@@ -576,6 +576,48 @@ export default function ClienteDetailClient({
     router.refresh()
   }
 
+  const rellenarConPrecioBase = async (s: Servicio) => {
+    if (!s.precio_base || s.precio_base <= 0) return
+    const vaciosMeses = Array.from({ length: 12 }, (_, i) => i + 1).filter(mes => {
+      if (!isServiceActiveInMonth(s, mes, year)) return false
+      return !ingresoMap.has(`${s.id}_${mes}`)
+    })
+    if (vaciosMeses.length === 0) return
+    const results = await Promise.all(
+      vaciosMeses.map(mes =>
+        fetch('/api/ingresos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id_cliente: cliente.id,
+            id_servicio: s.id,
+            concepto: s.departamento?.nombre ?? s.nombre,
+            valor: s.precio_base,
+            mes,
+            anio: year,
+            id_departamento: s.departamento?.id ?? null,
+            id_responsable: s.responsable?.id ?? null,
+          }),
+        })
+      )
+    )
+    const created = await Promise.all(results.filter(r => r.ok).map(r => r.json()))
+    setIngresoMap(prev => {
+      const next = new Map(prev)
+      for (const result of created) {
+        const ing = Array.isArray(result) ? result[0] : result
+        if (ing?.id) {
+          next.set(`${s.id}_${ing.mes}`, {
+            id: ing.id, concepto: ing.concepto, valor: ing.valor,
+            mes: ing.mes, anio: ing.anio, id_servicio: ing.id_servicio,
+            id_departamento: ing.id_departamento, id_responsable: ing.id_responsable ?? null, notas: ing.notas ?? null,
+          })
+        }
+      }
+      return next
+    })
+  }
+
   const saveCaptacion = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError('')
@@ -776,6 +818,15 @@ export default function ClienteDetailClient({
                     </td>
                     <td className="py-2 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {s.tipo === 'recurrente' && s.precio_base && s.precio_base > 0 && (
+                          <button
+                            onClick={() => rellenarConPrecioBase(s)}
+                            title={`Rellenar meses vacíos con ${fmt(s.precio_base)}/mes`}
+                            className="text-gray-500 hover:text-yellow-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm"
+                          >
+                            ⚡
+                          </button>
+                        )}
                         <button
                           onClick={() => openRespModal(s)}
                           title="Gestionar responsables"
