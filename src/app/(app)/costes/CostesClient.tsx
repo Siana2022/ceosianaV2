@@ -129,7 +129,11 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
           )
         )
         const failed = results.find(r => !r.ok)
-        if (failed) { setError('Error al guardar algún mes'); return }
+        if (failed) {
+          const errData = await failed.json().catch(() => ({}))
+          setError(errData.error ?? 'Error al guardar algún mes')
+          return
+        }
       } else {
         const res = await fetch('/api/costes', {
           method: 'POST',
