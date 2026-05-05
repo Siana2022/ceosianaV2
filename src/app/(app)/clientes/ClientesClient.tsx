@@ -8,6 +8,8 @@ const fmt = (v: number) =>
 
 const today = () => new Date().toISOString().split('T')[0]
 
+const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
 interface Cliente {
   id: string
   nombre: string
@@ -29,6 +31,7 @@ interface Props {
   clientes: Cliente[]
   year: number
   years: number[]
+  month: number // 0 = todos los meses
 }
 
 type ModalMode = 'create' | 'edit'
@@ -39,7 +42,7 @@ interface FormState {
   notas: string
 }
 
-export default function ClientesClient({ clientes, year, years }: Props) {
+export default function ClientesClient({ clientes, year, years, month }: Props) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [mode, setMode] = useState<ModalMode>('create')
@@ -122,12 +125,34 @@ export default function ClientesClient({ clientes, year, years }: Props) {
             {years.map(y => (
               <a
                 key={y}
-                href={`/clientes?year=${y}`}
+                href={`/clientes?year=${y}${month > 0 ? `&month=${month}` : ''}`}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   y === year ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
                 }`}
               >
                 {y}
+              </a>
+            ))}
+          </div>
+          {/* Month selector */}
+          <div className="flex items-center gap-1 flex-wrap">
+            <a
+              href={`/clientes?year=${year}`}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                month === 0 ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+            >
+              Todos
+            </a>
+            {MESES_CORTO.map((m, i) => (
+              <a
+                key={i}
+                href={`/clientes?year=${year}&month=${i + 1}`}
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  month === i + 1 ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                }`}
+              >
+                {m}
               </a>
             ))}
           </div>
@@ -154,8 +179,10 @@ export default function ClientesClient({ clientes, year, years }: Props) {
             <thead>
               <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
                 <th className="text-left px-4 py-3">Cliente</th>
-                <th className="text-right px-4 py-3">MRR</th>
-                <th className="text-right px-4 py-3">Ingresos {year}</th>
+                <th className="text-right px-4 py-3">Fact. mensual</th>
+                <th className="text-right px-4 py-3">
+                  {month > 0 ? `Ingresos ${MESES_CORTO[month - 1]} ${year}` : `Ingresos ${year}`}
+                </th>
                 <th className="text-right px-4 py-3">Costes Dir.</th>
                 <th className="text-right px-4 py-3">Coste Personal</th>
                 <th className="text-right px-4 py-3">Resultado</th>

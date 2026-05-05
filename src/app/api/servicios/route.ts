@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
-  const { id_cliente, nombre, tipo, precio_base, id_departamento, id_responsable, fecha_inicio, notas } = body
+  const { id_cliente, nombre, tipo, precio_base, id_departamento, id_responsable, fecha_inicio, fecha_fin, notas } = body
 
   const { data, error } = await supabase
     .from('servicios')
-    .insert({ id_cliente, nombre, tipo, precio_base, id_departamento, id_responsable, fecha_inicio, notas })
+    .insert({ id_cliente, nombre, tipo, precio_base, id_departamento, id_responsable, fecha_inicio, fecha_fin, notas })
     .select('*, cliente:id_cliente(id,nombre), departamento:id_departamento(id,nombre), responsable:id_responsable(id,nombre)')
     .single()
 
@@ -44,11 +44,11 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
-  const { id, nombre, tipo, precio_base, id_departamento, id_responsable, fecha_fin, activo, notas } = body
+  const { id, nombre, tipo, precio_base, id_departamento, id_responsable, fecha_inicio, fecha_fin, activo, notas } = body
 
   const { data, error } = await supabase
     .from('servicios')
-    .update({ nombre, tipo, precio_base, id_departamento, id_responsable, fecha_fin, activo, notas })
+    .update({ nombre, tipo, precio_base, id_departamento, id_responsable, fecha_inicio, fecha_fin, activo, notas })
     .eq('id', id)
     .select('*, cliente:id_cliente(id,nombre), departamento:id_departamento(id,nombre), responsable:id_responsable(id,nombre)')
     .single()

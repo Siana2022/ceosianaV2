@@ -556,23 +556,105 @@ export default function ClienteDetailClient({
         }
       }
 
-      // Save base responsables if any selected
-      if (servicioResponsables.length > 0) {
-        await fetch('/api/servicio-responsables', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id_servicio: saved.id ?? editServicioId, mes: 0, anio: 0,
-            asignaciones: servicioResponsables.map(id => ({ id_empleado: id, porcentaje: Math.round(100 / servicioResponsables.length) })),
-          }),
+      // Save base responsables for all active months if any selected (only on create)
+      if (servicioMode === 'create' && servicioResponsables.length > 0) {
+        const serviceForCheck = {
+          fecha_inicio: servicioForm.fecha_inicio || null,
+          fecha_fin: servicioForm.fecha_fin || null,
+        } as Pick<Servicio, 'fecha_inicio' | 'fecha_fin'>
+        const activeMeses = Array.from({ length: 12 }, (_, i) => i + 1).filter(mes =>
+          isServiceActiveInMonth(serviceForCheck as Servicio, mes, year)
+        )
+        const asignaciones = servicioResponsables.map(id => ({
+          id_empleado: id,
+          porcentaje: Math.round(100 / servicioResponsables.length),
+        }))
+        await Promise.all(activeMeses.map(mes =>
+          fetch('/api/servicio-responsables', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_servicio: saved.id, mes, anio: year, asignaciones }),
+          })
+        ))
+        // Update local responsablesMap
+        setResponsablesMap(prev => {
+          const next = new Map(prev)
+          const savedResps = asignaciones.map(a => ({
+            id_empleado: a.id_empleado,
+            nombre: empleados.find(e => e.id === a.id_empleado)?.nombre ?? '',
+            porcentaje: a.porcentaje,
+          }))
+          for (const mes of activeMeses) {
+            next.set(`${saved.id}_${mes}`, savedResps)
+          }
+          return next
         })
       }
+
+      // Auto-fill ingreso for oneshot with precio_base + fecha_inicio
+      if (servicioMode === 'create' && servicioForm.tipo === 'oneshot') {
+        const precio = servicioForm.precio_base ? parseFloat(servicioForm.precio_base) : 0
+        if (precio > 0 && servicioForm.fecha_inicio) {
+          const parts = servicioForm.fecha_inicio.split('-')
+          const anioInicio = parseInt(parts[0])
+          const mesInicio = parseInt(parts[1])
+          if (anioInicio === year && mesInicio >= 1 && mesInicio <= 12) {
+            const res = await fetch('/api/ingresos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id_cliente: cliente.id,
+                id_servicio: saved.id,
+                concepto: deptNombre,
+                valor: precio,
+                mes: mesInicio,
+                anio: year,
+                id_departamento: servicioForm.id_departamento || null,
+              }),
+            })
+            if (res.ok) {
+              const result = await res.json()
+              const ing = Array.isArray(result) ? result[0] : result
+              if (ing?.id) {
+                setIngresoMap(prev => {
+                  const next = new Map(prev)
+                  next.set(`${saved.id}_${mesInicio}`, {
+                    id: ing.id, concepto: ing.concepto, valor: ing.valor,
+                    mes: ing.mes, anio: ing.anio, id_servicio: ing.id_servicio,
+                    id_departamento: ing.id_departamento, id_responsable: ing.id_responsable ?? null, notas: ing.notas ?? null,
+                  })
+                  return next
+                })
+              }
+            }
+          }
+        }
+      }
+
       setShowServicioModal(false); router.refresh()
     } finally { setSaving(false) }
   }
 
   const toggleServicioActivo = async (s: Servicio) => {
     await fetch('/api/servicios', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.id, activo: !s.activo }) })
+    router.refresh()
+  }
+
+  const deleteServicio = async (s: Servicio) => {
+    const label = s.departamento?.nombre ?? s.nombre
+    if (!confirm(`¿Eliminar el servicio "${label}"?\nSe eliminarán también todos sus ingresos registrados.`)) return
+    // Delete ingresos associated to this service from local state
+    const keysToDelete = Array.from(ingresoMap.keys()).filter(k => k.startsWith(`${s.id}_`))
+    const ingresoIds = keysToDelete.map(k => ingresoMap.get(k)!.id)
+    await Promise.all([
+      ...ingresoIds.map(id => fetch(`/api/ingresos?id=${id}`, { method: 'DELETE' })),
+      fetch(`/api/servicios?id=${s.id}`, { method: 'DELETE' }),
+    ])
+    setIngresoMap(prev => {
+      const next = new Map(prev)
+      keysToDelete.forEach(k => next.delete(k))
+      return next
+    })
     router.refresh()
   }
 
@@ -676,7 +758,7 @@ export default function ClienteDetailClient({
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">MRR</p>
+          <p className="text-gray-400 text-sm">Facturación mensual</p>
           <p className={`text-2xl font-bold mt-1 ${mrr > 0 ? 'text-green-400' : 'text-gray-500'}`}>{fmt(mrr)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
@@ -835,9 +917,10 @@ export default function ClienteDetailClient({
                           👥
                         </button>
                         <button onClick={() => openEditServicio(s)} className="text-gray-500 hover:text-white px-1.5 py-1 rounded hover:bg-gray-700 transition-colors">✏️</button>
-                        <button onClick={() => toggleServicioActivo(s)} className={`px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-[10px] ${s.activo ? 'text-gray-500 hover:text-red-400' : 'text-gray-600 hover:text-green-400'}`}>
+                        <button onClick={() => toggleServicioActivo(s)} className={`px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-[10px] ${s.activo ? 'text-gray-500 hover:text-orange-400' : 'text-gray-600 hover:text-green-400'}`}>
                           {s.activo ? 'OFF' : 'ON'}
                         </button>
+                        <button onClick={() => deleteServicio(s)} className="text-gray-600 hover:text-red-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-xs" title="Eliminar servicio">🗑</button>
                       </div>
                     </td>
                   </tr>
@@ -899,61 +982,98 @@ export default function ClienteDetailClient({
         </div>
       </div>
 
-      {/* Costes imputados */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <div>
-            <h3 className="text-white font-semibold">Costes imputados {year}</h3>
-            <p className="text-gray-500 text-xs mt-0.5">Gastos de la agencia asignados a este cliente</p>
+      {/* Costes imputados — tabla pivot */}
+      {(() => {
+        const conceptos = [...new Set(localGastos.map(g => g.concepto))].sort()
+        const gastosByConceptoMes = new Map<string, Map<number, { id: string; valor: number }>>()
+        for (const g of localGastos) {
+          if (!gastosByConceptoMes.has(g.concepto)) gastosByConceptoMes.set(g.concepto, new Map())
+          const prev = gastosByConceptoMes.get(g.concepto)!.get(g.mes)
+          gastosByConceptoMes.get(g.concepto)!.set(g.mes, {
+            id: g.id,
+            valor: (prev?.valor ?? 0) + Number(g.valor),
+          })
+        }
+        const monthTotals = Array.from({ length: 12 }, (_, i) => {
+          const mes = i + 1
+          return conceptos.reduce((s, c) => s + (gastosByConceptoMes.get(c)?.get(mes)?.valor ?? 0), 0)
+        })
+        const deleteConceptoGastos = async (concepto: string) => {
+          if (!confirm(`¿Eliminar todos los gastos de "${concepto}"?`)) return
+          const ids = localGastos.filter(g => g.concepto === concepto).map(g => g.id)
+          await Promise.all(ids.map(id => fetch(`/api/costes?id=${id}`, { method: 'DELETE' })))
+          setLocalGastos(prev => prev.filter(g => g.concepto !== concepto))
+        }
+        return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <div>
+                <h3 className="text-white font-semibold">Costes imputados {year}</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Gastos de la agencia asignados a este cliente · añádelos desde Costes</p>
+              </div>
+              <span className="text-red-400 font-bold text-lg">{fmt(localTotalCostes)}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-800/50 text-gray-400 uppercase tracking-wide">
+                    <th className="text-left px-4 py-2.5 sticky left-0 bg-gray-800/50 z-10 min-w-[160px]">Concepto</th>
+                    {MESES_CORTO.map(m => <th key={m} className="text-right px-2 py-2.5 min-w-[64px]">{m}</th>)}
+                    <th className="text-right px-4 py-2.5 min-w-[72px]">Total</th>
+                    <th className="px-3 py-2.5 w-8" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {conceptos.length === 0 && (
+                    <tr><td colSpan={15} className="text-center text-gray-500 py-8">Sin gastos imputados en {year}</td></tr>
+                  )}
+                  {conceptos.map(concepto => {
+                    const mesMap = gastosByConceptoMes.get(concepto)!
+                    const rowTotal = Array.from(mesMap.values()).reduce((s, v) => s + v.valor, 0)
+                    return (
+                      <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20 group">
+                        <td className="px-4 py-2 sticky left-0 bg-gray-900 group-hover:bg-gray-800/20 z-10 border-r border-gray-800/30">
+                          <span className="text-white font-medium">{concepto}</span>
+                        </td>
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const v = mesMap.get(i + 1)
+                          return (
+                            <td key={i} className="px-2 py-2 text-right">
+                              {v ? <span className="text-red-400 font-medium">{fmt(v.valor)}</span> : <span className="text-gray-700">—</span>}
+                            </td>
+                          )
+                        })}
+                        <td className="px-4 py-2 text-right text-red-400 font-bold">{fmt(rowTotal)}</td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            onClick={() => deleteConceptoGastos(concepto)}
+                            className="text-gray-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 px-1"
+                            title="Eliminar concepto"
+                          >✕</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                {conceptos.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-700 bg-gray-800/30">
+                      <td className="px-4 py-3 sticky left-0 bg-gray-800/30 z-10 text-gray-400 font-semibold text-xs uppercase">Total</td>
+                      {monthTotals.map((t, i) => (
+                        <td key={i} className="px-2 py-3 text-right">
+                          {t > 0 ? <span className="text-white font-bold">{fmt(t)}</span> : <span className="text-gray-700">—</span>}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 text-right text-white font-bold">{fmt(localTotalCostes)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
           </div>
-          <button onClick={openCreateGasto}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
-            + Añadir gasto
-          </button>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-              <th className="text-left px-6 py-3">Concepto</th>
-              <th className="text-left px-4 py-3">Tipo</th>
-              <th className="text-left px-4 py-3">Mes</th>
-              <th className="text-right px-6 py-3">Valor</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {localGastos.length === 0 && (
-              <tr><td colSpan={5} className="text-center text-gray-500 py-8 text-sm">Sin gastos imputados en {year}</td></tr>
-            )}
-            {localGastos.map(g => (
-              <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="px-6 py-3 text-white">{g.concepto}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded ${
-                    g.tipo === 'comision' ? 'bg-orange-900/50 text-orange-400' :
-                    g.tipo === 'departamento' ? 'bg-blue-900/50 text-blue-400' :
-                    'bg-gray-700 text-gray-300'
-                  }`}>{g.tipo}</span>
-                </td>
-                <td className="px-4 py-3 text-gray-400">{MESES_CORTO[g.mes - 1]}</td>
-                <td className="px-6 py-3 text-right text-red-400 font-medium">{fmt(Number(g.valor))}</td>
-                <td className="px-4 py-3 text-center">
-                  <button onClick={() => deleteGasto(g.id)} className="text-gray-600 hover:text-red-400 text-xs px-1.5 py-1 rounded hover:bg-gray-700 transition-colors">✕</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          {localGastos.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-gray-700 bg-gray-800/30">
-                <td colSpan={3} className="px-6 py-3 text-gray-400 text-sm font-medium">Total costes</td>
-                <td className="px-6 py-3 text-right text-white font-bold">{fmt(localTotalCostes)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+        )
+      })()}
 
       {/* Captacion */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">

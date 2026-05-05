@@ -4,19 +4,19 @@ import ClientesClient from './ClientesClient'
 export default async function ClientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>
+  searchParams: Promise<{ year?: string; month?: string }>
 }) {
-  const { year: yearParam } = await searchParams
+  const { year: yearParam, month: monthParam } = await searchParams
   const year = parseInt(yearParam ?? String(new Date().getFullYear()))
+  const month = parseInt(monthParam ?? '0') || 0
 
   const supabase = await createClient()
 
+  // Base queries (no month filter)
   const [
     { data: clientes },
     { data: servicios },
     { data: captacion },
-    { data: ingresos },
-    { data: gastosFijos },
     { data: responsables },
     { data: sueldos },
   ] = await Promise.all([
@@ -26,16 +26,6 @@ export default async function ClientesPage({
       .from('captacion_clientes')
       .select('id_cliente, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)'),
     supabase
-      .from('ingresos')
-      .select('valor, mes, id_cliente')
-      .eq('anio', year)
-      .not('id_cliente', 'is', null),
-    supabase
-      .from('gastos_fijos')
-      .select('valor, id_cliente')
-      .eq('anio', year)
-      .not('id_cliente', 'is', null),
-    supabase
       .from('servicio_responsables')
       .select('id_servicio, id_empleado, porcentaje, mes')
       .eq('anio', year),
@@ -44,6 +34,23 @@ export default async function ClientesPage({
       .select('id_empleado, coste_total, mes')
       .eq('anio', year),
   ])
+
+  // Month-filtered queries
+  let ingresosQ = supabase
+    .from('ingresos')
+    .select('valor, mes, id_cliente')
+    .eq('anio', year)
+    .not('id_cliente', 'is', null)
+  if (month > 0) ingresosQ = ingresosQ.eq('mes', month)
+  const { data: ingresos } = await ingresosQ
+
+  let gastosQ = supabase
+    .from('gastos_fijos')
+    .select('valor, id_cliente')
+    .eq('anio', year)
+    .not('id_cliente', 'is', null)
+  if (month > 0) gastosQ = gastosQ.eq('mes', month)
+  const { data: gastosFijos } = await gastosQ
 
   // Build a map of client_id -> mrr, num_servicios
   // Also service_id -> id_cliente map for responsables linkage
@@ -76,7 +83,7 @@ export default async function ClientesPage({
     ingresosByCliente.set(ing.id_cliente, (ingresosByCliente.get(ing.id_cliente) ?? 0) + Number(ing.valor))
   }
 
-  // Gastos directos by client (comisiones + gastos cliente)
+  // Gastos directos by client
   const gastosByCliente = new Map<string, number>()
   for (const g of gastosFijos ?? []) {
     if (!g.id_cliente) continue
@@ -89,10 +96,13 @@ export default async function ClientesPage({
     sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total))
   }
 
-  // Coste personal by client: for each responsable of each service of this client,
-  // sum over months of (sueldo_empleado_mes × responsable_pct/100)
+  // Coste personal by client filtered by month if set
+  const filteredResponsables = month > 0
+    ? (responsables ?? []).filter(r => r.mes === month)
+    : (responsables ?? [])
+
   const costePersonalByCliente = new Map<string, number>()
-  for (const r of responsables ?? []) {
+  for (const r of filteredResponsables) {
     const clienteId = servicioClienteMap.get(r.id_servicio)
     if (!clienteId) continue
     const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
@@ -124,5 +134,5 @@ export default async function ClientesPage({
   const currentYear = new Date().getFullYear()
   const years = [currentYear - 1, currentYear, currentYear + 1]
 
-  return <ClientesClient clientes={enriched} year={year} years={years} />
+  return <ClientesClient clientes={enriched} year={year} years={years} month={month} />
 }
