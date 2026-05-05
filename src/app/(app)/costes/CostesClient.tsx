@@ -529,6 +529,26 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
         <p className="text-gray-400 text-sm mt-1">{vistaAnual ? `Año completo ${anio}` : `${MESES[(mes ?? 1) - 1]} ${anio}`}</p>
       </div>
 
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Gastos Fijos',    value: totalGastosFijos,        color: 'text-orange-400' },
+          { label: 'Sueldos',         value: totalSueldos,            color: 'text-blue-400'   },
+          { label: 'Comisiones',      value: totalGastosComisiones,   color: 'text-purple-400' },
+          { label: 'Departamentos',   value: totalGastosDepartamentos,color: 'text-cyan-400'   },
+          { label: 'Clientes',        value: totalGastosClientes,     color: 'text-yellow-400' },
+          { label: 'TOTAL',           value: totalCombinado,          color: 'text-red-400', bold: true },
+        ].map(({ label, value, color, bold }) => (
+          <div key={label} className={`bg-gray-900 border rounded-xl p-4 ${bold ? 'border-gray-600' : 'border-gray-800'}`}>
+            <p className="text-gray-400 text-xs font-medium">{label}</p>
+            <p className={`text-xl font-bold mt-1 ${color} ${bold ? 'text-2xl' : ''}`}>{fmt(value)}</p>
+            {!bold && totalCombinado > 0 && (
+              <p className="text-gray-600 text-[10px] mt-0.5">{((value / totalCombinado) * 100).toFixed(1)}% del total</p>
+            )}
+          </div>
+        ))}
+      </div>
+
       {/* Month selector */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
         <div className="flex items-center gap-2 flex-wrap">
