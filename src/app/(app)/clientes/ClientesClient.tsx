@@ -18,10 +18,17 @@ interface Cliente {
   num_servicios: number
   captador_nombre: string
   mantenedor_nombre: string
+  ingresos_total: number
+  gastos_directos: number
+  coste_personal: number
+  resultado: number
+  margen_pct: number
 }
 
 interface Props {
   clientes: Cliente[]
+  year: number
+  years: number[]
 }
 
 type ModalMode = 'create' | 'edit'
@@ -32,7 +39,7 @@ interface FormState {
   notas: string
 }
 
-export default function ClientesClient({ clientes }: Props) {
+export default function ClientesClient({ clientes, year, years }: Props) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [mode, setMode] = useState<ModalMode>('create')
@@ -109,7 +116,21 @@ export default function ClientesClient({ clientes }: Props) {
           <h2 className="text-2xl font-bold text-white">Clientes</h2>
           <p className="text-gray-400 text-sm mt-1">{clientes.length} clientes · {clientes.filter(c => c.activo).length} activos</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Year selector */}
+          <div className="flex items-center gap-1">
+            {years.map(y => (
+              <a
+                key={y}
+                href={`/clientes?year=${y}`}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  y === year ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                }`}
+              >
+                {y}
+              </a>
+            ))}
+          </div>
           <input
             type="text"
             placeholder="Buscar cliente..."
@@ -128,71 +149,103 @@ export default function ClientesClient({ clientes }: Props) {
 
       {/* Table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-              <th className="text-left px-6 py-3">Cliente</th>
-              <th className="text-right px-6 py-3">MRR</th>
-              <th className="text-right px-6 py-3">Servicios</th>
-              <th className="text-left px-6 py-3">Captador</th>
-              <th className="text-left px-6 py-3">Mantenedor</th>
-              <th className="text-center px-6 py-3">Estado</th>
-              <th className="text-center px-6 py-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={7} className="text-center text-gray-500 py-12">No hay clientes</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                <th className="text-left px-4 py-3">Cliente</th>
+                <th className="text-right px-4 py-3">MRR</th>
+                <th className="text-right px-4 py-3">Ingresos {year}</th>
+                <th className="text-right px-4 py-3">Costes Dir.</th>
+                <th className="text-right px-4 py-3">Coste Personal</th>
+                <th className="text-right px-4 py-3">Resultado</th>
+                <th className="text-right px-4 py-3">Margen %</th>
+                <th className="text-left px-4 py-3">Captador</th>
+                <th className="text-left px-4 py-3">Mantenedor</th>
+                <th className="text-center px-4 py-3">Estado</th>
+                <th className="text-center px-4 py-3">Acciones</th>
               </tr>
-            )}
-            {filtered.map(c => (
-              <tr
-                key={c.id}
-                onClick={() => router.push(`/clientes/${c.id}`)}
-                className="border-b border-gray-800/50 hover:bg-gray-800/40 cursor-pointer transition-colors"
-              >
-                <td className="px-6 py-3">
-                  <span className="text-white font-medium">{c.nombre}</span>
-                  {c.fecha_alta && (
-                    <span className="block text-gray-500 text-xs mt-0.5">Alta: {c.fecha_alta}</span>
-                  )}
-                </td>
-                <td className="px-6 py-3 text-right">
-                  <span className={c.mrr > 0 ? 'text-green-400 font-semibold' : 'text-gray-500'}>
-                    {fmt(c.mrr)}
-                  </span>
-                </td>
-                <td className="px-6 py-3 text-right text-gray-300">{c.num_servicios}</td>
-                <td className="px-6 py-3 text-gray-300">{c.captador_nombre || <span className="text-gray-600">—</span>}</td>
-                <td className="px-6 py-3 text-gray-300">{c.mantenedor_nombre || <span className="text-gray-600">—</span>}</td>
-                <td className="px-6 py-3 text-center">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    c.activo ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-500'
-                  }`}>
-                    {c.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-6 py-3 text-center">
-                  <div className="flex items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={e => openEdit(c, e)}
-                      className="text-gray-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-700 text-xs"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={e => toggleActivo(c, e)}
-                      className="text-gray-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-700 text-xs"
-                    >
-                      {c.activo ? 'Desactivar' : 'Activar'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="text-center text-gray-500 py-12">No hay clientes</td>
+                </tr>
+              )}
+              {filtered.map(c => (
+                <tr
+                  key={c.id}
+                  onClick={() => router.push(`/clientes/${c.id}`)}
+                  className="border-b border-gray-800/50 hover:bg-gray-800/40 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3">
+                    <span className="text-white font-medium">{c.nombre}</span>
+                    {c.fecha_alta && (
+                      <span className="block text-gray-500 text-xs mt-0.5">Alta: {c.fecha_alta}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={c.mrr > 0 ? 'text-green-400 font-semibold' : 'text-gray-500'}>
+                      {fmt(c.mrr)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-white">
+                    {c.ingresos_total > 0 ? fmt(c.ingresos_total) : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right text-orange-400">
+                    {c.gastos_directos > 0 ? fmt(c.gastos_directos) : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right text-orange-400">
+                    {c.coste_personal > 0 ? fmt(c.coste_personal) : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {c.ingresos_total > 0 ? (
+                      <span className={`font-semibold ${c.resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {fmt(c.resultado)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {c.ingresos_total > 0 ? (
+                      <span className={`font-semibold ${c.margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {c.margen_pct.toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">{c.captador_nombre || <span className="text-gray-600">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-300">{c.mantenedor_nombre || <span className="text-gray-600">—</span>}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      c.activo ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-500'
+                    }`}>
+                      {c.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={e => openEdit(c, e)}
+                        className="text-gray-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-700 text-xs"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={e => toggleActivo(c, e)}
+                        className="text-gray-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-700 text-xs"
+                      >
+                        {c.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal */}

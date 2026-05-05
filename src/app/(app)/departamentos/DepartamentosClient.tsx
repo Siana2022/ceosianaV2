@@ -3,16 +3,34 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+const fmt = (v: number) =>
+  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+
 type Empleado = { id: string; nombre: string }
 type Miembro = { id: string; nombre: string; porcentaje: number }
 type Departamento = { id: string; nombre: string; activo: boolean; miembros: Miembro[] }
 
+interface DeptRentabilidad {
+  id: string
+  nombre: string
+  ingresos: number
+  costePersonal: number
+  gastosPropios: number
+  costTotal: number
+  resultado: number
+  margenPct: number
+}
+
 export default function DepartamentosClient({
   departamentos,
   empleados,
+  rentabilidad,
+  anio,
 }: {
   departamentos: Departamento[]
   empleados: Empleado[]
+  rentabilidad: DeptRentabilidad[]
+  anio: number
 }) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
@@ -97,6 +115,8 @@ export default function DepartamentosClient({
     router.refresh()
   }
 
+  const deptWithData = rentabilidad.filter(r => r.ingresos > 0 || r.costTotal > 0)
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -112,6 +132,69 @@ export default function DepartamentosClient({
           + Nuevo departamento
         </button>
       </div>
+
+      {/* Rentabilidad por departamento */}
+      {rentabilidad.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-800">
+            <h3 className="text-white font-semibold">Rentabilidad por departamento — {anio}</h3>
+            <p className="text-gray-500 text-xs mt-0.5">Ingresos, costes de personal y gastos propios del año</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                  <th className="text-left px-4 py-3">Departamento</th>
+                  <th className="text-right px-4 py-3">Ingresos</th>
+                  <th className="text-right px-4 py-3">Coste Personal</th>
+                  <th className="text-right px-4 py-3">Gastos Propios</th>
+                  <th className="text-right px-4 py-3">Resultado</th>
+                  <th className="text-right px-4 py-3">Margen %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(deptWithData.length > 0 ? deptWithData : rentabilidad).map(r => (
+                  <tr key={r.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                    <td className="px-4 py-3 text-white font-medium">{r.nombre}</td>
+                    <td className="px-4 py-3 text-right text-white">{fmt(r.ingresos)}</td>
+                    <td className="px-4 py-3 text-right text-orange-400">{fmt(r.costePersonal)}</td>
+                    <td className="px-4 py-3 text-right text-orange-400">{fmt(r.gastosPropios)}</td>
+                    <td className={`px-4 py-3 text-right font-semibold ${r.resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {fmt(r.resultado)}
+                    </td>
+                    <td className={`px-4 py-3 text-right font-semibold ${r.margenPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {r.ingresos > 0 ? `${r.margenPct.toFixed(1)}%` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              {rentabilidad.length > 1 && (() => {
+                const totIngresos = rentabilidad.reduce((s, r) => s + r.ingresos, 0)
+                const totPersonal = rentabilidad.reduce((s, r) => s + r.costePersonal, 0)
+                const totGastos = rentabilidad.reduce((s, r) => s + r.gastosPropios, 0)
+                const totResultado = rentabilidad.reduce((s, r) => s + r.resultado, 0)
+                const totMargen = totIngresos > 0 ? (totResultado / totIngresos) * 100 : 0
+                return (
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-700 bg-gray-800/50">
+                      <td className="px-4 py-3 text-white font-bold">Total</td>
+                      <td className="px-4 py-3 text-right text-white font-bold">{fmt(totIngresos)}</td>
+                      <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(totPersonal)}</td>
+                      <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(totGastos)}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${totResultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {fmt(totResultado)}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-bold ${totMargen >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {totIngresos > 0 ? `${totMargen.toFixed(1)}%` : '—'}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )
+              })()}
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

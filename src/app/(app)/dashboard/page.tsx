@@ -50,7 +50,17 @@ export default async function DashboardPage({
     const sueMes  = (sueldosAno  ?? []).filter(r => r.mes === m).reduce((s, r) => s + Number(r.coste_total), 0)
     const gasMes  = (gastosAno   ?? []).filter(r => r.mes === m).reduce((s, r) => s + Number(r.valor), 0)
     const costesMes = sueMes + gasMes
-    return { mes: MESES_CORTO[i], facturacion: facMes, costes: costesMes, beneficio: facMes - costesMes }
+    const resultadoMes = facMes - costesMes
+    const margenMes = facMes > 0 ? (resultadoMes / facMes) * 100 : 0
+    return {
+      mes: MESES_CORTO[i],
+      facturacion: facMes,
+      gastosFijos: gasMes,
+      sueldos: sueMes,
+      costes: costesMes,
+      beneficio: resultadoMes,
+      margen: margenMes,
+    }
   })
 
   // Revenue by client
@@ -127,6 +137,61 @@ export default async function DashboardPage({
       {/* Charts */}
       <EvolucionChart data={porMes} />
       <BeneficioChart data={porMes} />
+
+      {/* Monthly P&L table */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-800">
+          <h3 className="text-white font-semibold">P&amp;L mensual — {year}</h3>
+          <p className="text-gray-500 text-xs mt-0.5">Ingresos, costes y resultado por mes</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                <th className="text-left px-4 py-3">Mes</th>
+                <th className="text-right px-4 py-3">Ingresos</th>
+                <th className="text-right px-4 py-3">Gastos Fijos</th>
+                <th className="text-right px-4 py-3">Sueldos</th>
+                <th className="text-right px-4 py-3">Costes Total</th>
+                <th className="text-right px-4 py-3">Resultado</th>
+                <th className="text-right px-4 py-3">Margen %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {porMes.map((row, idx) => (
+                <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td className="px-4 py-3 text-gray-300 font-medium">{row.mes}</td>
+                  <td className="px-4 py-3 text-right text-white">{fmt(row.facturacion)}</td>
+                  <td className="px-4 py-3 text-right text-orange-400">{fmt(row.gastosFijos)}</td>
+                  <td className="px-4 py-3 text-right text-orange-400">{fmt(row.sueldos)}</td>
+                  <td className="px-4 py-3 text-right text-red-400">{fmt(row.costes)}</td>
+                  <td className={`px-4 py-3 text-right font-semibold ${row.beneficio >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {fmt(row.beneficio)}
+                  </td>
+                  <td className={`px-4 py-3 text-right font-semibold ${row.margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {row.facturacion > 0 ? `${row.margen.toFixed(1)}%` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-700 bg-gray-800/50">
+                <td className="px-4 py-3 text-white font-bold">Total</td>
+                <td className="px-4 py-3 text-right text-white font-bold">{fmt(totalFacturacion)}</td>
+                <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(totalGastos)}</td>
+                <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(totalSueldos)}</td>
+                <td className="px-4 py-3 text-right text-red-400 font-bold">{fmt(totalCostes)}</td>
+                <td className={`px-4 py-3 text-right font-bold ${beneficio >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {fmt(beneficio)}
+                </td>
+                <td className={`px-4 py-3 text-right font-bold ${margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {totalFacturacion > 0 ? `${margen_pct.toFixed(1)}%` : '—'}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
 
       {/* Top clients table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
