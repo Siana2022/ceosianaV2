@@ -202,25 +202,23 @@ export default function DedicacionClient({ empleados, departamentos, dedicacion,
                           {depts.length === 0 ? (
                             <span className="text-gray-700">—</span>
                           ) : (
-                            <div className="space-y-0.5">
-                              {/* Total % with color */}
-                              <div className="flex items-center justify-center gap-1">
-                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor(totalPct)}`} />
-                                <span className={`font-mono text-[11px] font-semibold ${pctColor(totalPct)}`}>
-                                  {totalPct}%
-                                </span>
-                              </div>
-                              {/* Dept abbreviations */}
-                              <div className="flex flex-wrap justify-center gap-0.5">
-                                {depts.map(d => (
-                                  <span
-                                    key={d.id_departamento}
-                                    className="text-[9px] text-gray-500 leading-tight truncate max-w-[72px]"
-                                  >
-                                    {deptNombre(d.id_departamento).substring(0, 8)}
+                            <div className="space-y-0.5 px-0.5">
+                              {depts.map(d => (
+                                <div key={d.id_departamento} className="flex items-center justify-between gap-1 min-w-0">
+                                  <span className="text-[9px] text-gray-500 truncate leading-tight" style={{maxWidth:'46px'}}>
+                                    {deptNombre(d.id_departamento).substring(0, 7)}
                                   </span>
-                                ))}
-                              </div>
+                                  <span className={`text-[10px] font-mono font-semibold flex-shrink-0 ${
+                                    totalPct === 100 ? 'text-green-400' : 'text-yellow-400'
+                                  }`}>{d.porcentaje}%</span>
+                                </div>
+                              ))}
+                              {depts.length > 1 && (
+                                <div className="flex items-center justify-center gap-0.5 pt-0.5 border-t border-gray-700/40 mt-0.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor(totalPct)}`} />
+                                  <span className={`text-[10px] font-mono font-bold ${pctColor(totalPct)}`}>{totalPct}%</span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </button>

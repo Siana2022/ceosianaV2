@@ -649,9 +649,12 @@ export default function ClienteDetailClient({
                   {/* Billing row */}
                   <tr key={s.id} className={`border-b border-gray-800/30 ${s.activo ? 'hover:bg-gray-800/20' : 'opacity-50'}`}>
                     <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 border-r border-gray-800/50">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.activo ? 'bg-green-400' : 'bg-gray-600'}`} />
-                        <span className="text-white font-medium truncate max-w-[140px]" title={s.departamento?.nombre ?? s.nombre}>{s.departamento?.nombre ?? s.nombre}</span>
+                      <div className="flex items-start gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${s.activo ? 'bg-green-400' : 'bg-gray-600'}`} />
+                        <div className="min-w-0">
+                          <p className="text-white font-medium truncate max-w-[140px]" title={s.departamento?.nombre ?? s.nombre}>{s.departamento?.nombre ?? s.nombre}</p>
+                          {s.notas && <p className="text-gray-400 text-[11px] truncate max-w-[140px] mt-0.5 leading-tight" title={s.notas}>{s.notas}</p>}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5 ml-3.5">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.tipo === 'recurrente' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
@@ -1121,8 +1124,8 @@ export default function ClienteDetailClient({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">Notas</label>
-                  <textarea value={servicioForm.notas} onChange={e => setServicioForm(f => ({ ...f, notas: e.target.value }))} rows={2} className={`${inputCls} resize-none`} />
+                  <label className="block text-gray-400 text-sm mb-1">Asunto / descripción del servicio</label>
+                  <textarea value={servicioForm.notas} onChange={e => setServicioForm(f => ({ ...f, notas: e.target.value }))} rows={2} className={`${inputCls} resize-none`} placeholder="Ej: Gestión Google Ads, Redacción blog, Diseño web..." />
                 </div>
               </div>
               <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">

@@ -12,6 +12,10 @@ type Empleado = {
   fecha_baja: string | null
   sueldo_actual: number | null
   total_anual: number
+  num_proyectos: number
+  facturacion: number
+  margen: number
+  margen_pct: number
 }
 
 type ModalState = { mode: 'new' } | { mode: 'edit'; empleado: Empleado }
@@ -22,7 +26,7 @@ const fmt = (v: number) =>
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
 
-export default function EquipoClient({ empleados }: { empleados: Empleado[] }) {
+export default function EquipoClient({ empleados, year }: { empleados: Empleado[]; year: number }) {
   const router = useRouter()
   const [modal, setModal] = useState<ModalState | null>(null)
   const [form, setForm] = useState({ nombre: '', email: '', fecha_alta: '', fecha_baja: '' })
@@ -34,12 +38,7 @@ export default function EquipoClient({ empleados }: { empleados: Empleado[] }) {
   }
 
   const openEdit = (e: Empleado) => {
-    setForm({
-      nombre: e.nombre,
-      email: e.email ?? '',
-      fecha_alta: e.fecha_alta ?? '',
-      fecha_baja: e.fecha_baja ?? '',
-    })
+    setForm({ nombre: e.nombre, email: e.email ?? '', fecha_alta: e.fecha_alta ?? '', fecha_baja: e.fecha_baja ?? '' })
     setModal({ mode: 'edit', empleado: e })
   }
 
@@ -75,6 +74,12 @@ export default function EquipoClient({ empleados }: { empleados: Empleado[] }) {
     router.refresh()
   }
 
+  // Totals for footer
+  const totFact = empleados.filter(e => e.activo).reduce((s, e) => s + e.facturacion, 0)
+  const totSueldo = empleados.filter(e => e.activo).reduce((s, e) => s + e.total_anual, 0)
+  const totMargen = totFact - totSueldo
+  const totPct = totFact > 0 ? (totMargen / totFact) * 100 : 0
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -82,7 +87,7 @@ export default function EquipoClient({ empleados }: { empleados: Empleado[] }) {
         <div>
           <h2 className="text-2xl font-bold text-white">Equipo</h2>
           <p className="text-gray-400 text-sm mt-1">
-            {empleados.filter(e => e.activo).length} activos · {empleados.length} total
+            {empleados.filter(e => e.activo).length} activos · {empleados.length} total · {year}
           </p>
         </div>
         <button
@@ -95,64 +100,109 @@ export default function EquipoClient({ empleados }: { empleados: Empleado[] }) {
 
       {/* Table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-              <th className="text-left px-6 py-3">Nombre</th>
-              <th className="text-left px-6 py-3">Email</th>
-              <th className="text-right px-6 py-3">Sueldo actual</th>
-              <th className="text-right px-6 py-3">Total anual</th>
-              <th className="text-left px-6 py-3">Estado</th>
-              <th className="text-left px-6 py-3">Fecha alta</th>
-              <th className="text-right px-6 py-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {empleados.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                  No hay empleados. Añade el primero.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800 bg-gray-800/40">
+                <th className="text-left px-6 py-3">Nombre</th>
+                <th className="text-center px-4 py-3">Estado</th>
+                <th className="text-right px-4 py-3">Proyectos</th>
+                <th className="text-right px-6 py-3">Facturación</th>
+                <th className="text-right px-6 py-3">Sueldo</th>
+                <th className="text-right px-6 py-3">Margen</th>
+                <th className="text-right px-4 py-3">Margen %</th>
+                <th className="text-right px-6 py-3">Acciones</th>
               </tr>
-            )}
-            {empleados.map(e => (
-              <tr
-                key={e.id}
-                className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer"
-                onClick={() => router.push(`/equipo/${e.id}`)}
-              >
-                <td className="px-6 py-4 text-white font-medium">{e.nombre}</td>
-                <td className="px-6 py-4 text-gray-400">{e.email ?? '—'}</td>
-                <td className="px-6 py-4 text-right text-white">
-                  {e.sueldo_actual != null ? fmt(e.sueldo_actual) : '—'}
-                </td>
-                <td className="px-6 py-4 text-right text-gray-300">
-                  {e.total_anual > 0 ? fmt(e.total_anual) : '—'}
-                </td>
-                <td className="px-6 py-4">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            </thead>
+            <tbody>
+              {empleados.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    No hay empleados. Añade el primero.
+                  </td>
+                </tr>
+              )}
+              {empleados.map(e => (
+                <tr
+                  key={e.id}
+                  className={`border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer ${!e.activo ? 'opacity-60' : ''}`}
+                  onClick={() => router.push(`/equipo/${e.id}`)}
+                >
+                  <td className="px-6 py-4">
+                    <div>
+                      <p className="text-white font-medium">{e.nombre}</p>
+                      {e.email && <p className="text-gray-500 text-xs mt-0.5">{e.email}</p>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 text-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       e.activo
                         ? 'bg-green-900/50 text-green-400 border border-green-800'
                         : 'bg-red-900/50 text-red-400 border border-red-800'
-                    }`}
-                  >
-                    {e.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-gray-400">{fmtDate(e.fecha_alta)}</td>
-                <td className="px-6 py-4 text-right" onClick={ev => ev.stopPropagation()}>
-                  <button
-                    onClick={() => openEdit(e)}
-                    className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-xs transition-colors"
-                  >
-                    Editar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    }`}>
+                      {e.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    {e.num_proyectos > 0
+                      ? <span className="text-white font-medium">{e.num_proyectos}</span>
+                      : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {e.facturacion > 0
+                      ? <span className="text-white font-medium">{fmt(e.facturacion)}</span>
+                      : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {e.total_anual > 0
+                      ? <span className="text-gray-300">{fmt(e.total_anual)}</span>
+                      : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {e.facturacion > 0 || e.total_anual > 0
+                      ? <span className={`font-medium ${e.margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(e.margen)}</span>
+                      : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    {e.facturacion > 0
+                      ? <span className={`text-sm font-medium ${e.margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>{e.margen_pct.toFixed(1)}%</span>
+                      : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-6 py-4 text-right" onClick={ev => ev.stopPropagation()}>
+                    <button
+                      onClick={() => openEdit(e)}
+                      className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-xs transition-colors"
+                    >
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {empleados.some(e => e.activo) && (
+              <tfoot>
+                <tr className="border-t border-gray-700 bg-gray-800/30">
+                  <td className="px-6 py-3 text-gray-400 text-xs font-semibold uppercase tracking-wide">
+                    Total equipo activo
+                  </td>
+                  <td />
+                  <td className="px-4 py-3 text-right text-gray-400 font-medium">
+                    {empleados.filter(e => e.activo).reduce((s, e) => s + e.num_proyectos, 0)}
+                  </td>
+                  <td className="px-6 py-3 text-right text-white font-bold">{fmt(totFact)}</td>
+                  <td className="px-6 py-3 text-right text-gray-300 font-bold">{fmt(totSueldo)}</td>
+                  <td className="px-6 py-3 text-right font-bold">
+                    <span className={totMargen >= 0 ? 'text-green-400' : 'text-red-400'}>{fmt(totMargen)}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={`text-sm font-medium ${totPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>{totPct.toFixed(1)}%</span>
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
       </div>
 
       {/* Modal */}
@@ -163,9 +213,7 @@ export default function EquipoClient({ empleados }: { empleados: Empleado[] }) {
               <h3 className="text-white font-semibold">
                 {modal.mode === 'new' ? 'Nuevo empleado' : 'Editar empleado'}
               </h3>
-              <button onClick={() => setModal(null)} className="text-gray-500 hover:text-white text-xl">
-                ✕
-              </button>
+              <button onClick={() => setModal(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -201,8 +249,7 @@ export default function EquipoClient({ empleados }: { empleados: Empleado[] }) {
               {modal.mode === 'edit' && (
                 <div>
                   <label className="block text-sm text-gray-400 mb-1.5">
-                    Fecha de baja{' '}
-                    <span className="text-gray-600">(deja vacío si sigue activo)</span>
+                    Fecha de baja <span className="text-gray-600">(deja vacío si sigue activo)</span>
                   </label>
                   <input
                     type="date"
