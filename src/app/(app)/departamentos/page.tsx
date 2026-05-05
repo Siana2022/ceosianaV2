@@ -18,7 +18,6 @@ export default async function DepartamentosPage() {
 
   const [
     { data: departamentosRaw },
-    { data: empleados },
     { data: miembros },
     { data: dedicacion },
     { data: ingresos },
@@ -26,7 +25,6 @@ export default async function DepartamentosPage() {
     { data: gastosFijos },
   ] = await Promise.all([
     supabase.from('departamentos').select('id, nombre, activo').order('nombre'),
-    supabase.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),
     supabase
       .from('departamento_empleados')
       .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
@@ -51,9 +49,8 @@ export default async function DepartamentosPage() {
       .not('id_departamento', 'is', null),
   ])
 
-  // Build dedicacion map: `${id_empleado}_${id_departamento}_${mes}` → porcentaje
+  // Build dedicacion maps
   const dedicacionMap = new Map<string, number>()
-  // Also build current-month map for UI display: `${id_empleado}_${id_departamento}` → porcentaje
   const dedicacionCurrentMap = new Map<string, number>()
   const currentMes = new Date().getMonth() + 1
   for (const d of dedicacion ?? []) {
@@ -63,7 +60,7 @@ export default async function DepartamentosPage() {
     }
   }
 
-  // sueldo map: `${id_empleado}_${mes}` → coste_total
+  // sueldo map
   const sueldoMap = new Map<string, number>()
   for (const s of sueldos ?? []) {
     sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total))
@@ -87,15 +84,12 @@ export default async function DepartamentosPage() {
 
   // Compute per-department rentabilidad
   const rentabilidad: DeptRentabilidad[] = (departamentosRaw ?? []).map(dept => {
-    // Ingresos for this dept
     const ingresosDept = (ingresos ?? [])
       .filter(r => r.id_departamento === dept.id)
       .reduce((s, r) => s + Number(r.valor), 0)
 
-    // Members of this dept
     const deptMembers = miembrosMap.get(dept.id) ?? []
 
-    // Coste personal: for each member, sum over 12 months: sueldo_mes × dedicacion_pct/100
     let costePersonal = 0
     for (const member of deptMembers) {
       for (let mes = 1; mes <= 12; mes++) {
@@ -105,7 +99,6 @@ export default async function DepartamentosPage() {
       }
     }
 
-    // Gastos propios (tipo='departamento' assigned to this dept)
     const gastosPropios = (gastosFijos ?? [])
       .filter(g => g.id_departamento === dept.id)
       .reduce((s, g) => s + Number(g.valor), 0)
@@ -129,7 +122,6 @@ export default async function DepartamentosPage() {
   return (
     <DepartamentosClient
       departamentos={departamentos}
-      empleados={empleados ?? []}
       rentabilidad={rentabilidad}
       anio={anio}
     />

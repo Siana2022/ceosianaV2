@@ -66,6 +66,16 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const [todoElAnio, setTodoElAnio] = useState(false)
   const [mesSingle, setMesSingle] = useState(new Date().getMonth() + 1)
 
+  // Edit concepto modal (metadata for all 12 months)
+  const [editConceptoModal, setEditConceptoModal] = useState<{
+    concepto: string
+    categoria: CategoriaGasto
+    id_departamento: string
+    id_cliente: string
+  } | null>(null)
+  const [editConceptoForm, setEditConceptoForm] = useState({ concepto: '', categoria: 'fijo' as CategoriaGasto, id_departamento: '', id_cliente: '' })
+  const [savingConcepto, setSavingConcepto] = useState(false)
+
   // Sueldo edit
   const [editSueldoId, setEditSueldoId] = useState<string | null>(null)
   const [sueldoValor, setSueldoValor] = useState('')
@@ -172,6 +182,50 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     const plural = allGastos.length === 1 ? '1 entrada' : `${allGastos.length} entradas`
     if (!confirm(`¿Eliminar "${concepto}" (${plural})?`)) return
     await Promise.all(allGastos.map(g => fetch(`/api/costes?id=${g.id}`, { method: 'DELETE' })))
+    router.refresh()
+  }
+
+  const openEditConceptoModal = (concepto: string) => {
+    const firstGasto = Array.from(gastosDetail.get(concepto)?.values() ?? []).flat()[0]
+    if (!firstGasto) return
+    const categoria: CategoriaGasto = firstGasto.tipo === 'comision' ? 'comision'
+      : firstGasto.tipo === 'departamento' ? 'departamento'
+      : firstGasto.id_cliente ? 'cliente'
+      : 'fijo'
+    setEditConceptoForm({
+      concepto,
+      categoria,
+      id_departamento: firstGasto.id_departamento ?? '',
+      id_cliente: firstGasto.id_cliente ?? '',
+    })
+    setEditConceptoModal({ concepto, categoria, id_departamento: firstGasto.id_departamento ?? '', id_cliente: firstGasto.id_cliente ?? '' })
+  }
+
+  const saveEditConcepto = async () => {
+    if (!editConceptoModal) return
+    setSavingConcepto(true)
+    const allGastos = Array.from(gastosDetail.get(editConceptoModal.concepto)?.values() ?? []).flat()
+    const apiTipo = editConceptoForm.categoria === 'comision' ? 'comision'
+      : editConceptoForm.categoria === 'departamento' ? 'departamento'
+      : 'general'
+    await Promise.all(allGastos.map(g =>
+      fetch('/api/costes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: g.id,
+          concepto: editConceptoForm.concepto,
+          valor: g.valor,
+          tipo: apiTipo,
+          mes: g.mes,
+          anio: g.anio,
+          id_departamento: editConceptoForm.categoria === 'departamento' ? editConceptoForm.id_departamento || null : null,
+          id_cliente: (editConceptoForm.categoria === 'comision' || editConceptoForm.categoria === 'cliente') ? editConceptoForm.id_cliente || null : null,
+        })
+      })
+    ))
+    setSavingConcepto(false)
+    setEditConceptoModal(null)
     router.refresh()
   }
 
@@ -390,7 +444,22 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                 const rowTotal = Array.from(mesMap.values()).reduce((a, b) => a + b, 0)
                 return (
                   <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20 group">
-                    <td className="py-1.5 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium truncate max-w-[180px]" title={concepto}>{concepto}</td>
+                    <td className="py-1.5 px-4 sticky left-0 bg-gray-900 z-10 border-r border-gray-800/30">
+                      <button
+                        onClick={() => openEditConceptoModal(concepto)}
+                        title="Clic para editar este concepto"
+                        className="text-white font-medium truncate max-w-[180px] hover:text-blue-400 transition-colors text-left w-full"
+                      >
+                        {concepto}
+                      </button>
+                      {(() => {
+                        const sample = Array.from(gastosDetail.get(concepto)?.values() ?? []).flat()[0]
+                        if (!sample) return null
+                        if (sample.departamento) return <span className="text-[10px] text-blue-400">{sample.departamento.nombre}</span>
+                        if (sample.cliente) return <span className="text-[10px] text-purple-400">{sample.cliente.nombre}</span>
+                        return null
+                      })()}
+                    </td>
                     {Array.from({ length: 12 }, (_, i) => {
                       const m = i + 1
                       const v = mesMap.get(m) ?? 0
@@ -508,7 +577,18 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
             )}
             {subset.map(g => (
               <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="px-6 py-3 text-white">{g.concepto}</td>
+                <td className="px-6 py-3 text-white">
+                  <span className="inline-flex items-center gap-1.5 group/concepto">
+                    <span>{g.concepto}</span>
+                    <button
+                      onClick={() => openEditConceptoModal(g.concepto)}
+                      title="Editar metadatos del concepto"
+                      className="opacity-0 group-hover/concepto:opacity-100 text-gray-500 hover:text-blue-400 transition-all text-xs leading-none"
+                    >
+                      ✎
+                    </button>
+                  </span>
+                </td>
                 {showLinkedEntity === 'departamento' && (
                   <td className="px-4 py-3 text-gray-400 text-xs">{g.departamento?.nombre ?? '—'}</td>
                 )}
@@ -923,6 +1003,111 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar concepto (metadata para todos los meses) */}
+      {editConceptoModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <div>
+                <h3 className="text-white font-semibold">Editar concepto</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Actualiza nombre y categoría para todos los meses del año</p>
+              </div>
+              <button onClick={() => setEditConceptoModal(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-orange-900/20 border border-orange-800/50 rounded-lg px-4 py-2.5 text-orange-300 text-xs">
+                Esto actualizará todos los meses del año para este concepto.
+              </div>
+
+              {/* Categoría */}
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">Categoría</label>
+                <div className="flex gap-1 flex-wrap">
+                  {([
+                    { value: 'fijo', label: 'Gasto Fijo' },
+                    { value: 'departamento', label: 'Departamento' },
+                    { value: 'comision', label: 'Comisión' },
+                    { value: 'cliente', label: 'Gasto Cliente' },
+                  ] as { value: CategoriaGasto; label: string }[]).map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setEditConceptoForm(f => ({ ...f, categoria: opt.value, id_departamento: '', id_cliente: '' }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                        editConceptoForm.categoria === opt.value
+                          ? 'bg-blue-600 border-blue-500 text-white'
+                          : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nombre */}
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Nombre del concepto *</label>
+                <input
+                  type="text"
+                  value={editConceptoForm.concepto}
+                  onChange={e => setEditConceptoForm(f => ({ ...f, concepto: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Departamento */}
+              {editConceptoForm.categoria === 'departamento' && (
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Departamento *</label>
+                  <select
+                    value={editConceptoForm.id_departamento}
+                    onChange={e => setEditConceptoForm(f => ({ ...f, id_departamento: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Cliente */}
+              {(editConceptoForm.categoria === 'comision' || editConceptoForm.categoria === 'cliente') && (
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Cliente <span className="text-orange-400">*</span></label>
+                  <select
+                    value={editConceptoForm.id_cliente}
+                    onChange={e => setEditConceptoForm(f => ({ ...f, id_cliente: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Selecciona un cliente…</option>
+                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
+              <button
+                type="button"
+                onClick={() => setEditConceptoModal(null)}
+                className="px-4 py-2 text-gray-400 hover:text-white text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveEditConcepto}
+                disabled={savingConcepto || !editConceptoForm.concepto.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                {savingConcepto ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
