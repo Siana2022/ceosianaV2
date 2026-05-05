@@ -498,6 +498,64 @@ export default function ClienteDetailClient({
       const res = await fetch('/api/servicios', { method: servicioMode === 'create' ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
       const saved = await res.json()
+
+      // Auto-fill ingresos for new recurrent services with a precio_base
+      if (servicioMode === 'create' && servicioForm.tipo === 'recurrente') {
+        const precio = servicioForm.precio_base ? parseFloat(servicioForm.precio_base) : 0
+        if (precio > 0) {
+          const serviceForCheck = {
+            fecha_inicio: servicioForm.fecha_inicio || null,
+            fecha_fin: servicioForm.fecha_fin || null,
+          } as Pick<Servicio, 'fecha_inicio' | 'fecha_fin'>
+          const activeMeses = Array.from({ length: 12 }, (_, i) => i + 1).filter(mes =>
+            isServiceActiveInMonth(serviceForCheck as Servicio, mes, year)
+          )
+          if (activeMeses.length > 0) {
+            const ingresoResults = await Promise.all(
+              activeMeses.map(mes =>
+                fetch('/api/ingresos', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id_cliente: cliente.id,
+                    id_servicio: saved.id,
+                    concepto: deptNombre,
+                    valor: precio,
+                    mes,
+                    anio: year,
+                    id_departamento: servicioForm.id_departamento || null,
+                  }),
+                })
+              )
+            )
+            // Update local ingresoMap with created ingresos
+            const createdIngresos = await Promise.all(
+              ingresoResults.filter(r => r.ok).map(r => r.json())
+            )
+            setIngresoMap(prev => {
+              const next = new Map(prev)
+              for (const result of createdIngresos) {
+                const ing = Array.isArray(result) ? result[0] : result
+                if (ing && ing.id) {
+                  next.set(`${saved.id}_${ing.mes}`, {
+                    id: ing.id,
+                    concepto: ing.concepto,
+                    valor: ing.valor,
+                    mes: ing.mes,
+                    anio: ing.anio,
+                    id_servicio: ing.id_servicio,
+                    id_departamento: ing.id_departamento,
+                    id_responsable: ing.id_responsable ?? null,
+                    notas: ing.notas ?? null,
+                  })
+                }
+              }
+              return next
+            })
+          }
+        }
+      }
+
       // Save base responsables if any selected
       if (servicioResponsables.length > 0) {
         await fetch('/api/servicio-responsables', {

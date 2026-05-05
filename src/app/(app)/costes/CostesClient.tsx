@@ -43,10 +43,12 @@ interface Props {
   vistaAnual: boolean
 }
 
+type CategoriaGasto = 'fijo' | 'departamento' | 'comision' | 'cliente'
+
 interface GastoForm {
   concepto: string
   valor: string
-  tipo: 'general' | 'departamento' | 'comision'
+  categoria: CategoriaGasto
   id_departamento: string
   id_cliente: string
 }
@@ -60,7 +62,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const [showGastoModal, setShowGastoModal] = useState(false)
   const [gastoEditMode, setGastoEditMode] = useState(false)
   const [editGastoId, setEditGastoId] = useState<string | null>(null)
-  const [gastoForm, setGastoForm] = useState<GastoForm>({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
+  const [gastoForm, setGastoForm] = useState<GastoForm>({ concepto: '', valor: '', categoria: 'fijo', id_departamento: '', id_cliente: '' })
   const [todoElAnio, setTodoElAnio] = useState(false)
   const [mesSingle, setMesSingle] = useState(new Date().getMonth() + 1)
 
@@ -74,10 +76,10 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
 
   const goTo = (m: number, y: number) => router.push(`/costes?mes=${m}&anio=${y}`)
 
-  const openCreateGasto = () => {
+  const openCreateGasto = (categoria: CategoriaGasto = 'fijo') => {
     setGastoEditMode(false)
     setEditGastoId(null)
-    setGastoForm({ concepto: '', valor: '', tipo: 'general', id_departamento: '', id_cliente: '' })
+    setGastoForm({ concepto: '', valor: '', categoria, id_departamento: '', id_cliente: '' })
     setTodoElAnio(vistaAnual) // default ON in annual view
     setMesSingle(mes ?? new Date().getMonth() + 1)
     setError('')
@@ -87,7 +89,11 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const openEditGasto = (g: Gasto) => {
     setGastoEditMode(true)
     setEditGastoId(g.id)
-    setGastoForm({ concepto: g.concepto, valor: String(g.valor), tipo: g.tipo, id_departamento: g.id_departamento ?? '', id_cliente: g.id_cliente ?? '' })
+    const categoria: CategoriaGasto = g.tipo === 'comision' ? 'comision'
+      : g.tipo === 'departamento' ? 'departamento'
+      : g.id_cliente ? 'cliente'
+      : 'fijo'
+    setGastoForm({ concepto: g.concepto, valor: String(g.valor), categoria, id_departamento: g.id_departamento ?? '', id_cliente: g.id_cliente ?? '' })
     setTodoElAnio(false)
     setError('')
     setShowGastoModal(true)
@@ -97,15 +103,21 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     e.preventDefault()
     if (!gastoForm.concepto.trim()) { setError('El concepto es obligatorio'); return }
     if (!gastoForm.valor) { setError('El valor es obligatorio'); return }
-    if (gastoForm.tipo === 'comision' && !gastoForm.id_cliente) { setError('La comisión debe asignarse a un cliente'); return }
+    if (gastoForm.categoria === 'comision' && !gastoForm.id_cliente) { setError('La comisión debe asignarse a un cliente'); return }
+    if (gastoForm.categoria === 'cliente' && !gastoForm.id_cliente) { setError('Debes seleccionar un cliente'); return }
+    if (gastoForm.categoria === 'departamento' && !gastoForm.id_departamento) { setError('Debes seleccionar un departamento'); return }
     setSaving(true); setError('')
     try {
+      const apiTipo = gastoForm.categoria === 'comision' ? 'comision'
+        : gastoForm.categoria === 'departamento' ? 'departamento'
+        : 'general'
+
       const baseBody = {
         concepto: gastoForm.concepto,
         valor: parseFloat(gastoForm.valor),
-        tipo: gastoForm.tipo,
-        id_departamento: gastoForm.id_departamento || null,
-        id_cliente: gastoForm.id_cliente || null,
+        tipo: apiTipo,
+        id_departamento: gastoForm.categoria === 'departamento' ? gastoForm.id_departamento || null : null,
+        id_cliente: (gastoForm.categoria === 'comision' || gastoForm.categoria === 'cliente') ? gastoForm.id_cliente || null : null,
       }
 
       const targetMes = vistaAnual ? mesSingle : mes!
@@ -202,11 +214,21 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     } finally { setSaving(false) }
   }
 
+  // ── Filter gastos into 4 groups ─────────────────────────────────────────
+  const gastosFijos = gastos.filter(g => g.tipo === 'general' && !g.id_cliente)
+  const gastosComisiones = gastos.filter(g => g.tipo === 'comision')
+  const gastosDepartamentos = gastos.filter(g => g.tipo === 'departamento')
+  const gastosClientes = gastos.filter(g => g.tipo === 'general' && !!g.id_cliente)
+
+  const totalGastosFijos = gastosFijos.reduce((s, g) => s + Number(g.valor), 0)
+  const totalGastosComisiones = gastosComisiones.reduce((s, g) => s + Number(g.valor), 0)
+  const totalGastosDepartamentos = gastosDepartamentos.reduce((s, g) => s + Number(g.valor), 0)
+  const totalGastosClientes = gastosClientes.reduce((s, g) => s + Number(g.valor), 0)
   const totalGastos = gastos.reduce((s, g) => s + Number(g.valor), 0)
   const totalSueldos = sueldos.reduce((s, r) => s + Number(r.coste_total ?? 0), 0)
   const totalCombinado = totalGastos + totalSueldos
 
-  // ── Annual cell editing (gastos) ─────────────────────────────────────
+  // ── Annual cell editing (gastos) — unified gastosDetail for all categories ──
   const [editingAnnualCell, setEditingAnnualCell] = useState<{ concepto: string; mes: number } | null>(null)
   const [annualCellValue, setAnnualCellValue] = useState('')
   const annualCellRef = useRef<HTMLInputElement>(null)
@@ -241,6 +263,15 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
       body: JSON.stringify({ id_empleado: empId, coste_total: valor, mes: m, anio }),
     })
     router.refresh()
+  }
+
+  // ── Annual matrices — unified gastosDetail (all categories) for cell editing ──
+  const gastosDetail = new Map<string, Map<number, Gasto[]>>()
+  for (const g of gastos) {
+    if (!gastosDetail.has(g.concepto)) gastosDetail.set(g.concepto, new Map())
+    const dm = gastosDetail.get(g.concepto)!
+    if (!dm.has(g.mes)) dm.set(g.mes, [])
+    dm.get(g.mes)!.push(g)
   }
 
   const saveAnnualCell = async (concepto: string, mes: number) => {
@@ -278,22 +309,26 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     router.refresh()
   }
 
-  // ── Annual matrices (only used in vistaAnual) ─────────────────────────
-  // Gastos: concepto → (mes → sum) AND concepto → (mes → Gasto[]) for editing
-  const gastoMatriz = new Map<string, Map<number, number>>()
-  const gastosDetail = new Map<string, Map<number, Gasto[]>>()
-  for (const g of gastos) {
-    // aggregated values
-    if (!gastoMatriz.has(g.concepto)) gastoMatriz.set(g.concepto, new Map())
-    const m = gastoMatriz.get(g.concepto)!
-    m.set(g.mes, (m.get(g.mes) ?? 0) + Number(g.valor))
-    // individual records
-    if (!gastosDetail.has(g.concepto)) gastosDetail.set(g.concepto, new Map())
-    const dm = gastosDetail.get(g.concepto)!
-    if (!dm.has(g.mes)) dm.set(g.mes, [])
-    dm.get(g.mes)!.push(g)
+  // ── Annual matrices per category ─────────────────────────────────────────
+  function buildMatriz(subset: Gasto[]) {
+    const matriz = new Map<string, Map<number, number>>()
+    const detail = new Map<string, Map<number, Gasto[]>>()
+    for (const g of subset) {
+      if (!matriz.has(g.concepto)) matriz.set(g.concepto, new Map())
+      const m = matriz.get(g.concepto)!
+      m.set(g.mes, (m.get(g.mes) ?? 0) + Number(g.valor))
+      if (!detail.has(g.concepto)) detail.set(g.concepto, new Map())
+      const dm = detail.get(g.concepto)!
+      if (!dm.has(g.mes)) dm.set(g.mes, [])
+      dm.get(g.mes)!.push(g)
+    }
+    return { matriz, detail, conceptos: Array.from(matriz.keys()).sort() }
   }
-  const conceptos = Array.from(gastoMatriz.keys()).sort()
+
+  const matrizFijos = buildMatriz(gastosFijos)
+  const matrizComisiones = buildMatriz(gastosComisiones)
+  const matrizDepartamentos = buildMatriz(gastosDepartamentos)
+  const matrizClientes = buildMatriz(gastosClientes)
 
   // Sueldos: empleado → (mes → coste_total)
   const sueldosAnualesMap = new Map<string, { nombre: string; meses: Map<number, number | null> }>()
@@ -303,6 +338,188 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     sueldosAnualesMap.get(s.id_empleado)!.meses.set(s.mes, s.coste_total)
   }
   const empAnuales = Array.from(sueldosAnualesMap.entries())
+
+  // ── Render annual gasto matrix block ─────────────────────────────────────
+  function renderAnualMatriz(
+    title: string,
+    categoria: CategoriaGasto,
+    { matriz, detail: _detail, conceptos }: ReturnType<typeof buildMatriz>,
+    totalGroup: number,
+  ) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-wrap gap-2">
+          <div>
+            <h3 className="text-white font-semibold">{title} {anio}</h3>
+            <p className="text-gray-500 text-xs mt-0.5">Pincha en un mes para editar</p>
+          </div>
+          <button onClick={() => openCreateGasto(categoria)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+            + Añadir
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-800 bg-gray-800/50">
+                <th className="text-left text-gray-400 font-medium py-2.5 px-4 min-w-[180px] sticky left-0 bg-gray-800/50 z-10">Concepto</th>
+                {MESES_CORTO.map((m, i) => (
+                  <th key={m} className="text-center font-medium py-2.5 px-2 min-w-[70px]">
+                    <button onClick={() => goTo(i + 1, anio)} className="text-gray-400 hover:text-blue-400 transition-colors w-full">{m}</button>
+                  </th>
+                ))}
+                <th className="text-right text-gray-400 font-medium py-2.5 px-4 min-w-[80px]">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {conceptos.length === 0 && (
+                <tr><td colSpan={14} className="text-center text-gray-500 py-8">Sin entradas en {anio}</td></tr>
+              )}
+              {conceptos.map(concepto => {
+                const mesMap = matriz.get(concepto)!
+                const rowTotal = Array.from(mesMap.values()).reduce((a, b) => a + b, 0)
+                return (
+                  <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20">
+                    <td className="py-1.5 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium truncate max-w-[180px]" title={concepto}>{concepto}</td>
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const m = i + 1
+                      const v = mesMap.get(m) ?? 0
+                      const cellGastos = gastosDetail.get(concepto)?.get(m) ?? []
+                      const hasMultiple = cellGastos.length > 1
+                      const isEditing = editingAnnualCell?.concepto === concepto && editingAnnualCell?.mes === m
+                      return (
+                        <td key={i} className="py-1 px-1 text-center">
+                          {isEditing ? (
+                            <input
+                              ref={annualCellRef}
+                              type="number"
+                              value={annualCellValue}
+                              onChange={e => setAnnualCellValue(e.target.value)}
+                              onBlur={() => saveAnnualCell(concepto, m)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') e.currentTarget.blur()
+                                if (e.key === 'Escape') setEditingAnnualCell(null)
+                              }}
+                              className="w-16 bg-blue-900/40 border border-blue-500 rounded text-center text-white text-xs px-1 py-1 focus:outline-none"
+                            />
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (hasMultiple) { goTo(m, anio); return }
+                                setEditingAnnualCell({ concepto, mes: m })
+                                setAnnualCellValue(v > 0 ? String(v) : '')
+                              }}
+                              title={hasMultiple ? `${cellGastos.length} entradas · ir al mes para editar` : v > 0 ? 'Clic para editar' : 'Clic para añadir'}
+                              className={`w-full min-w-[60px] py-1 rounded transition-colors text-center ${
+                                hasMultiple ? 'text-yellow-400 hover:bg-yellow-900/10 cursor-pointer' :
+                                v > 0 ? 'text-red-400 font-medium hover:bg-red-900/20 cursor-pointer' :
+                                'text-gray-700 hover:bg-gray-800/40 cursor-pointer'
+                              }`}
+                            >
+                              {v > 0 ? fmt(v) : '—'}
+                            </button>
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="py-1.5 px-4 text-right text-white font-semibold">{fmt(rowTotal)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {conceptos.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-gray-700 bg-gray-800/30">
+                  <td className="py-3 px-4 sticky left-0 bg-gray-800/30 z-10 text-gray-400 font-semibold text-xs uppercase">Total</td>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const colTotal = conceptos.reduce((sum, c) => sum + (matriz.get(c)?.get(i + 1) ?? 0), 0)
+                    return (
+                      <td key={i} className="py-3 px-1 text-center">
+                        <span className={`font-semibold ${colTotal > 0 ? 'text-white' : 'text-gray-700'}`}>
+                          {colTotal > 0 ? fmt(colTotal) : '—'}
+                        </span>
+                      </td>
+                    )
+                  })}
+                  <td className="py-3 px-4 text-right text-white font-bold">{fmt(totalGroup)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Render monthly gasto table block ──────────────────────────────────────
+  function renderMensualTabla(
+    title: string,
+    categoria: CategoriaGasto,
+    subset: Gasto[],
+    totalGroup: number,
+    showLinkedEntity: 'departamento' | 'cliente' | null,
+    extraHeaderBtn?: React.ReactNode,
+  ) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <h3 className="text-white font-semibold">{title}</h3>
+          <div className="flex items-center gap-2">
+            {extraHeaderBtn}
+            <button onClick={() => openCreateGasto(categoria)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+              + Añadir
+            </button>
+          </div>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+              <th className="text-left px-6 py-3">Concepto</th>
+              {showLinkedEntity === 'departamento' && <th className="text-left px-4 py-3">Departamento</th>}
+              {showLinkedEntity === 'cliente' && <th className="text-left px-4 py-3">Cliente</th>}
+              <th className="text-right px-6 py-3">Valor</th>
+              <th className="text-center px-4 py-3">Acc.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {subset.length === 0 && (
+              <tr><td colSpan={showLinkedEntity ? 4 : 3} className="text-center text-gray-500 py-8 text-sm">Sin entradas este mes</td></tr>
+            )}
+            {subset.map(g => (
+              <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                <td className="px-6 py-3 text-white">{g.concepto}</td>
+                {showLinkedEntity === 'departamento' && (
+                  <td className="px-4 py-3 text-gray-400 text-xs">{g.departamento?.nombre ?? '—'}</td>
+                )}
+                {showLinkedEntity === 'cliente' && (
+                  <td className="px-4 py-3 text-xs">
+                    {g.cliente ? <span className="text-purple-400">{g.cliente.nombre}</span> : <span className="text-gray-600">—</span>}
+                  </td>
+                )}
+                <td className="px-6 py-3 text-right text-red-400 font-medium">{fmt(Number(g.valor))}</td>
+                <td className="px-4 py-3 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => openEditGasto(g)} className="text-gray-400 hover:text-white text-xs px-1.5 py-1 rounded hover:bg-gray-700">✎</button>
+                    <button onClick={() => handleDeleteGasto(g.id)} className="text-red-500 hover:text-red-400 text-xs px-1.5 py-1 rounded hover:bg-gray-700">✕</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          {subset.length > 0 && (
+            <tfoot>
+              <tr className="border-t border-gray-700 bg-gray-800/50">
+                <td colSpan={showLinkedEntity ? 2 : 1} className="px-6 py-3 text-gray-400 text-sm font-medium">Total</td>
+                <td className="px-6 py-3 text-right text-white font-bold">{fmt(totalGroup)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -340,108 +557,8 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
       {/* ── VISTA ANUAL ─────────────────────────────────────────────────── */}
       {vistaAnual && (
         <div className="space-y-6">
-          {/* Gastos matrix */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-wrap gap-2">
-              <div>
-                <h3 className="text-white font-semibold">Gastos fijos {anio}</h3>
-                <p className="text-gray-500 text-xs mt-0.5">Pincha en un mes para ver y editar · o usa el selector de arriba</p>
-              </div>
-              <button onClick={openCreateGasto}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
-                + Añadir gasto
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-800 bg-gray-800/50">
-                    <th className="text-left text-gray-400 font-medium py-2.5 px-4 min-w-[180px] sticky left-0 bg-gray-800/50 z-10">Concepto</th>
-                    {MESES_CORTO.map((m, i) => (
-                      <th key={m} className="text-center font-medium py-2.5 px-2 min-w-[70px]">
-                        <button onClick={() => goTo(i + 1, anio)} className="text-gray-400 hover:text-blue-400 transition-colors w-full">{m}</button>
-                      </th>
-                    ))}
-                    <th className="text-right text-gray-400 font-medium py-2.5 px-4 min-w-[80px]">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {conceptos.length === 0 && (
-                    <tr><td colSpan={14} className="text-center text-gray-500 py-10">Sin gastos en {anio}</td></tr>
-                  )}
-                  {conceptos.map(concepto => {
-                    const mesMap = gastoMatriz.get(concepto)!
-                    const rowTotal = Array.from(mesMap.values()).reduce((a, b) => a + b, 0)
-                    return (
-                      <tr key={concepto} className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                        <td className="py-1.5 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium truncate max-w-[180px]" title={concepto}>{concepto}</td>
-                        {Array.from({ length: 12 }, (_, i) => {
-                          const mes = i + 1
-                          const v = mesMap.get(mes) ?? 0
-                          const cellGastos = gastosDetail.get(concepto)?.get(mes) ?? []
-                          const hasMultiple = cellGastos.length > 1
-                          const isEditing = editingAnnualCell?.concepto === concepto && editingAnnualCell?.mes === mes
-                          return (
-                            <td key={i} className="py-1 px-1 text-center">
-                              {isEditing ? (
-                                <input
-                                  ref={annualCellRef}
-                                  type="number"
-                                  value={annualCellValue}
-                                  onChange={e => setAnnualCellValue(e.target.value)}
-                                  onBlur={() => saveAnnualCell(concepto, mes)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') e.currentTarget.blur()
-                                    if (e.key === 'Escape') setEditingAnnualCell(null)
-                                  }}
-                                  className="w-16 bg-blue-900/40 border border-blue-500 rounded text-center text-white text-xs px-1 py-1 focus:outline-none"
-                                />
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    if (hasMultiple) { goTo(mes, anio); return }
-                                    setEditingAnnualCell({ concepto, mes })
-                                    setAnnualCellValue(v > 0 ? String(v) : '')
-                                  }}
-                                  title={hasMultiple ? `${cellGastos.length} entradas · ir al mes para editar` : v > 0 ? 'Clic para editar' : 'Clic para añadir'}
-                                  className={`w-full min-w-[60px] py-1 rounded transition-colors text-center ${
-                                    hasMultiple ? 'text-yellow-400 hover:bg-yellow-900/10 cursor-pointer' :
-                                    v > 0 ? 'text-red-400 font-medium hover:bg-red-900/20 cursor-pointer' :
-                                    'text-gray-700 hover:bg-gray-800/40 cursor-pointer'
-                                  }`}
-                                >
-                                  {v > 0 ? fmt(v) : '—'}
-                                </button>
-                              )}
-                            </td>
-                          )
-                        })}
-                        <td className="py-1.5 px-4 text-right text-white font-semibold">{fmt(rowTotal)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                {conceptos.length > 0 && (
-                  <tfoot>
-                    <tr className="border-t border-gray-700 bg-gray-800/30">
-                      <td className="py-3 px-4 sticky left-0 bg-gray-800/30 z-10 text-gray-400 font-semibold text-xs uppercase">Total</td>
-                      {Array.from({ length: 12 }, (_, i) => {
-                        const colTotal = conceptos.reduce((sum, c) => sum + (gastoMatriz.get(c)?.get(i + 1) ?? 0), 0)
-                        return (
-                          <td key={i} className="py-3 px-1 text-center">
-                            <span className={`font-semibold ${colTotal > 0 ? 'text-white' : 'text-gray-700'}`}>
-                              {colTotal > 0 ? fmt(colTotal) : '—'}
-                            </span>
-                          </td>
-                        )
-                      })}
-                      <td className="py-3 px-4 text-right text-white font-bold">{fmt(totalGastos)}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </div>
+          {/* Row 1: Gastos Fijos + Sueldos */}
+          {renderAnualMatriz('Gastos Fijos', 'fijo', matrizFijos, totalGastosFijos)}
 
           {/* Sueldos matrix */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -536,150 +653,117 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
               </table>
             </div>
           </div>
+
+          {/* Row 2: Comisiones + Departamentos */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {renderAnualMatriz('Gastos Comisiones', 'comision', matrizComisiones, totalGastosComisiones)}
+            {renderAnualMatriz('Gastos Departamentos', 'departamento', matrizDepartamentos, totalGastosDepartamentos)}
+          </div>
+
+          {/* Row 3: Gastos Clientes */}
+          {renderAnualMatriz('Gastos Clientes', 'cliente', matrizClientes, totalGastosClientes)}
         </div>
       )}
 
       {/* ── VISTA MENSUAL ────────────────────────────────────────────────── */}
       {!vistaAnual && (
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Gastos fijos */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-            <h3 className="text-white font-semibold">Gastos fijos</h3>
-            <div className="flex items-center gap-2">
+        <div className="space-y-6">
+          {/* Row 1: Gastos Fijos + Sueldos */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {renderMensualTabla(
+              'Gastos Fijos',
+              'fijo',
+              gastosFijos,
+              totalGastosFijos,
+              null,
               <button onClick={handleCopiarMesAnterior} disabled={copying}
                 className="text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 transition-colors">
                 {copying ? 'Copiando...' : '↩ Copiar mes anterior'}
               </button>
-              <button onClick={openCreateGasto}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
-                + Añadir gasto
-              </button>
+            )}
+
+            {/* Sueldos */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-800">
+                <h3 className="text-white font-semibold">Sueldos del mes</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Coste total por empleado</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                    <th className="text-left px-6 py-3">Empleado</th>
+                    <th className="text-right px-6 py-3">Coste total</th>
+                    <th className="text-center px-6 py-3">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sueldos.length === 0 && (
+                    <tr><td colSpan={3} className="text-center text-gray-500 py-8 text-sm">Sin empleados activos</td></tr>
+                  )}
+                  {sueldos.map(s => (
+                    <tr key={s.id_empleado} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="px-6 py-3 text-white">{s.nombre}</td>
+                      <td className="px-6 py-3 text-right">
+                        {editSueldoId === s.id_empleado ? (
+                          <input
+                            type="number"
+                            min="0"
+                            value={sueldoValor}
+                            onChange={e => setSueldoValor(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveSueldo(s); if (e.key === 'Escape') setEditSueldoId(null) }}
+                            className="bg-gray-800 border border-blue-500 rounded text-white px-2 py-1 text-sm w-28 text-right focus:outline-none"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className={s.coste_total != null ? 'text-white font-medium' : 'text-gray-500'}>
+                            {s.coste_total != null ? fmt(Number(s.coste_total)) : '—'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        {editSueldoId === s.id_empleado ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => saveSueldo(s)} disabled={saving} className="text-green-400 hover:text-green-300 text-xs px-2 py-1 rounded hover:bg-gray-700">✓</button>
+                            <button onClick={() => setEditSueldoId(null)} className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-700">✕</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => startEditSueldo(s)} className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-700">Editar</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {sueldos.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-700 bg-gray-800/50">
+                      <td className="px-6 py-3 text-gray-400 text-sm font-medium">Total sueldos</td>
+                      <td className="px-6 py-3 text-right text-white font-bold">{fmt(totalSueldos)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-                <th className="text-left px-6 py-3">Concepto</th>
-                <th className="text-left px-4 py-3">Tipo</th>
-                <th className="text-left px-4 py-3">Dpto.</th>
-                <th className="text-left px-4 py-3">Cliente</th>
-                <th className="text-right px-6 py-3">Valor</th>
-                <th className="text-center px-4 py-3">Acc.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gastos.length === 0 && (
-                <tr><td colSpan={6} className="text-center text-gray-500 py-8 text-sm">Sin gastos este mes</td></tr>
-              )}
-              {gastos.map(g => (
-                <tr key={g.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="px-6 py-3 text-white">{g.concepto}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      g.tipo === 'general' ? 'bg-gray-700 text-gray-300' :
-                      g.tipo === 'departamento' ? 'bg-blue-900/50 text-blue-400' :
-                      'bg-orange-900/50 text-orange-400'
-                    }`}>
-                      {g.tipo}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{g.departamento?.nombre ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs">
-                    {g.cliente ? <span className="text-purple-400">{g.cliente.nombre}</span> : <span className="text-gray-600">—</span>}
-                  </td>
-                  <td className="px-6 py-3 text-right text-red-400 font-medium">{fmt(Number(g.valor))}</td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button onClick={() => openEditGasto(g)} className="text-gray-400 hover:text-white text-xs px-1.5 py-1 rounded hover:bg-gray-700">✎</button>
-                      <button onClick={() => handleDeleteGasto(g.id)} className="text-red-500 hover:text-red-400 text-xs px-1.5 py-1 rounded hover:bg-gray-700">✕</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            {gastos.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-gray-700 bg-gray-800/50">
-                  <td colSpan={4} className="px-6 py-3 text-gray-400 text-sm font-medium">Total gastos</td>
-                  <td className="px-6 py-3 text-right text-white font-bold">{fmt(totalGastos)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
 
-        {/* Sueldos */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-800">
-            <h3 className="text-white font-semibold">Sueldos del mes</h3>
-            <p className="text-gray-500 text-xs mt-0.5">Coste total por empleado</p>
+          {/* Row 2: Comisiones + Departamentos */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {renderMensualTabla('Gastos Comisiones', 'comision', gastosComisiones, totalGastosComisiones, 'cliente')}
+            {renderMensualTabla('Gastos Departamentos', 'departamento', gastosDepartamentos, totalGastosDepartamentos, 'departamento')}
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-                <th className="text-left px-6 py-3">Empleado</th>
-                <th className="text-right px-6 py-3">Coste total</th>
-                <th className="text-center px-6 py-3">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sueldos.length === 0 && (
-                <tr><td colSpan={3} className="text-center text-gray-500 py-8 text-sm">Sin empleados activos</td></tr>
-              )}
-              {sueldos.map(s => (
-                <tr key={s.id_empleado} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="px-6 py-3 text-white">{s.nombre}</td>
-                  <td className="px-6 py-3 text-right">
-                    {editSueldoId === s.id_empleado ? (
-                      <input
-                        type="number"
-                        min="0"
-                        value={sueldoValor}
-                        onChange={e => setSueldoValor(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveSueldo(s); if (e.key === 'Escape') setEditSueldoId(null) }}
-                        className="bg-gray-800 border border-blue-500 rounded text-white px-2 py-1 text-sm w-28 text-right focus:outline-none"
-                        autoFocus
-                      />
-                    ) : (
-                      <span className={s.coste_total != null ? 'text-white font-medium' : 'text-gray-500'}>
-                        {s.coste_total != null ? fmt(Number(s.coste_total)) : '—'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-3 text-center">
-                    {editSueldoId === s.id_empleado ? (
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => saveSueldo(s)} disabled={saving} className="text-green-400 hover:text-green-300 text-xs px-2 py-1 rounded hover:bg-gray-700">✓</button>
-                        <button onClick={() => setEditSueldoId(null)} className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-700">✕</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => startEditSueldo(s)} className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-700">Editar</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            {sueldos.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-gray-700 bg-gray-800/50">
-                  <td className="px-6 py-3 text-gray-400 text-sm font-medium">Total sueldos</td>
-                  <td className="px-6 py-3 text-right text-white font-bold">{fmt(totalSueldos)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
-          </table>
+
+          {/* Row 3: Gastos Clientes */}
+          {renderMensualTabla('Gastos Clientes', 'cliente', gastosClientes, totalGastosClientes, 'cliente')}
         </div>
-      </div>
       )}
 
       {/* Combined total */}
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 flex items-center justify-between">
         <div>
           <p className="text-gray-400 text-sm">Total costes {vistaAnual ? anio : ''}</p>
-          <p className="text-gray-500 text-xs mt-0.5">Gastos {fmt(totalGastos)} + Sueldos {fmt(totalSueldos)}</p>
+          <p className="text-gray-500 text-xs mt-0.5">
+            Fijos {fmt(totalGastosFijos)} + Sueldos {fmt(totalSueldos)} + Comisiones {fmt(totalGastosComisiones)} + Deptos {fmt(totalGastosDepartamentos)} + Clientes {fmt(totalGastosClientes)}
+          </p>
         </div>
         <p className="text-2xl font-bold text-white">{fmt(totalCombinado)}</p>
       </div>
@@ -689,12 +773,38 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-              <h3 className="text-white font-semibold">{gastoEditMode ? 'Editar gasto' : 'Añadir gasto fijo'}</h3>
+              <h3 className="text-white font-semibold">{gastoEditMode ? 'Editar gasto' : 'Añadir gasto'}</h3>
               <button onClick={() => setShowGastoModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
             <form onSubmit={handleGastoSubmit}>
               <div className="p-6 space-y-4">
                 {error && <div className="bg-red-900/30 border border-red-800 rounded-lg px-4 py-2 text-red-400 text-sm">{error}</div>}
+
+                {/* Categoría selector */}
+                <div>
+                  <label className="block text-gray-400 text-sm mb-2">Categoría</label>
+                  <div className="flex gap-1 flex-wrap">
+                    {([
+                      { value: 'fijo', label: 'Gasto Fijo' },
+                      { value: 'departamento', label: 'Departamento' },
+                      { value: 'comision', label: 'Comisión' },
+                      { value: 'cliente', label: 'Gasto Cliente' },
+                    ] as { value: CategoriaGasto; label: string }[]).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setGastoForm(f => ({ ...f, categoria: opt.value, id_departamento: '', id_cliente: '' }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                          gastoForm.categoria === opt.value
+                            ? 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-white'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Toggle: todo el año (solo en creación) */}
                 {!gastoEditMode && (
@@ -734,25 +844,16 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                   <input type="text" value={gastoForm.concepto} onChange={e => setGastoForm(f => ({ ...f, concepto: e.target.value }))}
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500" autoFocus />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-1">Valor (€) *</label>
-                    <input type="number" min="0" step="0.01" value={gastoForm.valor} onChange={e => setGastoForm(f => ({ ...f, valor: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="0" />
-                  </div>
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-1">Tipo</label>
-                    <select value={gastoForm.tipo} onChange={e => setGastoForm(f => ({ ...f, tipo: e.target.value as 'general' | 'departamento' | 'comision', id_departamento: '', id_cliente: '' }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                      <option value="general">General</option>
-                      <option value="departamento">Departamento</option>
-                      <option value="comision">Comisión</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Valor (€) *</label>
+                  <input type="number" min="0" step="0.01" value={gastoForm.valor} onChange={e => setGastoForm(f => ({ ...f, valor: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="0" />
                 </div>
-                {gastoForm.tipo === 'departamento' && (
+
+                {/* Departamento — solo cuando categoría=departamento */}
+                {gastoForm.categoria === 'departamento' && (
                   <div>
-                    <label className="block text-gray-400 text-sm mb-1">Departamento</label>
+                    <label className="block text-gray-400 text-sm mb-1">Departamento *</label>
                     <select value={gastoForm.id_departamento} onChange={e => setGastoForm(f => ({ ...f, id_departamento: e.target.value }))}
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                       <option value="">Seleccionar...</option>
@@ -760,16 +861,16 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                     </select>
                   </div>
                 )}
-                {/* Cliente: obligatorio para comisión, opcional para el resto */}
-                {(gastoForm.tipo === 'comision' || gastoForm.tipo === 'general') && (
+
+                {/* Cliente — obligatorio para comisión y gasto cliente */}
+                {(gastoForm.categoria === 'comision' || gastoForm.categoria === 'cliente') && (
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">
-                      Cliente {gastoForm.tipo === 'comision' ? <span className="text-orange-400">*</span> : <span className="text-gray-600">(opcional)</span>}
+                      Cliente <span className="text-orange-400">*</span>
                     </label>
                     <select value={gastoForm.id_cliente} onChange={e => setGastoForm(f => ({ ...f, id_cliente: e.target.value }))}
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                      {gastoForm.tipo !== 'comision' && <option value="">Sin cliente asociado</option>}
-                      {gastoForm.tipo === 'comision' && <option value="">Selecciona un cliente…</option>}
+                      <option value="">Selecciona un cliente…</option>
                       {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                     </select>
                   </div>
