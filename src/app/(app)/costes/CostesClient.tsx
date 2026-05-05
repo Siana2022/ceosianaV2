@@ -742,6 +742,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                       <option value="general">General</option>
                       <option value="departamento">Departamento</option>
+                      <option value="comision">Comisión</option>
                     </select>
                   </div>
                 </div>
