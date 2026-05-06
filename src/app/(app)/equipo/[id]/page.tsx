@@ -2,6 +2,7 @@ import { createClient } from '@/lib/server/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import SueldosClient from './SueldosClient'
+import DedicacionEmpleadoClient from './DedicacionEmpleadoClient'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -22,12 +23,12 @@ export default async function EmpleadoPage({
   const { anio: anioParam } = await searchParams
   const currentYear = new Date().getFullYear()
   const year = anioParam ? parseInt(anioParam) : currentYear
-  const years = [currentYear - 1, currentYear, currentYear + 1]
+  const years = Array.from({ length: currentYear - 2023 + 2 }, (_, i) => 2023 + i)
 
   const supabase = await createClient()
 
-  // Round 1: employee + all sueldos + responsables for the year (in parallel)
-  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }] = await Promise.all([
+  // Round 1: employee + all sueldos + responsables + dedicacion + departamentos (in parallel)
+  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, { data: dedicacionRaw }, { data: departamentosRaw }] = await Promise.all([
     supabase
       .from('empleados')
       .select('id, nombre, email, activo, fecha_alta, fecha_baja')
@@ -44,6 +45,16 @@ export default async function EmpleadoPage({
       .select('id_servicio, porcentaje, mes')
       .eq('id_empleado', id)
       .eq('anio', year),
+    supabase
+      .from('empleado_dedicacion')
+      .select('id_departamento, porcentaje, mes')
+      .eq('id_empleado', id)
+      .eq('anio', year),
+    supabase
+      .from('departamentos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
   ])
 
   if (!empleado) notFound()
@@ -373,6 +384,18 @@ export default async function EmpleadoPage({
           </table>
         </div>
       </div>
+
+      {/* Dedicacion section */}
+      <DedicacionEmpleadoClient
+        empleadoId={id}
+        anio={year}
+        departamentos={departamentosRaw ?? []}
+        dedicacion={(dedicacionRaw ?? []).map(d => ({
+          id_departamento: d.id_departamento,
+          porcentaje: d.porcentaje,
+          mes: d.mes,
+        }))}
+      />
 
       {/* Sueldos section */}
       <SueldosClient empleadoId={id} sueldos={sueldos ?? []} />

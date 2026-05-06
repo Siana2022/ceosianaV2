@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
@@ -56,7 +57,12 @@ interface GastoForm {
 export default function CostesClient({ gastos, sueldos, departamentos, clientes, mes, anio, vistaAnual }: Props) {
   const router = useRouter()
   const currentYear = new Date().getFullYear()
-  const years = [currentYear - 1, currentYear, currentYear + 1]
+  const years = Array.from({ length: currentYear - 2023 + 2 }, (_, i) => 2023 + i)
+
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
+  const askConfirm = (title: string, message: string, onConfirm: () => void) =>
+    setConfirmModal({ title, message, onConfirm })
 
   // Gasto modal
   const [showGastoModal, setShowGastoModal] = useState(false)
@@ -171,34 +177,40 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   }
 
   const handleDeleteGasto = async (id: string) => {
-    if (!confirm('¿Eliminar este gasto?')) return
-    await fetch(`/api/costes?id=${id}`, { method: 'DELETE' })
-    router.refresh()
+    askConfirm('Eliminar gasto', '¿Seguro que quieres eliminar este gasto?', async () => {
+      setConfirmModal(null)
+      await fetch(`/api/costes?id=${id}`, { method: 'DELETE' })
+      router.refresh()
+    })
   }
 
   const handleDeleteConceptoRow = async (concepto: string) => {
     const allGastos = Array.from(gastosDetail.get(concepto)?.values() ?? []).flat()
     if (allGastos.length === 0) return
     const plural = allGastos.length === 1 ? '1 entrada' : `${allGastos.length} entradas`
-    if (!confirm(`¿Eliminar "${concepto}" (${plural})?`)) return
-    await Promise.all(allGastos.map(g => fetch(`/api/costes?id=${g.id}`, { method: 'DELETE' })))
-    router.refresh()
+    askConfirm('Eliminar concepto', `¿Eliminar "${concepto}" (${plural})? Esta acción no se puede deshacer.`, async () => {
+      setConfirmModal(null)
+      await Promise.all(allGastos.map(g => fetch(`/api/costes?id=${g.id}`, { method: 'DELETE' })))
+      router.refresh()
+    })
   }
 
   const openEditConceptoModal = (concepto: string) => {
     const firstGasto = Array.from(gastosDetail.get(concepto)?.values() ?? []).flat()[0]
     if (!firstGasto) return
+    // id_cliente may be a raw UUID or the join object; check both
+    const clienteId = firstGasto.id_cliente ?? (firstGasto.cliente as { id: string } | null)?.id ?? null
     const categoria: CategoriaGasto = firstGasto.tipo === 'comision' ? 'comision'
       : firstGasto.tipo === 'departamento' ? 'departamento'
-      : firstGasto.id_cliente ? 'cliente'
+      : clienteId ? 'cliente'
       : 'fijo'
     setEditConceptoForm({
       concepto,
       categoria,
       id_departamento: firstGasto.id_departamento ?? '',
-      id_cliente: firstGasto.id_cliente ?? '',
+      id_cliente: clienteId ?? '',
     })
-    setEditConceptoModal({ concepto, categoria, id_departamento: firstGasto.id_departamento ?? '', id_cliente: firstGasto.id_cliente ?? '' })
+    setEditConceptoModal({ concepto, categoria, id_departamento: firstGasto.id_departamento ?? '', id_cliente: clienteId ?? '' })
   }
 
   const saveEditConcepto = async () => {
@@ -230,7 +242,13 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   }
 
   const handleCopiarMesAnterior = async () => {
-    if (!confirm('¿Copiar los gastos fijos del mes anterior a este mes?')) return
+    askConfirm('Copiar mes anterior', '¿Copiar los gastos fijos del mes anterior a este mes?', async () => {
+      setConfirmModal(null)
+      await doCopiarMesAnterior()
+    })
+  }
+
+  const doCopiarMesAnterior = async () => {
     setCopying(true)
     try {
       const prevMes = (mes ?? 1) === 1 ? 12 : (mes ?? 1) - 1
@@ -634,6 +652,13 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
 
   return (
     <div className="p-6 space-y-6">
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title ?? ''}
+        message={confirmModal?.message ?? ''}
+        onConfirm={confirmModal?.onConfirm ?? (() => {})}
+        onCancel={() => setConfirmModal(null)}
+      />
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-white">Costes</h2>

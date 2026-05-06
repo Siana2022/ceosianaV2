@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import ConfirmModal from '@/components/ConfirmModal'
 
 type Sueldo = {
   id: number
@@ -31,6 +32,7 @@ export default function SueldosClient({
   const [form, setForm] = useState({ mes: '1', anio: String(new Date().getFullYear()), coste_total: '' })
   const [todoElAnio, setTodoElAnio] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
 
   const openNew = () => {
     const now = new Date()
@@ -82,10 +84,16 @@ export default function SueldosClient({
     router.refresh()
   }
 
-  const handleDelete = async (s: Sueldo) => {
-    if (!window.confirm(`¿Eliminar el sueldo de ${MESES[s.mes - 1]} ${s.anio}?`)) return
-    await fetch(`/api/sueldos?id=${s.id}`, { method: 'DELETE' })
-    router.refresh()
+  const handleDelete = (s: Sueldo) => {
+    setConfirmModal({
+      title: 'Eliminar sueldo',
+      message: `¿Eliminar el sueldo de ${MESES[s.mes - 1]} ${s.anio}?`,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        await fetch(`/api/sueldos?id=${s.id}`, { method: 'DELETE' })
+        router.refresh()
+      },
+    })
   }
 
   // Group by year for display
@@ -105,6 +113,13 @@ export default function SueldosClient({
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title ?? ''}
+        message={confirmModal?.message ?? ''}
+        onConfirm={confirmModal?.onConfirm ?? (() => {})}
+        onCancel={() => setConfirmModal(null)}
+      />
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
         <h3 className="text-white font-semibold text-lg">Sueldos</h3>
         <button

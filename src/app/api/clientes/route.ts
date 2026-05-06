@@ -57,6 +57,39 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const id = searchParams.get('id')
 
+  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+
+  // Cascade: delete related data first
+  // 1. Get service IDs for this client
+  const { data: servicios } = await supabase
+    .from('servicios')
+    .select('id')
+    .eq('id_cliente', id)
+
+  const servicioIds = (servicios ?? []).map(s => s.id)
+
+  // 2. Delete in parallel: ingresos, gastos_fijos, captacion_clientes, servicio_responsables for this client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cascadePromises: any[] = [
+    supabase.from('ingresos').delete().eq('id_cliente', id),
+    supabase.from('gastos_fijos').delete().eq('id_cliente', id),
+    supabase.from('captacion_clientes').delete().eq('id_cliente', id),
+  ]
+
+  if (servicioIds.length > 0) {
+    cascadePromises.push(
+      supabase.from('servicio_responsables').delete().in('id_servicio', servicioIds)
+    )
+  }
+
+  await Promise.all(cascadePromises)
+
+  // 3. Delete services
+  if (servicioIds.length > 0) {
+    await supabase.from('servicios').delete().eq('id_cliente', id)
+  }
+
+  // 4. Delete the client itself
   const { error } = await supabase
     .from('clientes')
     .delete()

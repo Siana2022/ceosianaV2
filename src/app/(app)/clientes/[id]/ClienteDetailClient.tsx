@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
@@ -94,6 +95,7 @@ interface Props {
   mrr: number
   total_facturado: number
   total_costes: number
+  coste_personal: number
   year: number
 }
 
@@ -129,6 +131,7 @@ export default function ClienteDetailClient({
   mrr,
   total_facturado,
   total_costes,
+  coste_personal,
   year,
 }: Props) {
   const router = useRouter()
@@ -201,9 +204,11 @@ export default function ClienteDetailClient({
   }
 
   const deleteGasto = async (id: string) => {
-    if (!confirm('¿Eliminar este gasto?')) return
-    await fetch(`/api/costes?id=${id}`, { method: 'DELETE' })
-    setLocalGastos(prev => prev.filter(g => g.id !== id))
+    askConfirm('Eliminar gasto', '¿Seguro que quieres eliminar este gasto?', async () => {
+      setConfirmModal(null)
+      await fetch(`/api/costes?id=${id}`, { method: 'DELETE' })
+      setLocalGastos(prev => prev.filter(g => g.id !== id))
+    })
   }
 
   // ── Ingreso map ──────────────────────────────────────────────────────
@@ -667,7 +672,17 @@ export default function ClienteDetailClient({
 
   const deleteServicio = async (s: Servicio) => {
     const label = s.departamento?.nombre ?? s.nombre
-    if (!confirm(`¿Eliminar el servicio "${label}"?\nSe eliminarán también todos sus ingresos registrados.`)) return
+    askConfirm(
+      'Eliminar servicio',
+      `¿Eliminar el servicio "${label}"? Se eliminarán también todos sus ingresos registrados.`,
+      async () => {
+        setConfirmModal(null)
+        await doDeleteServicio(s)
+      }
+    )
+  }
+
+  const doDeleteServicio = async (s: Servicio) => {
     // Delete ingresos associated to this service from local state
     const keysToDelete = Array.from(ingresoMap.keys()).filter(k => k.startsWith(`${s.id}_`))
     const ingresoIds = keysToDelete.map(k => ingresoMap.get(k)!.id)
@@ -755,12 +770,24 @@ export default function ClienteDetailClient({
 
   const grandTotal = monthTotals.reduce((a, b) => a + b, 0)
   const currentYear = new Date().getFullYear()
-  const years = [currentYear - 1, currentYear, currentYear + 1]
+  const years = Array.from({ length: currentYear - 2023 + 2 }, (_, i) => 2023 + i)
+
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
+  const askConfirm = (title: string, message: string, onConfirm: () => void) =>
+    setConfirmModal({ title, message, onConfirm })
 
   const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 
   return (
     <div className="p-6 space-y-6">
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title ?? ''}
+        message={confirmModal?.message ?? ''}
+        onConfirm={confirmModal?.onConfirm ?? (() => {})}
+        onCancel={() => setConfirmModal(null)}
+      />
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -781,7 +808,7 @@ export default function ClienteDetailClient({
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Facturación mensual</p>
           <p className={`text-2xl font-bold mt-1 ${mrr > 0 ? 'text-green-400' : 'text-gray-500'}`}>{fmt(mrr)}</p>
@@ -791,14 +818,19 @@ export default function ClienteDetailClient({
           <p className="text-2xl font-bold text-white mt-1">{fmt(grandTotal)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Costes imputados {year}</p>
-          <p className="text-2xl font-bold text-red-400 mt-1">{fmt(localTotalCostes)}</p>
-          <p className="text-gray-500 text-xs mt-0.5">{localGastos.length} gastos</p>
+          <p className="text-gray-400 text-sm">Gastos directos {year}</p>
+          <p className="text-2xl font-bold text-orange-400 mt-1">{fmt(localTotalCostes)}</p>
+          <p className="text-gray-500 text-xs mt-0.5">{localGastos.length} partidas</p>
+        </div>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p className="text-gray-400 text-sm">Coste personal {year}</p>
+          <p className={`text-2xl font-bold mt-1 ${coste_personal > 0 ? 'text-orange-400' : 'text-gray-500'}`}>{fmt(coste_personal)}</p>
+          <p className="text-gray-500 text-xs mt-0.5">sueldo × responsabilidad</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Margen {year}</p>
           {(() => {
-            const margen = grandTotal - localTotalCostes
+            const margen = grandTotal - localTotalCostes - coste_personal
             const pct = grandTotal > 0 ? (margen / grandTotal) * 100 : 0
             return (
               <>
@@ -1023,11 +1055,13 @@ export default function ClienteDetailClient({
           const mes = i + 1
           return conceptos.reduce((s, c) => s + (gastosByConceptoMes.get(c)?.get(mes)?.valor ?? 0), 0)
         })
-        const deleteConceptoGastos = async (concepto: string) => {
-          if (!confirm(`¿Eliminar todos los gastos de "${concepto}"?`)) return
-          const ids = localGastos.filter(g => g.concepto === concepto).map(g => g.id)
-          await Promise.all(ids.map(id => fetch(`/api/costes?id=${id}`, { method: 'DELETE' })))
-          setLocalGastos(prev => prev.filter(g => g.concepto !== concepto))
+        const deleteConceptoGastos = (concepto: string) => {
+          askConfirm('Eliminar concepto', `¿Eliminar todos los gastos de "${concepto}"?`, async () => {
+            setConfirmModal(null)
+            const ids = localGastos.filter(g => g.concepto === concepto).map(g => g.id)
+            await Promise.all(ids.map(id => fetch(`/api/costes?id=${id}`, { method: 'DELETE' })))
+            setLocalGastos(prev => prev.filter(g => g.concepto !== concepto))
+          })
         }
         return (
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">

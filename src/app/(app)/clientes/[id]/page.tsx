@@ -72,6 +72,8 @@ export default async function ClienteDetailPage({
     porcentaje: number
   }[] = []
 
+  let sueldosParaCostePersonal: { id_empleado: string; coste_total: number; mes: number }[] = []
+
   if (servicioIds.length > 0) {
     const { data: resps } = await supabase
       .from('servicio_responsables')
@@ -94,7 +96,32 @@ export default async function ClienteDetailPage({
         porcentaje: Number(r.porcentaje ?? 100),
       }
     })
+
+    // Fetch sueldos for the unique employees that have responsibilities for this client
+    const empIds = [...new Set(responsablesData.map(r => r.id_empleado))]
+    if (empIds.length > 0) {
+      const { data: sueldosEmp } = await supabase
+        .from('sueldos')
+        .select('id_empleado, coste_total, mes')
+        .eq('anio', year)
+        .in('id_empleado', empIds)
+      sueldosParaCostePersonal = (sueldosEmp ?? []).map(s => ({
+        id_empleado: s.id_empleado,
+        coste_total: Number(s.coste_total),
+        mes: s.mes,
+      }))
+    }
   }
+
+  // Compute coste_personal = sum(sueldo × porcentaje%) per month for all service responsables
+  const sueldoMap = new Map<string, number>()
+  for (const s of sueldosParaCostePersonal) {
+    sueldoMap.set(`${s.id_empleado}_${s.mes}`, s.coste_total)
+  }
+  const coste_personal = responsablesData.reduce((sum, r) => {
+    const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
+    return sum + sueldo * r.porcentaje / 100
+  }, 0)
 
   // Build empleadosPorDepartamento map
   const empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]> = {}
@@ -124,7 +151,7 @@ export default async function ClienteDetailPage({
     .reduce((sum, s) => sum + Number(s.precio_base ?? 0), 0)
 
   const total_facturado = (ingresos ?? []).reduce((sum, i) => sum + Number(i.valor ?? 0), 0)
-  const total_costes = (gastos ?? []).reduce((sum, g) => sum + Number(g.valor ?? 0), 0)
+  const total_costes_directos = (gastos ?? []).reduce((sum, g) => sum + Number(g.valor ?? 0), 0)
 
   return (
     <ClienteDetailClient
@@ -140,7 +167,8 @@ export default async function ClienteDetailPage({
       gastosExistentes={gastosExistentes}
       mrr={mrr}
       total_facturado={total_facturado}
-      total_costes={total_costes}
+      total_costes={total_costes_directos}
+      coste_personal={coste_personal}
       year={year}
     />
   )

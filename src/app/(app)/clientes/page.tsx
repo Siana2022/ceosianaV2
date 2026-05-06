@@ -132,7 +132,7 @@ export default async function ClientesPage({
   })
 
   const currentYear = new Date().getFullYear()
-  const years = [currentYear - 1, currentYear, currentYear + 1]
+  const years = Array.from({ length: currentYear - 2023 + 2 }, (_, i) => 2023 + i)
 
   return <ClientesClient clientes={enriched} year={year} years={years} month={month} />
 }

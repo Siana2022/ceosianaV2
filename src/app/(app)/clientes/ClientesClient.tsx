@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
@@ -51,6 +52,9 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
+  const askConfirm = (title: string, message: string, onConfirm: () => void) =>
+    setConfirmModal({ title, message, onConfirm })
 
   const openCreate = () => {
     setMode('create')
@@ -107,12 +111,32 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
     router.refresh()
   }
 
+  const deleteCliente = (c: Cliente, e: React.MouseEvent) => {
+    e.stopPropagation()
+    askConfirm(
+      'Eliminar cliente',
+      `¿Eliminar a "${c.nombre}"? Se eliminarán todos sus servicios, ingresos y gastos asociados. Esta acción no se puede deshacer.`,
+      async () => {
+        setConfirmModal(null)
+        await fetch(`/api/clientes?id=${c.id}`, { method: 'DELETE' })
+        router.refresh()
+      }
+    )
+  }
+
   const filtered = clientes.filter(c =>
     c.nombre.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
     <div className="p-6 space-y-6">
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title ?? ''}
+        message={confirmModal?.message ?? ''}
+        onConfirm={confirmModal?.onConfirm ?? (() => {})}
+        onCancel={() => setConfirmModal(null)}
+      />
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
@@ -187,8 +211,6 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                 <th className="text-right px-4 py-3">Coste Personal</th>
                 <th className="text-right px-4 py-3">Resultado</th>
                 <th className="text-right px-4 py-3">Margen %</th>
-                <th className="text-left px-4 py-3">Captador</th>
-                <th className="text-left px-4 py-3">Mantenedor</th>
                 <th className="text-center px-4 py-3">Estado</th>
                 <th className="text-center px-4 py-3">Acciones</th>
               </tr>
@@ -196,7 +218,7 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="text-center text-gray-500 py-12">No hay clientes</td>
+                  <td colSpan={9} className="text-center text-gray-500 py-12">No hay clientes</td>
                 </tr>
               )}
               {filtered.map(c => (
@@ -243,8 +265,6 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                       <span className="text-gray-600">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-300">{c.captador_nombre || <span className="text-gray-600">—</span>}</td>
-                  <td className="px-4 py-3 text-gray-300">{c.mantenedor_nombre || <span className="text-gray-600">—</span>}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       c.activo ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-500'
@@ -265,6 +285,12 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                         className="text-gray-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-700 text-xs"
                       >
                         {c.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                      <button
+                        onClick={e => deleteCliente(c, e)}
+                        className="text-red-600 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-gray-700 text-xs"
+                      >
+                        Eliminar
                       </button>
                     </div>
                   </td>

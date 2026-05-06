@@ -38,7 +38,7 @@ function pctColor(total: number) {
 export default function DedicacionClient({ empleados, departamentos, dedicacion, anio }: Props) {
   const router = useRouter()
   const currentYear = new Date().getFullYear()
-  const years = [currentYear - 1, currentYear, currentYear + 1]
+  const years = Array.from({ length: currentYear - 2023 + 2 }, (_, i) => 2023 + i)
 
   // Map: `${empId}_${mes}` → [{id_departamento, porcentaje}]
   const [dedicMap, setDedicMap] = useState<Map<string, Assignment[]>>(() => {
