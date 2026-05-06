@@ -743,7 +743,6 @@ export default function ClienteDetailClient({
   const [fillingHistorico, setFillingHistorico] = useState<string | null>(null)
 
   const rellenarHistorico = async (s: Servicio) => {
-    if (!s.precio_base || s.precio_base <= 0) return
     // Use service fecha_inicio, or client fecha_alta, or default to 2023-01-01
     const fechaRef = s.fecha_inicio ?? cliente.fecha_alta ?? '2023-01-01'
 
@@ -751,8 +750,16 @@ export default function ClienteDetailClient({
     try {
       // 1. Get all existing ingresos for this service (all years)
       const res = await fetch(`/api/ingresos?id_servicio=${s.id}`)
-      const existentes: { id: string; mes: number; anio: number }[] = await res.json()
+      const existentes: { id: string; mes: number; anio: number; valor: number }[] = await res.json()
       const existentesSet = new Set(existentes.map(e => `${e.anio}_${e.mes}`))
+
+      // Determine fill value: precio_base → last known ingreso → 0 (won't fill)
+      const valorFill = (s.precio_base && s.precio_base > 0)
+        ? s.precio_base
+        : existentes.length > 0
+          ? existentes[existentes.length - 1].valor
+          : 0
+      if (!valorFill || valorFill <= 0) { setFillingHistorico(null); return }
 
       // 2. Build list of all month/year from fechaRef to today (or fecha_fin)
       const inicioDate = new Date(fechaRef)
@@ -789,7 +796,7 @@ export default function ClienteDetailClient({
               id_cliente: cliente.id,
               id_servicio: s.id,
               concepto: s.departamento?.nombre ?? s.nombre,
-              valor: s.precio_base,
+              valor: valorFill,
               mes,
               anio,
               id_departamento: s.departamento?.id ?? null,
@@ -1022,23 +1029,23 @@ export default function ClienteDetailClient({
                     <td className="py-2 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         {s.tipo === 'recurrente' && s.precio_base && s.precio_base > 0 && (
-                          <>
-                            <button
-                              onClick={() => rellenarConPrecioBase(s)}
-                              title={`Rellenar meses vacíos de ${year} con ${fmt(s.precio_base)}/mes`}
-                              className="text-gray-500 hover:text-yellow-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm"
-                            >
-                              ⚡
-                            </button>
-                            <button
-                              onClick={() => rellenarHistorico(s)}
-                              disabled={fillingHistorico === s.id}
-                              title={`Rellenar histórico completo desde ${s.fecha_inicio ?? cliente.fecha_alta ?? '2023'} hasta hoy`}
-                              className="text-gray-500 hover:text-blue-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm disabled:opacity-40"
-                            >
-                              {fillingHistorico === s.id ? '⏳' : '📅'}
-                            </button>
-                          </>
+                          <button
+                            onClick={() => rellenarConPrecioBase(s)}
+                            title={`Rellenar meses vacíos de ${year} con ${fmt(s.precio_base)}/mes`}
+                            className="text-gray-500 hover:text-yellow-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm"
+                          >
+                            ⚡
+                          </button>
+                        )}
+                        {s.tipo === 'recurrente' && (
+                          <button
+                            onClick={() => rellenarHistorico(s)}
+                            disabled={fillingHistorico === s.id}
+                            title={`Rellenar histórico completo desde ${s.fecha_inicio ?? cliente.fecha_alta ?? '2023'} hasta hoy`}
+                            className="text-gray-500 hover:text-blue-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm disabled:opacity-40"
+                          >
+                            {fillingHistorico === s.id ? '⏳' : '📅'}
+                          </button>
                         )}
                         <button
                           onClick={() => openRespModal(s)}
