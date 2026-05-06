@@ -10,6 +10,7 @@ export interface DeptRentabilidad {
   costTotal: number
   resultado: number
   margenPct: number
+  num_proyectos: number
 }
 
 export default async function DepartamentosPage() {
@@ -23,6 +24,7 @@ export default async function DepartamentosPage() {
     { data: ingresos },
     { data: sueldos },
     { data: gastosFijos },
+    { data: serviciosRaw },
   ] = await Promise.all([
     supabase.from('departamentos').select('id, nombre, activo').order('nombre'),
     supabase
@@ -47,6 +49,10 @@ export default async function DepartamentosPage() {
       .eq('anio', anio)
       .eq('tipo', 'departamento')
       .not('id_departamento', 'is', null),
+    supabase
+      .from('servicios')
+      .select('id, id_departamento, activo')
+      .not('id_departamento', 'is', null),
   ])
 
   // Build dedicacion maps
@@ -60,13 +66,20 @@ export default async function DepartamentosPage() {
     }
   }
 
-  // sueldo map
+  // sueldo map: `${id_empleado}_${mes}` → coste_total
   const sueldoMap = new Map<string, number>()
   for (const s of sueldos ?? []) {
     sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total))
   }
 
-  // Build a map: departamento_id → [{id, nombre, porcentaje}]
+  // num_proyectos per dept (active services)
+  const numProyectosByDept = new Map<string, number>()
+  for (const s of serviciosRaw ?? []) {
+    if (!s.id_departamento || !s.activo) continue
+    numProyectosByDept.set(s.id_departamento, (numProyectosByDept.get(s.id_departamento) ?? 0) + 1)
+  }
+
+  // Build miembrosMap for cards display: departamento_id → [{id, nombre, porcentaje}]
   const miembrosMap = new Map<string, { id: string; nombre: string; porcentaje: number }[]>()
   for (const m of miembros ?? []) {
     const empRaw = m.empleado
@@ -88,15 +101,12 @@ export default async function DepartamentosPage() {
       .filter(r => r.id_departamento === dept.id)
       .reduce((s, r) => s + Number(r.valor), 0)
 
-    const deptMembers = miembrosMap.get(dept.id) ?? []
-
+    // Calculate coste personal from empleado_dedicacion directly (consistent with detail page)
     let costePersonal = 0
-    for (const member of deptMembers) {
-      for (let mes = 1; mes <= 12; mes++) {
-        const sueldo = sueldoMap.get(`${member.id}_${mes}`) ?? 0
-        const pct = dedicacionMap.get(`${member.id}_${dept.id}_${mes}`) ?? 0
-        costePersonal += sueldo * pct / 100
-      }
+    const deptDedicacion = (dedicacion ?? []).filter(d => d.id_departamento === dept.id)
+    for (const d of deptDedicacion) {
+      const sueldo = sueldoMap.get(`${d.id_empleado}_${d.mes}`) ?? 0
+      costePersonal += sueldo * d.porcentaje / 100
     }
 
     const gastosPropios = (gastosFijos ?? [])
@@ -106,6 +116,7 @@ export default async function DepartamentosPage() {
     const costTotal = costePersonal + gastosPropios
     const resultado = ingresosDept - costTotal
     const margenPct = ingresosDept > 0 ? (resultado / ingresosDept) * 100 : 0
+    const num_proyectos = numProyectosByDept.get(dept.id) ?? 0
 
     return {
       id: dept.id,
@@ -116,6 +127,7 @@ export default async function DepartamentosPage() {
       costTotal,
       resultado,
       margenPct,
+      num_proyectos,
     }
   })
 

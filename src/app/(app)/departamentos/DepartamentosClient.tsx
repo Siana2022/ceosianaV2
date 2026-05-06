@@ -18,6 +18,7 @@ interface DeptRentabilidad {
   costTotal: number
   resultado: number
   margenPct: number
+  num_proyectos: number
 }
 
 export default function DepartamentosClient({
@@ -119,6 +120,7 @@ export default function DepartamentosClient({
               <thead>
                 <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
                   <th className="text-left px-4 py-3">Departamento</th>
+                  <th className="text-center px-4 py-3">Proyectos</th>
                   <th className="text-right px-4 py-3">Ingresos</th>
                   <th className="text-right px-4 py-3">Coste Personal</th>
                   <th className="text-right px-4 py-3">Gastos Propios</th>
@@ -134,6 +136,13 @@ export default function DepartamentosClient({
                     onClick={() => router.push(`/departamentos/${r.id}`)}
                   >
                     <td className="px-4 py-3 text-white font-medium hover:text-blue-400 transition-colors">{r.nombre}</td>
+                    <td className="px-4 py-3 text-center">
+                      {r.num_proyectos > 0 ? (
+                        <span className="text-blue-400 font-medium">{r.num_proyectos}</span>
+                      ) : (
+                        <span className="text-gray-600">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right text-white">{fmt(r.ingresos)}</td>
                     <td className="px-4 py-3 text-right text-orange-400">{fmt(r.costePersonal)}</td>
                     <td className="px-4 py-3 text-right text-orange-400">{fmt(r.gastosPropios)}</td>
@@ -152,10 +161,12 @@ export default function DepartamentosClient({
                 const totGastos = rentabilidad.reduce((s, r) => s + r.gastosPropios, 0)
                 const totResultado = rentabilidad.reduce((s, r) => s + r.resultado, 0)
                 const totMargen = totIngresos > 0 ? (totResultado / totIngresos) * 100 : 0
+                const totProyectos = rentabilidad.reduce((s, r) => s + r.num_proyectos, 0)
                 return (
                   <tfoot>
                     <tr className="border-t-2 border-gray-700 bg-gray-800/50">
                       <td className="px-4 py-3 text-white font-bold">Total</td>
+                      <td className="px-4 py-3 text-center text-blue-400 font-bold">{totProyectos}</td>
                       <td className="px-4 py-3 text-right text-white font-bold">{fmt(totIngresos)}</td>
                       <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(totPersonal)}</td>
                       <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(totGastos)}</td>
@@ -205,9 +216,16 @@ export default function DepartamentosClient({
                     {d.activo ? 'Activo' : 'Inactivo'}
                   </span>
                 </div>
-                <span className="text-gray-500 text-xs bg-gray-800 px-2 py-1 rounded-lg flex-shrink-0">
-                  {d.miembros.length} {d.miembros.length === 1 ? 'persona' : 'personas'}
-                </span>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className="text-gray-500 text-xs bg-gray-800 px-2 py-1 rounded-lg">
+                    {d.miembros.length} {d.miembros.length === 1 ? 'persona' : 'personas'}
+                  </span>
+                  {rent && rent.num_proyectos > 0 && (
+                    <span className="text-gray-500 text-xs bg-gray-800 px-2 py-1 rounded-lg">
+                      {rent.num_proyectos} {rent.num_proyectos === 1 ? 'proyecto' : 'proyectos'}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Members */}

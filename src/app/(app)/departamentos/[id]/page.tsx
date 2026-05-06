@@ -132,17 +132,24 @@ export default async function DepartamentoDetailPage({
     entry.costes.push(sueldo * d.porcentaje / 100)
   }
 
+  // Compute active clients and active projects counts
+  const numClientesActivos = new Set(
+    serviciosList.filter(s => s.activo === true && s.cliente !== null).map(s => s.cliente!.id)
+  ).size
+  const numProyectosActivos = serviciosList.filter(s => s.activo === true).length
+
   // Personal section rows
   const personalRows = Array.from(empDedicMap.entries()).map(([empId, { pcts, costes }]) => {
-    const activeMeses = pcts.filter(p => p > 0).length
     const avgPct = pcts.length > 0 ? pcts.reduce((a, b) => a + b, 0) / pcts.length : 0
     const totalCoste = costes.reduce((a, b) => a + b, 0)
+    const totalCostePorProyecto = totalCoste / Math.max(numProyectosActivos, 1)
     return {
       empId,
       nombre: empNameMap.get(empId) ?? empId,
       avgPct,
-      activeMeses,
+      clientesActivos: numClientesActivos,
       totalCoste,
+      totalCostePorProyecto,
     }
   }).sort((a, b) => a.nombre.localeCompare(b.nombre))
 
@@ -239,7 +246,7 @@ export default async function DepartamentoDetailPage({
                 <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
                   <th className="text-left px-6 py-3">Nombre</th>
                   <th className="text-right px-4 py-3">Dedicación media %</th>
-                  <th className="text-right px-4 py-3">Meses activos</th>
+                  <th className="text-right px-4 py-3">Clientes activos</th>
                   <th className="text-right px-6 py-3">Sueldo imputado</th>
                 </tr>
               </thead>
@@ -252,8 +259,8 @@ export default async function DepartamentoDetailPage({
                         {fmtPct(r.avgPct)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-300">{r.activeMeses}</td>
-                    <td className="px-6 py-3 text-right text-orange-400 font-medium">{fmt(r.totalCoste)}</td>
+                    <td className="px-4 py-3 text-right text-gray-300">{r.clientesActivos}</td>
+                    <td className="px-6 py-3 text-right text-orange-400 font-medium">{fmt(r.totalCostePorProyecto)}</td>
                   </tr>
                 ))}
               </tbody>
