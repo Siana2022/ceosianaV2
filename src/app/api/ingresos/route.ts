@@ -6,6 +6,17 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const mes = searchParams.get('mes')
   const anio = searchParams.get('anio')
+  const id_servicio = searchParams.get('id_servicio')
+
+  // Allow fetching all ingresos for a specific service (used for historical backfill)
+  if (id_servicio) {
+    const { data, error } = await supabase
+      .from('ingresos')
+      .select('id, mes, anio, valor')
+      .eq('id_servicio', id_servicio)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
 
   if (!mes || !anio) {
     return NextResponse.json({ error: 'mes and anio are required' }, { status: 400 })

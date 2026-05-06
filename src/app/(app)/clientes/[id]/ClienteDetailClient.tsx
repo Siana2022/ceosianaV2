@@ -740,6 +740,69 @@ export default function ClienteDetailClient({
     })
   }
 
+  const [fillingHistorico, setFillingHistorico] = useState<string | null>(null)
+
+  const rellenarHistorico = async (s: Servicio) => {
+    if (!s.precio_base || s.precio_base <= 0) return
+    if (!s.fecha_inicio) return
+
+    setFillingHistorico(s.id)
+    try {
+      // 1. Get all existing ingresos for this service (all years)
+      const res = await fetch(`/api/ingresos?id_servicio=${s.id}`)
+      const existentes: { id: string; mes: number; anio: number }[] = await res.json()
+      const existentesSet = new Set(existentes.map(e => `${e.anio}_${e.mes}`))
+
+      // 2. Build list of all month/year from fecha_inicio to today (or fecha_fin)
+      const inicioDate = new Date(s.fecha_inicio)
+      const inicioAnio = inicioDate.getFullYear()
+      const inicioMes = inicioDate.getMonth() + 1
+
+      const finDate = s.fecha_fin ? new Date(s.fecha_fin) : new Date()
+      const finAnio = finDate.getFullYear()
+      const finMes = finDate.getMonth() + 1
+
+      const toCreate: { mes: number; anio: number }[] = []
+      for (let anio = inicioAnio; anio <= finAnio; anio++) {
+        const mesStart = anio === inicioAnio ? inicioMes : 1
+        const mesEnd = anio === finAnio ? finMes : 12
+        for (let mes = mesStart; mes <= mesEnd; mes++) {
+          if (!existentesSet.has(`${anio}_${mes}`)) {
+            toCreate.push({ mes, anio })
+          }
+        }
+      }
+
+      if (toCreate.length === 0) {
+        setFillingHistorico(null)
+        return
+      }
+
+      // 3. Create all missing ingresos in batches
+      await Promise.all(
+        toCreate.map(({ mes, anio }) =>
+          fetch('/api/ingresos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id_cliente: cliente.id,
+              id_servicio: s.id,
+              concepto: s.departamento?.nombre ?? s.nombre,
+              valor: s.precio_base,
+              mes,
+              anio,
+              id_departamento: s.departamento?.id ?? null,
+            }),
+          })
+        )
+      )
+
+      router.refresh()
+    } finally {
+      setFillingHistorico(null)
+    }
+  }
+
   const saveCaptacion = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError('')
@@ -958,13 +1021,25 @@ export default function ClienteDetailClient({
                     <td className="py-2 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         {s.tipo === 'recurrente' && s.precio_base && s.precio_base > 0 && (
-                          <button
-                            onClick={() => rellenarConPrecioBase(s)}
-                            title={`Rellenar meses vacíos con ${fmt(s.precio_base)}/mes`}
-                            className="text-gray-500 hover:text-yellow-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm"
-                          >
-                            ⚡
-                          </button>
+                          <>
+                            <button
+                              onClick={() => rellenarConPrecioBase(s)}
+                              title={`Rellenar meses vacíos de ${year} con ${fmt(s.precio_base)}/mes`}
+                              className="text-gray-500 hover:text-yellow-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm"
+                            >
+                              ⚡
+                            </button>
+                            {s.fecha_inicio && (
+                              <button
+                                onClick={() => rellenarHistorico(s)}
+                                disabled={fillingHistorico === s.id}
+                                title={`Rellenar todo el histórico desde ${s.fecha_inicio} hasta hoy`}
+                                className="text-gray-500 hover:text-blue-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm disabled:opacity-40"
+                              >
+                                {fillingHistorico === s.id ? '⏳' : '📅'}
+                              </button>
+                            )}
+                          </>
                         )}
                         <button
                           onClick={() => openRespModal(s)}
