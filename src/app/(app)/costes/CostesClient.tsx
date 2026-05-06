@@ -348,10 +348,21 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
     if ((isEmpty || valor === 0) && cellGastos.length === 1) {
       await fetch(`/api/costes?id=${cellGastos[0].id}`, { method: 'DELETE' })
     } else if (!isEmpty && valor > 0 && cellGastos.length === 1) {
+      // Pass all gasto fields to avoid the API clearing id_cliente / id_departamento
+      const g = cellGastos[0]
       await fetch('/api/costes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: cellGastos[0].id, valor }),
+        body: JSON.stringify({
+          id: g.id,
+          valor,
+          concepto: g.concepto,
+          tipo: g.tipo,
+          id_departamento: g.id_departamento,
+          id_cliente: g.id_cliente,
+          mes: g.mes,
+          anio: g.anio,
+        }),
       })
     } else if (!isEmpty && valor > 0 && cellGastos.length === 0) {
       // Create new entry inheriting tipo/dept/cliente from another month

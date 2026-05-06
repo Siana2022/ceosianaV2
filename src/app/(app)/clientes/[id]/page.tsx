@@ -80,7 +80,11 @@ export default async function ClienteDetailPage({
       .eq('anio', year)
 
     responsablesData = (resps ?? []).map((r: Record<string, unknown>) => {
-      const emp = r.empleado as { id: string; nombre: string } | null
+      // Supabase may return the join as an object OR as a single-element array
+      const empRaw = r.empleado
+      const emp = Array.isArray(empRaw)
+        ? (empRaw[0] as { id: string; nombre: string } | undefined) ?? null
+        : (empRaw as { id: string; nombre: string } | null)
       return {
         id_servicio: r.id_servicio as string,
         id_empleado: r.id_empleado as string,

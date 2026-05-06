@@ -309,9 +309,13 @@ export default function ClienteDetailClient({
     { id: string; nombre: string; porcentaje: number; checked: boolean }[]
   >([])
   const [savingResp, setSavingResp] = useState(false)
+  const [respError, setRespError] = useState('')
+  const [respSaved, setRespSaved] = useState(false)
 
   const openRespModal = (s: Servicio) => {
     setRespServicio(s)
+    setRespError('')
+    setRespSaved(false)
     const defaultMes = new Date().getMonth() + 1
     setRespMes(defaultMes)
     loadRespEdit(s, defaultMes)
@@ -341,6 +345,8 @@ export default function ClienteDetailClient({
 
   const switchRespMes = (s: Servicio, mes: number) => {
     setRespMes(mes)
+    setRespError('')
+    setRespSaved(false)
     loadRespEdit(s, mes)
   }
 
@@ -349,6 +355,8 @@ export default function ClienteDetailClient({
   const saveResp = async () => {
     if (!respServicio) return
     setSavingResp(true)
+    setRespError('')
+    setRespSaved(false)
     const asignaciones = respEdit
       .filter(e => e.checked)
       .map(e => ({ id_empleado: e.id, porcentaje: e.porcentaje }))
@@ -372,6 +380,12 @@ export default function ClienteDetailClient({
         else next.set(key, saved)
         return next
       })
+      setRespSaved(true)
+      // Confirm data is persisted in DB
+      router.refresh()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setRespError(d.error ?? 'Error al guardar. Inténtalo de nuevo.')
     }
     setSavingResp(false)
   }
@@ -379,6 +393,8 @@ export default function ClienteDetailClient({
   const copyForward = async () => {
     if (!respServicio) return
     setSavingResp(true)
+    setRespError('')
+    setRespSaved(false)
     const asignaciones = respEdit
       .filter(e => e.checked)
       .map(e => ({ id_empleado: e.id, porcentaje: e.porcentaje }))
@@ -393,7 +409,14 @@ export default function ClienteDetailClient({
         })
       )
     }
-    await Promise.all(promises)
+    const results = await Promise.all(promises)
+    const failed = results.find(r => !r.ok)
+    if (failed) {
+      const d = await failed.json().catch(() => ({}))
+      setRespError(d.error ?? 'Error al copiar en algún mes.')
+      setSavingResp(false)
+      return
+    }
 
     // Update local state
     setResponsablesMap(prev => {
@@ -410,6 +433,8 @@ export default function ClienteDetailClient({
       }
       return next
     })
+    setRespSaved(true)
+    router.refresh()
     setSavingResp(false)
   }
 
@@ -1200,6 +1225,13 @@ export default function ClienteDetailClient({
                 </span>
               </div>
 
+              {respError && (
+                <div className="bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 text-red-400 text-xs">{respError}</div>
+              )}
+              {respSaved && !respError && (
+                <div className="bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 text-green-400 text-xs">✓ Guardado correctamente</div>
+              )}
+
               <div className="flex gap-2">
                 <button
                   onClick={copyForward}
@@ -1207,7 +1239,7 @@ export default function ClienteDetailClient({
                   title={`Copia esta asignación a ${MESES_CORTO[respMes - 1]}–Dic`}
                   className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
                 >
-                  Copiar {MESES_CORTO[respMes - 1]}→Dic
+                  {savingResp ? '…' : `Copiar ${MESES_CORTO[respMes - 1]}→Dic`}
                 </button>
                 <button
                   onClick={saveResp}
