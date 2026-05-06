@@ -744,7 +744,8 @@ export default function ClienteDetailClient({
 
   const rellenarHistorico = async (s: Servicio) => {
     if (!s.precio_base || s.precio_base <= 0) return
-    if (!s.fecha_inicio) return
+    // Use service fecha_inicio, or client fecha_alta, or default to 2023-01-01
+    const fechaRef = s.fecha_inicio ?? cliente.fecha_alta ?? '2023-01-01'
 
     setFillingHistorico(s.id)
     try {
@@ -753,8 +754,8 @@ export default function ClienteDetailClient({
       const existentes: { id: string; mes: number; anio: number }[] = await res.json()
       const existentesSet = new Set(existentes.map(e => `${e.anio}_${e.mes}`))
 
-      // 2. Build list of all month/year from fecha_inicio to today (or fecha_fin)
-      const inicioDate = new Date(s.fecha_inicio)
+      // 2. Build list of all month/year from fechaRef to today (or fecha_fin)
+      const inicioDate = new Date(fechaRef)
       const inicioAnio = inicioDate.getFullYear()
       const inicioMes = inicioDate.getMonth() + 1
 
@@ -1029,16 +1030,14 @@ export default function ClienteDetailClient({
                             >
                               ⚡
                             </button>
-                            {s.fecha_inicio && (
-                              <button
-                                onClick={() => rellenarHistorico(s)}
-                                disabled={fillingHistorico === s.id}
-                                title={`Rellenar todo el histórico desde ${s.fecha_inicio} hasta hoy`}
-                                className="text-gray-500 hover:text-blue-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm disabled:opacity-40"
-                              >
-                                {fillingHistorico === s.id ? '⏳' : '📅'}
-                              </button>
-                            )}
+                            <button
+                              onClick={() => rellenarHistorico(s)}
+                              disabled={fillingHistorico === s.id}
+                              title={`Rellenar histórico completo desde ${s.fecha_inicio ?? cliente.fecha_alta ?? '2023'} hasta hoy`}
+                              className="text-gray-500 hover:text-blue-400 px-1.5 py-1 rounded hover:bg-gray-700 transition-colors text-sm disabled:opacity-40"
+                            >
+                              {fillingHistorico === s.id ? '⏳' : '📅'}
+                            </button>
                           </>
                         )}
                         <button
