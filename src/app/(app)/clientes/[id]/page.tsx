@@ -168,6 +168,44 @@ export default async function ClienteDetailPage({
     coste_personal += sueldo * (dedicacion / 100) / numServicios
   }
 
+  // Compute coste_personal per service (same formula, grouped by service)
+  const costePersonalByServicio = new Map<string, number>()
+  for (const r of responsablesData) {
+    if (!clienteServicioIds.has(r.id_servicio)) continue
+    const servicio = servicioMap.get(r.id_servicio)
+    const deptId = servicio?.id_departamento
+    if (!deptId) continue
+    const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
+    const dedicacion = dedicacionMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 0
+    const numServicios = numServiciosMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 1
+    const coste = sueldo * (dedicacion / 100) / numServicios
+    costePersonalByServicio.set(r.id_servicio, (costePersonalByServicio.get(r.id_servicio) ?? 0) + coste)
+  }
+
+  // Compute facturado per service from ingresos
+  const factByServicio = new Map<string, number>()
+  for (const ing of ingresos ?? []) {
+    if (!ing.id_servicio) continue
+    factByServicio.set(ing.id_servicio, (factByServicio.get(ing.id_servicio) ?? 0) + Number(ing.valor))
+  }
+
+  // Compute unique employee names per service
+  const responsablesByServicio = new Map<string, string[]>()
+  for (const r of responsablesData) {
+    if (!responsablesByServicio.has(r.id_servicio)) responsablesByServicio.set(r.id_servicio, [])
+    const arr = responsablesByServicio.get(r.id_servicio)!
+    if (r.nombre && !arr.includes(r.nombre)) arr.push(r.nombre)
+  }
+
+  // Build rentabilidadServicios array
+  const rentabilidadServicios = (servicios ?? []).map(s => ({
+    id: s.id,
+    nombre: (s.departamento as { nombre: string } | null)?.nombre ?? s.nombre,
+    facturado: factByServicio.get(s.id) ?? 0,
+    coste_personal: Math.round(costePersonalByServicio.get(s.id) ?? 0),
+    responsables: responsablesByServicio.get(s.id) ?? [],
+  }))
+
   // Build empleadosPorDepartamento map
   const empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]> = {}
   for (const m of miembrosDepto ?? []) {
@@ -214,6 +252,7 @@ export default async function ClienteDetailPage({
       total_facturado={total_facturado}
       total_costes={total_costes_directos}
       coste_personal={coste_personal}
+      rentabilidadServicios={rentabilidadServicios}
       year={year}
     />
   )

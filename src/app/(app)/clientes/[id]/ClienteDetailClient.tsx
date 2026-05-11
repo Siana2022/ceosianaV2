@@ -81,6 +81,14 @@ interface GastoRef {
   id_departamento: string | null
 }
 
+interface RentabilidadServicio {
+  id: string
+  nombre: string
+  facturado: number
+  coste_personal: number
+  responsables: string[]
+}
+
 interface Props {
   cliente: Cliente
   servicios: Servicio[]
@@ -96,6 +104,7 @@ interface Props {
   total_facturado: number
   total_costes: number
   coste_personal: number
+  rentabilidadServicios: RentabilidadServicio[]
   year: number
 }
 
@@ -132,6 +141,7 @@ export default function ClienteDetailClient({
   total_facturado,
   total_costes,
   coste_personal,
+  rentabilidadServicios,
   year,
 }: Props) {
   const router = useRouter()
@@ -920,6 +930,58 @@ export default function ClienteDetailClient({
           <p className="text-gray-300 text-sm whitespace-pre-line">{cliente.notas}</p>
         </div>
       )}
+
+      {/* Rentabilidad por servicio */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-800">
+          <h3 className="text-white font-semibold">Rentabilidad por servicio {year}</h3>
+          <p className="text-gray-500 text-xs mt-0.5">Facturación vs coste de personal imputado</p>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800 bg-gray-800/30">
+              <th className="text-left px-6 py-3">Servicio</th>
+              <th className="text-left px-4 py-3">Responsables</th>
+              <th className="text-right px-4 py-3">Facturado</th>
+              <th className="text-right px-4 py-3">Coste personal</th>
+              <th className="text-right px-4 py-3">Margen</th>
+              <th className="text-right px-6 py-3">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rentabilidadServicios.map(s => {
+              const margen = s.facturado - s.coste_personal
+              const pct = s.facturado > 0 ? (margen / s.facturado) * 100 : null
+              const color = margen > 0 ? 'text-green-400' : margen < 0 ? 'text-red-400' : 'text-gray-400'
+              return (
+                <tr key={s.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td className="px-6 py-3 text-white font-medium">{s.nombre}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{s.responsables.join(', ') || '—'}</td>
+                  <td className="px-4 py-3 text-right text-white">{s.facturado > 0 ? fmt(s.facturado) : <span className="text-gray-600">0 €</span>}</td>
+                  <td className="px-4 py-3 text-right text-gray-300">{s.coste_personal > 0 ? fmt(s.coste_personal) : <span className="text-gray-600">—</span>}</td>
+                  <td className={`px-4 py-3 text-right font-medium ${color}`}>{fmt(margen)}</td>
+                  <td className={`px-6 py-3 text-right text-sm ${color}`}>
+                    {pct !== null ? `${pct.toFixed(1)}%` : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-gray-700 bg-gray-800/30">
+              <td colSpan={2} className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
+              <td className="px-4 py-3 text-right text-white font-bold">{fmt(total_facturado)}</td>
+              <td className="px-4 py-3 text-right text-gray-300 font-bold">{fmt(coste_personal)}</td>
+              <td className={`px-4 py-3 text-right font-bold ${(total_facturado - coste_personal) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {fmt(total_facturado - coste_personal)}
+              </td>
+              <td className="px-6 py-3 text-right text-sm text-gray-400">
+                {total_facturado > 0 ? `${(((total_facturado - coste_personal) / total_facturado) * 100).toFixed(1)}%` : '—'}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
       {/* Billing matrix */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
