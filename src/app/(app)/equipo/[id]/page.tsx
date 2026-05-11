@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import SueldosClient from './SueldosClient'
 import DedicacionEmpleadoClient from './DedicacionEmpleadoClient'
+import SueldoDedicacionClient from './SueldoDedicacionClient'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -85,9 +86,9 @@ export default async function EmpleadoPage({
     if (ing.id_servicio) ingresoMap.set(`${ing.id_servicio}_${ing.mes}`, Number(ing.valor))
   }
 
-  const servicioMap = new Map<string, { id: string; clienteNombre: string; servicioNombre: string; tipo: string; fecha_inicio: string | null; fecha_fin: string | null }>()
+  const servicioMap = new Map<string, { id: string; clienteNombre: string; servicioNombre: string; tipo: string; fecha_inicio: string | null; fecha_fin: string | null; id_departamento: string | null }>()
   for (const s of serviciosRaw ?? []) {
-    const dep = (s.departamento as unknown as { nombre: string } | null)
+    const dep = (s.departamento as unknown as { id: string; nombre: string } | null)
     const cli = (s.cliente as unknown as { nombre: string } | null)
     servicioMap.set(s.id, {
       id: s.id,
@@ -96,6 +97,7 @@ export default async function EmpleadoPage({
       tipo: s.tipo,
       fecha_inicio: s.fecha_inicio ?? null,
       fecha_fin: s.fecha_fin ?? null,
+      id_departamento: dep?.id ?? null,
     })
   }
 
@@ -171,6 +173,60 @@ export default async function EmpleadoPage({
   }
 
   const proyectos = [...servicioStats.values()].sort((a, b) => b.facturacion - a.facturacion)
+
+  // Build deptDedicacion for SueldoDedicacionClient
+  type MesDedicacion = {
+    mes: number
+    sueldo: number
+    dedicacionPct: number
+    costeDept: number
+    proyectos: { id: string; clienteNombre: string }[]
+    costePorProyecto: number
+  }
+
+  const deptMesMap = new Map<string, Map<number, { sueldo: number; dedicacionPct: number; proyectos: { id: string; clienteNombre: string }[] }>>()
+
+  for (const d of dedicacionRaw ?? []) {
+    if (!deptMesMap.has(d.id_departamento)) deptMesMap.set(d.id_departamento, new Map())
+    const sueldo = sueldoByMes.get(d.mes) ?? 0
+    deptMesMap.get(d.id_departamento)!.set(d.mes, {
+      sueldo,
+      dedicacionPct: Number(d.porcentaje),
+      proyectos: [],
+    })
+  }
+
+  for (const r of responsablesRaw ?? []) {
+    const sInfo = servicioMap.get(r.id_servicio)
+    if (!sInfo?.id_departamento) continue
+    const mesMap = deptMesMap.get(sInfo.id_departamento)
+    if (!mesMap) continue
+    const mesData = mesMap.get(r.mes)
+    if (!mesData) continue
+    if (!mesData.proyectos.find(p => p.id === r.id_servicio)) {
+      mesData.proyectos.push({ id: r.id_servicio, clienteNombre: sInfo.clienteNombre })
+    }
+  }
+
+  const deptDedicacion = (departamentosRaw ?? [])
+    .filter(d => deptMesMap.has(d.id))
+    .map(d => {
+      const mesMap = deptMesMap.get(d.id)!
+      const meses: MesDedicacion[] = []
+      for (const [mes, data] of mesMap.entries()) {
+        const costeDept = data.sueldo * data.dedicacionPct / 100
+        meses.push({
+          mes,
+          sueldo: data.sueldo,
+          dedicacionPct: data.dedicacionPct,
+          costeDept,
+          proyectos: data.proyectos,
+          costePorProyecto: data.proyectos.length > 0 ? costeDept / data.proyectos.length : 0,
+        })
+      }
+      meses.sort((a, b) => a.mes - b.mes)
+      return { deptId: d.id, deptNombre: d.nombre, meses }
+    })
 
   // Totals
   const totalFact = monthData.reduce((s, m) => s + m.facturacion, 0)
@@ -384,6 +440,9 @@ export default async function EmpleadoPage({
           </table>
         </div>
       </div>
+
+      {/* Sueldo por dedicación */}
+      <SueldoDedicacionClient deptDedicacion={deptDedicacion} year={year} />
 
       {/* Dedicacion section */}
       <DedicacionEmpleadoClient
