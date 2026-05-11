@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ConfirmModal'
 
@@ -81,12 +81,19 @@ interface GastoRef {
   id_departamento: string | null
 }
 
+interface RentabilidadResponsable {
+  nombre: string
+  coste: number
+}
+interface RentabilidadServicioMes {
+  mes: number
+  facturado: number
+  responsables: RentabilidadResponsable[]
+}
 interface RentabilidadServicio {
   id: string
   nombre: string
-  facturado: number
-  coste_personal: number
-  responsables: string[]
+  meses: RentabilidadServicioMes[]
 }
 
 interface Props {
@@ -145,6 +152,9 @@ export default function ClienteDetailClient({
   year,
 }: Props) {
   const router = useRouter()
+
+  // ── Rentabilidad mes filter ──────────────────────────────────────────
+  const [rentMes, setRentMes] = useState<number | null>(null)
 
   // ── Gastos locales ───────────────────────────────────────────────────
   const [localGastos, setLocalGastos] = useState<Gasto[]>(gastos)
@@ -932,56 +942,110 @@ export default function ClienteDetailClient({
       )}
 
       {/* Rentabilidad por servicio */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-800">
-          <h3 className="text-white font-semibold">Rentabilidad por servicio {year}</h3>
-          <p className="text-gray-500 text-xs mt-0.5">Facturación vs coste de personal imputado</p>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800 bg-gray-800/30">
-              <th className="text-left px-6 py-3">Servicio</th>
-              <th className="text-left px-4 py-3">Responsables</th>
-              <th className="text-right px-4 py-3">Facturado</th>
-              <th className="text-right px-4 py-3">Coste personal</th>
-              <th className="text-right px-4 py-3">Margen</th>
-              <th className="text-right px-6 py-3">%</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rentabilidadServicios.map(s => {
-              const margen = s.facturado - s.coste_personal
-              const pct = s.facturado > 0 ? (margen / s.facturado) * 100 : null
-              const color = margen > 0 ? 'text-green-400' : margen < 0 ? 'text-red-400' : 'text-gray-400'
-              return (
-                <tr key={s.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="px-6 py-3 text-white font-medium">{s.nombre}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{s.responsables.join(', ') || '—'}</td>
-                  <td className="px-4 py-3 text-right text-white">{s.facturado > 0 ? fmt(s.facturado) : <span className="text-gray-600">0 €</span>}</td>
-                  <td className="px-4 py-3 text-right text-gray-300">{s.coste_personal > 0 ? fmt(s.coste_personal) : <span className="text-gray-600">—</span>}</td>
-                  <td className={`px-4 py-3 text-right font-medium ${color}`}>{fmt(margen)}</td>
-                  <td className={`px-6 py-3 text-right text-sm ${color}`}>
-                    {pct !== null ? `${pct.toFixed(1)}%` : '—'}
+      {(() => {
+        // Aggregate data based on selected month
+        const rentData = rentabilidadServicios.map(s => {
+          const filteredMeses = rentMes === null ? s.meses : s.meses.filter(m => m.mes === rentMes)
+          const facturado = filteredMeses.reduce((sum, m) => sum + m.facturado, 0)
+
+          // Aggregate responsables across months (sum costs per person)
+          const respMap = new Map<string, number>()
+          for (const m of filteredMeses) {
+            for (const r of m.responsables) {
+              respMap.set(r.nombre, (respMap.get(r.nombre) ?? 0) + r.coste)
+            }
+          }
+          const responsables = [...respMap.entries()].map(([nombre, coste]) => ({ nombre, coste }))
+          const coste_personal_srv = responsables.reduce((sum, r) => sum + r.coste, 0)
+
+          return { id: s.id, nombre: s.nombre, facturado, responsables, coste_personal: coste_personal_srv }
+        }).filter(s => s.facturado > 0 || s.coste_personal > 0)
+
+        const totalFacturado = rentData.reduce((sum, s) => sum + s.facturado, 0)
+        const totalCoste = rentData.reduce((sum, s) => sum + s.coste_personal, 0)
+        const totalMargen = totalFacturado - totalCoste
+
+        return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-800 flex flex-wrap items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-white font-semibold">Rentabilidad por servicio {year}</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Facturación vs coste de personal imputado</p>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <button onClick={() => setRentMes(null)} className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${rentMes === null ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+                  Año
+                </button>
+                {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m, i) => (
+                  <button key={i} onClick={() => setRentMes(i + 1)} className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${rentMes === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800 bg-gray-800/30">
+                  <th className="text-left px-6 py-3">Servicio</th>
+                  <th className="text-left px-4 py-3">Responsables</th>
+                  <th className="text-right px-4 py-3">Facturado</th>
+                  <th className="text-right px-4 py-3">Coste personal</th>
+                  <th className="text-right px-4 py-3">Margen</th>
+                  <th className="text-right px-6 py-3">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rentData.map(s => {
+                  const margen = s.facturado - s.coste_personal
+                  const pct = s.facturado > 0 ? (margen / s.facturado) * 100 : null
+                  const margenColor = margen > 0 ? 'text-green-400' : margen < 0 ? 'text-red-400' : 'text-gray-400'
+                  const multiResp = s.responsables.length > 1
+
+                  return (
+                    <Fragment key={s.id}>
+                      {/* Main service row */}
+                      <tr className={`border-b ${multiResp ? 'border-gray-800/30 bg-gray-800/10' : 'border-gray-800/50 hover:bg-gray-800/30'}`}>
+                        <td className="px-6 py-3 text-white font-medium">{s.nombre}</td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">
+                          {s.responsables.map(r => r.nombre).join(', ') || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-white">{s.facturado > 0 ? fmt(s.facturado) : <span className="text-gray-600">0 €</span>}</td>
+                        <td className="px-4 py-3 text-right text-gray-300">{s.coste_personal > 0 ? fmt(s.coste_personal) : <span className="text-gray-600">—</span>}</td>
+                        <td className={`px-4 py-3 text-right font-medium ${margenColor}`}>{fmt(margen)}</td>
+                        <td className={`px-6 py-3 text-right text-sm ${margenColor}`}>{pct !== null ? `${pct.toFixed(1)}%` : '—'}</td>
+                      </tr>
+                      {/* Sub-rows per responsable (only when multiple) */}
+                      {multiResp && s.responsables.map(r => (
+                        <tr key={r.nombre} className="border-b border-gray-800/20 hover:bg-gray-800/20">
+                          <td className="px-6 py-2 text-gray-500 text-xs pl-10">↳</td>
+                          <td className="px-4 py-2 text-gray-400 text-xs">{r.nombre}</td>
+                          <td className="px-4 py-2 text-right text-gray-600 text-xs">—</td>
+                          <td className="px-4 py-2 text-right text-gray-400 text-xs">{fmt(r.coste)}</td>
+                          <td className="px-4 py-2 text-right text-gray-500 text-xs">—</td>
+                          <td className="px-6 py-2 text-right text-gray-600 text-xs">—</td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-700 bg-gray-800/30">
+                  <td colSpan={2} className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
+                  <td className="px-4 py-3 text-right text-white font-bold">{fmt(totalFacturado)}</td>
+                  <td className="px-4 py-3 text-right text-gray-300 font-bold">{fmt(totalCoste)}</td>
+                  <td className={`px-4 py-3 text-right font-bold ${totalMargen >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {fmt(totalMargen)}
+                  </td>
+                  <td className="px-6 py-3 text-right text-sm text-gray-400">
+                    {totalFacturado > 0 ? `${((totalMargen / totalFacturado) * 100).toFixed(1)}%` : '—'}
                   </td>
                 </tr>
-              )
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-gray-700 bg-gray-800/30">
-              <td colSpan={2} className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
-              <td className="px-4 py-3 text-right text-white font-bold">{fmt(total_facturado)}</td>
-              <td className="px-4 py-3 text-right text-gray-300 font-bold">{fmt(coste_personal)}</td>
-              <td className={`px-4 py-3 text-right font-bold ${(total_facturado - coste_personal) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {fmt(total_facturado - coste_personal)}
-              </td>
-              <td className="px-6 py-3 text-right text-sm text-gray-400">
-                {total_facturado > 0 ? `${(((total_facturado - coste_personal) / total_facturado) * 100).toFixed(1)}%` : '—'}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+              </tfoot>
+            </table>
+          </div>
+        )
+      })()}
 
       {/* Billing matrix */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">

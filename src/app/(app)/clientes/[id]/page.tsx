@@ -168,8 +168,10 @@ export default async function ClienteDetailPage({
     coste_personal += sueldo * (dedicacion / 100) / numServicios
   }
 
-  // Compute coste_personal per service (same formula, grouped by service)
-  const costePersonalByServicio = new Map<string, number>()
+  // Build per-service, per-month, per-responsable cost
+  // costeByServicioMesResp: Map<servicioId, Map<mes, Map<empleadoId, {nombre, coste}>>>
+  const costeByServicioMesResp = new Map<string, Map<number, Map<string, { nombre: string; coste: number }>>>()
+
   for (const r of responsablesData) {
     if (!clienteServicioIds.has(r.id_servicio)) continue
     const servicio = servicioMap.get(r.id_servicio)
@@ -179,32 +181,40 @@ export default async function ClienteDetailPage({
     const dedicacion = dedicacionMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 0
     const numServicios = numServiciosMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 1
     const coste = sueldo * (dedicacion / 100) / numServicios
-    costePersonalByServicio.set(r.id_servicio, (costePersonalByServicio.get(r.id_servicio) ?? 0) + coste)
+
+    if (!costeByServicioMesResp.has(r.id_servicio)) costeByServicioMesResp.set(r.id_servicio, new Map())
+    const mesMap = costeByServicioMesResp.get(r.id_servicio)!
+    if (!mesMap.has(r.mes)) mesMap.set(r.mes, new Map())
+    const respMap = mesMap.get(r.mes)!
+    const existing = respMap.get(r.id_empleado)
+    respMap.set(r.id_empleado, { nombre: r.nombre, coste: (existing?.coste ?? 0) + coste })
   }
 
-  // Compute facturado per service from ingresos
-  const factByServicio = new Map<string, number>()
+  // Build factByServicioMes: Map<servicioId, Map<mes, facturado>>
+  const factByServicioMes = new Map<string, Map<number, number>>()
   for (const ing of ingresos ?? []) {
     if (!ing.id_servicio) continue
-    factByServicio.set(ing.id_servicio, (factByServicio.get(ing.id_servicio) ?? 0) + Number(ing.valor))
+    if (!factByServicioMes.has(ing.id_servicio)) factByServicioMes.set(ing.id_servicio, new Map())
+    const mesMap = factByServicioMes.get(ing.id_servicio)!
+    mesMap.set(ing.mes, (mesMap.get(ing.mes) ?? 0) + Number(ing.valor))
   }
 
-  // Compute unique employee names per service
-  const responsablesByServicio = new Map<string, string[]>()
-  for (const r of responsablesData) {
-    if (!responsablesByServicio.has(r.id_servicio)) responsablesByServicio.set(r.id_servicio, [])
-    const arr = responsablesByServicio.get(r.id_servicio)!
-    if (r.nombre && !arr.includes(r.nombre)) arr.push(r.nombre)
-  }
+  // Build final rentabilidadServicios array
+  const rentabilidadServicios = (servicios ?? []).map(s => {
+    const depNombre = (s.departamento as { nombre: string } | null)?.nombre ?? s.nombre
+    const mesRespMap = costeByServicioMesResp.get(s.id) ?? new Map()
+    const mesFact = factByServicioMes.get(s.id) ?? new Map()
 
-  // Build rentabilidadServicios array
-  const rentabilidadServicios = (servicios ?? []).map(s => ({
-    id: s.id,
-    nombre: (s.departamento as { nombre: string } | null)?.nombre ?? s.nombre,
-    facturado: factByServicio.get(s.id) ?? 0,
-    coste_personal: Math.round(costePersonalByServicio.get(s.id) ?? 0),
-    responsables: responsablesByServicio.get(s.id) ?? [],
-  }))
+    // Collect all months that have either billing or responsables
+    const allMeses = new Set<number>([...mesRespMap.keys(), ...mesFact.keys()])
+    const meses = [...allMeses].sort((a, b) => a - b).map(mes => ({
+      mes,
+      facturado: mesFact.get(mes) ?? 0,
+      responsables: [...(mesRespMap.get(mes) ?? new Map()).values()],
+    }))
+
+    return { id: s.id, nombre: depNombre, meses }
+  })
 
   // Build empleadosPorDepartamento map
   const empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]> = {}
