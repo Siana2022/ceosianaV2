@@ -19,19 +19,24 @@ export default async function ClientesPage({
     { data: captacion },
     { data: responsables },
     { data: sueldos },
+    { data: dedicaciones },
   ] = await Promise.all([
     supabase.from('clientes').select('*').order('nombre'),
-    supabase.from('servicios').select('id, id_cliente, tipo, precio_base, activo'),
+    supabase.from('servicios').select('id, id_cliente, id_departamento, tipo, precio_base, activo'),
     supabase
       .from('captacion_clientes')
       .select('id_cliente, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)'),
     supabase
       .from('servicio_responsables')
-      .select('id_servicio, id_empleado, porcentaje, mes')
+      .select('id_servicio, id_empleado, mes')
       .eq('anio', year),
     supabase
       .from('sueldos')
       .select('id_empleado, coste_total, mes')
+      .eq('anio', year),
+    supabase
+      .from('empleado_dedicacion')
+      .select('id_empleado, id_departamento, mes, porcentaje')
       .eq('anio', year),
   ])
 
@@ -53,12 +58,12 @@ export default async function ClientesPage({
   const { data: gastosFijos } = await gastosQ
 
   // Build a map of client_id -> mrr, num_servicios
-  // Also service_id -> id_cliente map for responsables linkage
+  // Also service_id -> { id_cliente, id_departamento } map for responsables linkage
   const serviciosByCliente = new Map<string, { mrr: number; count: number }>()
-  const servicioClienteMap = new Map<string, string>() // service_id → client_id
+  const servicioInfoMap = new Map<string, { id_cliente: string; id_departamento: string | null }>()
   for (const s of servicios ?? []) {
     if (!s.id_cliente) continue
-    servicioClienteMap.set(s.id, s.id_cliente)
+    servicioInfoMap.set(s.id, { id_cliente: s.id_cliente, id_departamento: s.id_departamento ?? null })
     const cur = serviciosByCliente.get(s.id_cliente) ?? { mrr: 0, count: 0 }
     cur.count += 1
     if (s.activo && s.tipo === 'recurrente') {
@@ -96,18 +101,39 @@ export default async function ClientesPage({
     sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total))
   }
 
+  // dedicacionMap: `${id_empleado}_${id_departamento}_${mes}` -> porcentaje
+  const dedicacionMap = new Map<string, number>()
+  for (const d of dedicaciones ?? []) {
+    dedicacionMap.set(`${d.id_empleado}_${d.id_departamento}_${d.mes}`, Number(d.porcentaje))
+  }
+
+  // numServiciosMap: `${id_empleado}_${id_departamento}_${mes}` -> count of distinct services across ALL clients
+  const numServiciosMap = new Map<string, number>()
+  for (const r of responsables ?? []) {
+    const info = servicioInfoMap.get(r.id_servicio)
+    const deptId = info?.id_departamento
+    if (!deptId) continue
+    const key = `${r.id_empleado}_${deptId}_${r.mes}`
+    numServiciosMap.set(key, (numServiciosMap.get(key) ?? 0) + 1)
+  }
+
   // Coste personal by client filtered by month if set
+  // Formula: sueldo(X, M) × dedicacion%(X, dept, M) / 100 / num_services(X, dept, M)
   const filteredResponsables = month > 0
     ? (responsables ?? []).filter(r => r.mes === month)
     : (responsables ?? [])
 
   const costePersonalByCliente = new Map<string, number>()
   for (const r of filteredResponsables) {
-    const clienteId = servicioClienteMap.get(r.id_servicio)
-    if (!clienteId) continue
+    const info = servicioInfoMap.get(r.id_servicio)
+    if (!info?.id_cliente) continue
+    const deptId = info.id_departamento
+    if (!deptId) continue
     const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
-    const coste = sueldo * r.porcentaje / 100
-    costePersonalByCliente.set(clienteId, (costePersonalByCliente.get(clienteId) ?? 0) + coste)
+    const dedicacion = dedicacionMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 0
+    const numServicios = numServiciosMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 1
+    const coste = sueldo * (dedicacion / 100) / numServicios
+    costePersonalByCliente.set(info.id_cliente, (costePersonalByCliente.get(info.id_cliente) ?? 0) + coste)
   }
 
   const enriched = (clientes ?? []).map(c => {

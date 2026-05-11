@@ -72,8 +72,6 @@ export default async function ClienteDetailPage({
     porcentaje: number
   }[] = []
 
-  let sueldosParaCostePersonal: { id_empleado: string; coste_total: number; mes: number }[] = []
-
   if (servicioIds.length > 0) {
     const { data: resps } = await supabase
       .from('servicio_responsables')
@@ -96,32 +94,79 @@ export default async function ClienteDetailPage({
         porcentaje: Number(r.porcentaje ?? 100),
       }
     })
-
-    // Fetch sueldos for the unique employees that have responsibilities for this client
-    const empIds = [...new Set(responsablesData.map(r => r.id_empleado))]
-    if (empIds.length > 0) {
-      const { data: sueldosEmp } = await supabase
-        .from('sueldos')
-        .select('id_empleado, coste_total, mes')
-        .eq('anio', year)
-        .in('id_empleado', empIds)
-      sueldosParaCostePersonal = (sueldosEmp ?? []).map(s => ({
-        id_empleado: s.id_empleado,
-        coste_total: Number(s.coste_total),
-        mes: s.mes,
-      }))
-    }
   }
 
-  // Compute coste_personal = sum(sueldo × porcentaje%) per month for all service responsables
+  // Fetch additional data needed for correct coste_personal formula:
+  // ALL servicio_responsables for the year (all clients) — to compute num_services per (employee, dept, month)
+  // ALL servicios with id_departamento — to map each service to its department
+  // empleado_dedicacion — to get dedication % per (employee, dept, month)
+  // sueldos — for all employees
+  const [
+    { data: allResponsablesRaw },
+    { data: todosServicios },
+    { data: dedicaciones },
+    { data: sueldosData },
+  ] = await Promise.all([
+    supabase
+      .from('servicio_responsables')
+      .select('id_servicio, id_empleado, mes, anio')
+      .eq('anio', year),
+    supabase
+      .from('servicios')
+      .select('id, id_departamento'),
+    supabase
+      .from('empleado_dedicacion')
+      .select('id_empleado, id_departamento, mes, anio, porcentaje')
+      .eq('anio', year),
+    supabase
+      .from('sueldos')
+      .select('id_empleado, coste_total, mes')
+      .eq('anio', year),
+  ])
+
+  // servicioMap: id -> { id_departamento }
+  const servicioMap = new Map<string, { id_departamento: string | null }>()
+  for (const s of todosServicios ?? []) {
+    servicioMap.set(s.id, { id_departamento: s.id_departamento ?? null })
+  }
+
+  // sueldoMap: `${id_empleado}_${mes}` -> coste_total
   const sueldoMap = new Map<string, number>()
-  for (const s of sueldosParaCostePersonal) {
-    sueldoMap.set(`${s.id_empleado}_${s.mes}`, s.coste_total)
+  for (const s of sueldosData ?? []) {
+    sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total))
   }
-  const coste_personal = responsablesData.reduce((sum, r) => {
+
+  // dedicacionMap: `${id_empleado}_${id_departamento}_${mes}` -> porcentaje
+  const dedicacionMap = new Map<string, number>()
+  for (const d of dedicaciones ?? []) {
+    dedicacionMap.set(`${d.id_empleado}_${d.id_departamento}_${d.mes}`, Number(d.porcentaje))
+  }
+
+  // numServiciosMap: `${id_empleado}_${id_departamento}_${mes}` -> count of distinct services
+  // Count across ALL clients (all servicio_responsables for the year)
+  const numServiciosMap = new Map<string, number>()
+  for (const r of allResponsablesRaw ?? []) {
+    const servicio = servicioMap.get(r.id_servicio as string)
+    const deptId = servicio?.id_departamento
+    if (!deptId) continue
+    const key = `${r.id_empleado}_${deptId}_${r.mes}`
+    numServiciosMap.set(key, (numServiciosMap.get(key) ?? 0) + 1)
+  }
+
+  // Compute coste_personal using the correct formula:
+  // cost = sueldo(X, M) × dedicacion%(X, dept, M) / 100 / num_services(X, dept, M)
+  const clienteServicioIds = new Set(servicioIds)
+  let coste_personal = 0
+  for (const r of responsablesData) {
+    if (!clienteServicioIds.has(r.id_servicio)) continue
+    const servicio = servicioMap.get(r.id_servicio)
+    const deptId = servicio?.id_departamento
+    if (!deptId) continue
     const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
-    return sum + sueldo * r.porcentaje / 100
-  }, 0)
+    const dedicacion = dedicacionMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 0
+    const numServicios = numServiciosMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 1
+    coste_personal += sueldo * (dedicacion / 100) / numServicios
+  }
 
   // Build empleadosPorDepartamento map
   const empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]> = {}
