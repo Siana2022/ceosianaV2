@@ -122,11 +122,17 @@ export async function GET() {
   // ── 3. SERVICIOS SIN RESPONSABLE ESTE MES ───────────────────────────────
   if (activasSet.has('sin_responsable')) {
     const [{ data: serviciosActivos }, { data: respMes }] = await Promise.all([
-      supabase.from('servicios').select('id, nombre, cliente:id_cliente(nombre)').eq('activo', true),
+      // Only services of active clients
+      supabase.from('servicios')
+        .select('id, nombre, cliente:id_cliente(id, nombre, activo)')
+        .eq('activo', true),
       supabase.from('servicio_responsables').select('id_servicio').eq('anio', year).eq('mes', mes),
     ])
     const conResp = new Set((respMes ?? []).map(r => r.id_servicio))
-    const sinResp = (serviciosActivos ?? []).filter(s => !conResp.has(s.id))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sinResp = (serviciosActivos ?? []).filter((s: any) =>
+      !conResp.has(s.id) && s.cliente?.activo === true
+    )
     if (sinResp.length > 0) {
       alertas.push({
         tipo: 'sin_responsable',
