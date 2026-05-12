@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
 
@@ -19,12 +21,20 @@ interface ClienteDesactivado {
   totalHistorico: number
 }
 
-interface Props {
-  clientes: ClienteDesactivado[]
-}
+export default function DesactivadosClient() {
+  const [clientes, setClientes] = useState<ClienteDesactivado[]>([])
+  const [loading, setLoading] = useState(true)
 
-export default function DesactivadosClient({ clientes }: Props) {
-  // Detect which years have data, most recent first
+  useEffect(() => {
+    fetch('/api/desactivados')
+      .then(r => r.json())
+      .then(data => {
+        setClientes(data)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
   const yearsSet = new Set<number>()
   for (const c of clientes) {
     for (const y of Object.keys(c.facturacionPorAnio)) {
@@ -34,17 +44,19 @@ export default function DesactivadosClient({ clientes }: Props) {
   const years = Array.from(yearsSet).sort((a, b) => b - a)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-white">Clientes Desactivados</h2>
           <p className="text-gray-400 text-sm mt-1">
-            {clientes.length} cliente{clientes.length !== 1 ? 's' : ''} inactivo{clientes.length !== 1 ? 's' : ''}
+            {loading ? 'Cargando...' : `${clientes.length} cliente${clientes.length !== 1 ? 's' : ''} inactivo${clientes.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </div>
 
-      {clientes.length === 0 ? (
+      {loading ? (
+        <p className="text-gray-500 text-center py-12">Cargando clientes desactivados...</p>
+      ) : clientes.length === 0 ? (
         <p className="text-gray-500 text-center py-12">No hay clientes desactivados</p>
       ) : (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
