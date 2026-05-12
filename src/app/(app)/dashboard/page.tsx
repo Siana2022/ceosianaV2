@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/server/supabase'
 import EvolucionChart from '@/components/EvolucionChart'
 import BeneficioChart from '@/components/BeneficioChart'
+import AlertasPanel from '@/components/AlertasPanel'
 
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -109,6 +110,9 @@ export default async function DashboardPage({
           ))}
         </div>
       </div>
+
+      {/* Alertas (solo admins) */}
+      <AlertasPanel />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

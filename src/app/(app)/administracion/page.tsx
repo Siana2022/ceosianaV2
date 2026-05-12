@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/server/supabase'
 import AdminClient from './AdminClient'
+import { isAdmin, getSessionEmail } from '@/lib/server/isAdmin'
 
 export default async function AdministracionPage({
   searchParams,
@@ -48,12 +49,31 @@ export default async function AdministracionPage({
     }
   })
 
+  // Admin check + alertas config (only if admin)
+  const admin = await isAdmin()
+  const currentEmail = await getSessionEmail()
+  let alertasConfig: { id: string; tipo: string; label: string; descripcion: string | null; activa: boolean }[] = []
+  let adminsList: { id: string; email: string }[] = []
+
+  if (admin) {
+    const [{ data: ac }, { data: al }] = await Promise.all([
+      supabase.from('alertas_config').select('*').order('tipo'),
+      supabase.from('alertas_admins').select('id, email').order('email'),
+    ])
+    alertasConfig = ac ?? []
+    adminsList = al ?? []
+  }
+
   return (
     <AdminClient
       anio={anio}
       mesInicial={mes}
       ingresos={ingresos}
       controlExistente={controlExistente ?? []}
+      isAdmin={admin}
+      currentEmail={currentEmail ?? ''}
+      alertasConfig={alertasConfig}
+      adminsList={adminsList}
     />
   )
 }

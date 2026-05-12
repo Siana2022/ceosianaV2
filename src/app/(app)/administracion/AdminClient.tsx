@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import AlertasAdmin from '@/components/AlertasAdmin'
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -40,14 +41,31 @@ interface Control {
   notas: string | null
 }
 
+interface AlertaConfig {
+  id: string
+  tipo: string
+  label: string
+  descripcion: string | null
+  activa: boolean
+}
+
+interface AdminUser {
+  id: string
+  email: string
+}
+
 interface Props {
   anio: number
   mesInicial: number
   ingresos: Ingreso[]
   controlExistente: Control[]
+  isAdmin: boolean
+  currentEmail: string
+  alertasConfig: AlertaConfig[]
+  adminsList: AdminUser[]
 }
 
-export default function AdminClient({ anio, mesInicial, ingresos, controlExistente }: Props) {
+export default function AdminClient({ anio, mesInicial, ingresos, controlExistente, isAdmin, currentEmail, alertasConfig, adminsList }: Props) {
   const [mes, setMes] = useState(mesInicial)
   const [filtroEstado, setFiltroEstado] = useState('')
   const [clienteExpandido, setClienteExpandido] = useState<string | null>(null)
@@ -375,6 +393,18 @@ export default function AdminClient({ anio, mesInicial, ingresos, controlExisten
           )
         })}
       </div>
+
+      {/* Alertas — solo admins */}
+      {isAdmin && (
+        <div className="mt-10">
+          <h2 className="text-xl font-bold text-white mb-4">Sistema de alertas</h2>
+          <AlertasAdmin
+            alertasConfig={alertasConfig}
+            admins={adminsList}
+            currentEmail={currentEmail}
+          />
+        </div>
+      )}
     </div>
   )
 }
