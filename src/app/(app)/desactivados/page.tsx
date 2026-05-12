@@ -8,7 +8,7 @@ export default async function DesactivadosPage() {
     supabase
       .from('clientes')
       .select('id, nombre, activo, fecha_alta, fecha_baja, notas')
-      .eq('activo', false)
+      .neq('activo', true)
       .order('nombre'),
     supabase
       .from('ingresos')
