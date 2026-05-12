@@ -34,6 +34,7 @@ interface Sueldo {
 }
 
 interface Ingreso {
+  id_servicio: string | null
   valor: number
   mes: number
 }
@@ -47,6 +48,13 @@ interface GastoFijo {
 interface EmpleadoInfo {
   id: string
   nombre: string
+}
+
+interface ServicioResponsable {
+  id_servicio: string
+  id_empleado: string
+  mes: number
+  porcentaje: number
 }
 
 export default async function DepartamentoDetailPage({
@@ -79,7 +87,7 @@ export default async function DepartamentoDetailPage({
       .eq('anio', anio),
     supabase
       .from('ingresos')
-      .select('valor, mes')
+      .select('id_servicio, valor, mes')
       .eq('id_departamento', id)
       .eq('anio', anio),
     supabase
@@ -120,43 +128,121 @@ export default async function DepartamentoDetailPage({
     sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total ?? 0))
   }
 
+  // Fetch servicio_responsables for services in this dept
+  const servicioIds = (serviciosList).map(s => s.id)
+  const { data: responsablesServicioRaw } = servicioIds.length > 0
+    ? await supabase
+        .from('servicio_responsables')
+        .select('id_servicio, id_empleado, mes, porcentaje')
+        .in('id_servicio', servicioIds)
+        .eq('anio', anio)
+    : { data: [] }
+
+  const responsablesServicio = (responsablesServicioRaw ?? []) as ServicioResponsable[]
+
+  // Build map: servicioId → unique employee names (for services table)
+  const respByServicio = new Map<string, string[]>()
+  for (const r of responsablesServicio) {
+    if (!respByServicio.has(r.id_servicio)) respByServicio.set(r.id_servicio, [])
+    const nombre = empNameMap.get(r.id_empleado)
+    if (nombre && !respByServicio.get(r.id_servicio)!.includes(nombre)) {
+      respByServicio.get(r.id_servicio)!.push(nombre)
+    }
+  }
+
+  // Build ingresos map: id_servicio_mes → valor
+  const ingresosMap = new Map<string, number>()
+  for (const ing of ingresosList) {
+    if (ing.id_servicio) ingresosMap.set(`${ing.id_servicio}_${ing.mes}`, Number(ing.valor))
+  }
+
+  // Build sueldo mensual promedio by employee (for this year)
+  const sueldoMensualMap = new Map<string, number>()
+  for (const s of sueldosList) {
+    if (!sueldoMensualMap.has(s.id_empleado)) {
+      sueldoMensualMap.set(s.id_empleado, 0)
+    }
+    sueldoMensualMap.set(s.id_empleado, sueldoMensualMap.get(s.id_empleado)! + Number(s.coste_total ?? 0))
+  }
+  // average over months with data
+  const sueldoMesesCount = new Map<string, number>()
+  for (const s of sueldosList) {
+    sueldoMesesCount.set(s.id_empleado, (sueldoMesesCount.get(s.id_empleado) ?? 0) + 1)
+  }
+  const sueldoMensualPromedio = new Map<string, number>()
+  for (const [empId, total] of sueldoMensualMap.entries()) {
+    const count = sueldoMesesCount.get(empId) ?? 1
+    sueldoMensualPromedio.set(empId, total / count)
+  }
+
+  // Set of active service IDs in this dept
+  const activeServicioIds = new Set(serviciosList.filter(s => s.activo === true).map(s => s.id))
+
   // Aggregate dedicación by employee
-  const empDedicMap = new Map<string, { pcts: number[]; costes: number[] }>()
+  const empDedicMap = new Map<string, { pcts: number[]; meses: number[] }>()
   for (const d of dedicacionList) {
     if (!empDedicMap.has(d.id_empleado)) {
-      empDedicMap.set(d.id_empleado, { pcts: [], costes: [] })
+      empDedicMap.set(d.id_empleado, { pcts: [], meses: [] })
     }
     const entry = empDedicMap.get(d.id_empleado)!
     entry.pcts.push(d.porcentaje)
-    const sueldo = sueldoMap.get(`${d.id_empleado}_${d.mes}`) ?? 0
-    entry.costes.push(sueldo * d.porcentaje / 100)
+    entry.meses.push(d.mes)
   }
 
-  // Compute active clients and active projects counts
-  const numClientesActivos = new Set(
-    serviciosList.filter(s => s.activo === true && s.cliente !== null).map(s => s.cliente!.id)
-  ).size
-  const numProyectosActivos = serviciosList.filter(s => s.activo === true).length
-
-  // Personal section rows
-  const personalRows = Array.from(empDedicMap.entries()).map(([empId, { pcts, costes }]) => {
+  // Personal section rows with improved metrics
+  const personalRows = Array.from(empDedicMap.entries()).map(([empId, { pcts, meses }]) => {
     const avgPct = pcts.length > 0 ? pcts.reduce((a, b) => a + b, 0) / pcts.length : 0
-    const totalCoste = costes.reduce((a, b) => a + b, 0)
-    const totalCostePorProyecto = totalCoste / Math.max(numProyectosActivos, 1)
+
+    // Sueldo imputado al depto: sum across months of (sueldo × dedicacion% / num_proyectos_activos_en_dept)
+    let sueldoImputado = 0
+    for (let i = 0; i < meses.length; i++) {
+      const mes = meses[i]
+      const pct = pcts[i]
+      const sueldo = sueldoMap.get(`${empId}_${mes}`) ?? 0
+      // num_proyectos = number of ACTIVE services in this dept this employee is responsible for in this month
+      const numProyectos = responsablesServicio.filter(
+        r => r.id_empleado === empId && r.mes === mes && activeServicioIds.has(r.id_servicio)
+      ).length
+      sueldoImputado += sueldo * pct / 100 / Math.max(numProyectos, 1)
+    }
+
+    // Clientes activos: unique active clients this employee works on in this dept
+    const clientesActivos = new Set(
+      responsablesServicio
+        .filter(r => r.id_empleado === empId && activeServicioIds.has(r.id_servicio))
+        .map(r => {
+          const s = serviciosList.find(sv => sv.id === r.id_servicio)
+          return s?.cliente?.id ?? null
+        })
+        .filter((cid): cid is string => cid !== null)
+    ).size
+
+    // Ingresos atribuidos: sum of ingresos.valor × responsable.porcentaje/100 for this employee's services in this dept
+    const ingresosAtrib = responsablesServicio
+      .filter(r => r.id_empleado === empId)
+      .reduce((sum, r) => {
+        const valor = ingresosMap.get(`${r.id_servicio}_${r.mes}`) ?? 0
+        return sum + valor * r.porcentaje / 100
+      }, 0)
+
+    const rentabilidad = ingresosAtrib - sueldoImputado
+    const sueldoMensual = sueldoMensualPromedio.get(empId) ?? 0
+
     return {
       empId,
       nombre: empNameMap.get(empId) ?? empId,
       avgPct,
-      clientesActivos: numClientesActivos,
-      totalCoste,
-      totalCostePorProyecto,
+      clientesActivos,
+      sueldoMensual,
+      sueldoImputado,
+      rentabilidad,
     }
   }).sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   // Totals
   const ingresosTotal = ingresosList.reduce((s, i) => s + Number(i.valor), 0)
   const gastosPropiosTotal = gastosList.reduce((s, g) => s + Number(g.valor), 0)
-  const costePersonalTotal = personalRows.reduce((s, r) => s + r.totalCoste, 0)
+  const costePersonalTotal = personalRows.reduce((s, r) => s + r.sueldoImputado, 0)
   const costeTotalGeneral = costePersonalTotal + gastosPropiosTotal
   const resultado = ingresosTotal - costeTotalGeneral
   const margenPct = ingresosTotal > 0 ? (resultado / ingresosTotal) * 100 : 0
@@ -247,7 +333,9 @@ export default async function DepartamentoDetailPage({
                   <th className="text-left px-6 py-3">Nombre</th>
                   <th className="text-right px-4 py-3">Dedicación media %</th>
                   <th className="text-right px-4 py-3">Clientes activos</th>
-                  <th className="text-right px-6 py-3">Sueldo imputado</th>
+                  <th className="text-right px-4 py-3">Sueldo mensual</th>
+                  <th className="text-right px-4 py-3">Sueldo imputado al depto</th>
+                  <th className="text-right px-6 py-3">Rentabilidad</th>
                 </tr>
               </thead>
               <tbody>
@@ -260,14 +348,19 @@ export default async function DepartamentoDetailPage({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-gray-300">{r.clientesActivos}</td>
-                    <td className="px-6 py-3 text-right text-orange-400 font-medium">{fmt(r.totalCostePorProyecto)}</td>
+                    <td className="px-4 py-3 text-right text-gray-300">{r.sueldoMensual > 0 ? fmt(r.sueldoMensual) : '—'}</td>
+                    <td className="px-4 py-3 text-right text-orange-400 font-medium">{fmt(r.sueldoImputado)}</td>
+                    <td className={`px-6 py-3 text-right font-medium ${r.rentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {fmt(r.rentabilidad)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-700 bg-gray-800/50">
-                  <td colSpan={3} className="px-6 py-3 text-gray-400 text-sm font-medium">Total coste personal</td>
-                  <td className="px-6 py-3 text-right text-white font-bold">{fmt(costePersonalTotal)}</td>
+                  <td colSpan={4} className="px-6 py-3 text-gray-400 text-sm font-medium">Total coste personal imputado</td>
+                  <td className="px-4 py-3 text-right text-white font-bold">{fmt(costePersonalTotal)}</td>
+                  <td className="px-6 py-3"></td>
                 </tr>
               </tfoot>
             </table>
@@ -289,6 +382,7 @@ export default async function DepartamentoDetailPage({
               <thead>
                 <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
                   <th className="text-left px-6 py-3">Cliente</th>
+                  <th className="text-left px-4 py-3">Responsables</th>
                   <th className="text-left px-4 py-3">Asunto</th>
                   <th className="text-center px-4 py-3">Tipo</th>
                   <th className="text-center px-4 py-3">Estado</th>
@@ -301,6 +395,9 @@ export default async function DepartamentoDetailPage({
                   <tr key={s.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                     <td className="px-6 py-3 text-white font-medium">
                       {s.cliente?.nombre ?? <span className="text-gray-500">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">
+                      {(respByServicio.get(s.id) ?? []).join(', ') || '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-300 max-w-[200px] truncate" title={s.notas ?? s.nombre ?? ''}>
                       {s.notas ?? s.nombre ?? '—'}

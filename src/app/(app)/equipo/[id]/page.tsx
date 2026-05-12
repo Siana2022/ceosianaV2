@@ -29,7 +29,7 @@ export default async function EmpleadoPage({
   const supabase = await createClient()
 
   // Round 1: employee + all sueldos + responsables + dedicacion + departamentos (in parallel)
-  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, { data: dedicacionRaw }, { data: departamentosRaw }] = await Promise.all([
+  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, { data: dedicacionRaw }, { data: departamentosRaw }, { data: allRespYear }, { data: allServiciosYear }] = await Promise.all([
     supabase
       .from('empleados')
       .select('id, nombre, email, activo, fecha_alta, fecha_baja')
@@ -56,6 +56,13 @@ export default async function EmpleadoPage({
       .select('id, nombre')
       .eq('activo', true)
       .order('nombre'),
+    supabase
+      .from('servicio_responsables')
+      .select('id_servicio, id_empleado, mes')
+      .eq('anio', year),
+    supabase
+      .from('servicios')
+      .select('id, id_departamento'),
   ])
 
   if (!empleado) notFound()
@@ -228,11 +235,32 @@ export default async function EmpleadoPage({
       return { deptId: d.id, deptNombre: d.nombre, meses }
     })
 
+  // Build numServiciosByEmpDeptMes for coste imputado calculation
+  // Map: `${emp}_${dept}_${mes}` → count of services that employee is responsible for in that dept/month
+  const numServMap = new Map<string, number>()
+  for (const r of allRespYear ?? []) {
+    const s = (allServiciosYear ?? []).find((sv: { id: string; id_departamento: string | null }) => sv.id === r.id_servicio)
+    if (!s?.id_departamento) continue
+    const key = `${r.id_empleado}_${s.id_departamento}_${r.mes}`
+    numServMap.set(key, (numServMap.get(key) ?? 0) + 1)
+  }
+
+  // Compute total imputated cost for this employee across all departments and months
+  let costeImputadoTotal = 0
+  const costeImputadoByMes = new Map<number, number>()
+  for (const d of dedicacionRaw ?? []) {
+    const sueldo = sueldoByMes.get(d.mes) ?? 0
+    const numServ = numServMap.get(`${id}_${d.id_departamento}_${d.mes}`) ?? 1
+    const coste = sueldo * Number(d.porcentaje) / 100 / numServ
+    costeImputadoTotal += coste
+    costeImputadoByMes.set(d.mes, (costeImputadoByMes.get(d.mes) ?? 0) + coste)
+  }
+
   // Totals
   const totalFact = monthData.reduce((s, m) => s + m.facturacion, 0)
   const totalSueldo = monthData.reduce((s, m) => s + m.sueldo, 0)
-  const totalMargen = totalFact - totalSueldo
-  const margenPct = totalFact > 0 ? (totalMargen / totalFact) * 100 : 0
+  const totalRentabilidad = totalFact - costeImputadoTotal
+  const rentabilidadPct = totalFact > 0 ? (totalRentabilidad / totalFact) * 100 : 0
 
   return (
     <div className="p-6 space-y-8">
@@ -294,9 +322,10 @@ export default async function EmpleadoPage({
           <p className="text-gray-500 text-xs mt-0.5">coste total {year}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Margen</p>
-          <p className={`text-2xl font-bold mt-1 ${totalMargen >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(totalMargen)}</p>
-          <p className="text-gray-500 text-xs mt-0.5">{margenPct.toFixed(1)}% sobre fact.</p>
+          <p className="text-gray-400 text-sm">Rentabilidad</p>
+          <p className={`text-2xl font-bold mt-1 ${totalRentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(totalRentabilidad)}</p>
+          <p className="text-gray-500 text-xs mt-0.5">ingresos atribuidos - coste imputado</p>
+          <p className="text-gray-600 text-[10px] mt-0.5">{rentabilidadPct.toFixed(1)}% sobre fact.</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Proyectos</p>
@@ -376,13 +405,16 @@ export default async function EmpleadoPage({
                 <th className="text-center px-4 py-3">Proyectos</th>
                 <th className="text-right px-6 py-3">Facturación</th>
                 <th className="text-right px-6 py-3">Sueldo</th>
-                <th className="text-right px-6 py-3">Margen</th>
-                <th className="text-right px-4 py-3">Margen %</th>
+                <th className="text-right px-6 py-3">Coste imputado</th>
+                <th className="text-right px-6 py-3">Rentabilidad</th>
+                <th className="text-right px-4 py-3">Rentab. %</th>
               </tr>
             </thead>
             <tbody>
               {monthData.map(m => {
-                const pct = m.facturacion > 0 ? (m.margen / m.facturacion) * 100 : 0
+                const costeImputadoMes = costeImputadoByMes.get(m.mes) ?? 0
+                const rentabilidadMes = m.facturacion - costeImputadoMes
+                const pct = m.facturacion > 0 ? (rentabilidadMes / m.facturacion) * 100 : 0
                 const hasData = m.facturacion > 0 || m.sueldo > 0
                 return (
                   <tr
@@ -406,8 +438,13 @@ export default async function EmpleadoPage({
                         : <span className="text-gray-700">—</span>}
                     </td>
                     <td className="px-6 py-3 text-right">
+                      {costeImputadoMes > 0
+                        ? <span className="text-orange-400">{fmt(costeImputadoMes)}</span>
+                        : <span className="text-gray-700">—</span>}
+                    </td>
+                    <td className="px-6 py-3 text-right">
                       {hasData
-                        ? <span className={`font-medium ${m.margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(m.margen)}</span>
+                        ? <span className={`font-medium ${rentabilidadMes >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(rentabilidadMes)}</span>
                         : <span className="text-gray-700">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -427,12 +464,13 @@ export default async function EmpleadoPage({
                 </td>
                 <td className="px-6 py-3 text-right text-white font-bold">{fmt(totalFact)}</td>
                 <td className="px-6 py-3 text-right text-gray-300 font-bold">{fmt(totalSueldo)}</td>
+                <td className="px-6 py-3 text-right text-orange-400 font-bold">{fmt(costeImputadoTotal)}</td>
                 <td className="px-6 py-3 text-right font-bold">
-                  <span className={totalMargen >= 0 ? 'text-green-400' : 'text-red-400'}>{fmt(totalMargen)}</span>
+                  <span className={totalRentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}>{fmt(totalRentabilidad)}</span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <span className={`text-sm font-medium ${margenPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {margenPct.toFixed(1)}%
+                  <span className={`text-sm font-medium ${rentabilidadPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {rentabilidadPct.toFixed(1)}%
                   </span>
                 </td>
               </tr>
