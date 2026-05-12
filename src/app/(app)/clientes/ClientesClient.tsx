@@ -52,6 +52,7 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState<'todos' | 'activos' | 'inactivos'>('activos')
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
   const askConfirm = (title: string, message: string, onConfirm: () => void) =>
     setConfirmModal({ title, message, onConfirm })
@@ -124,9 +125,11 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
     )
   }
 
-  const filtered = clientes.filter(c =>
-    c.nombre.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = clientes.filter(c => {
+    if (estadoFiltro === 'activos' && !c.activo) return false
+    if (estadoFiltro === 'inactivos' && c.activo) return false
+    return c.nombre.toLowerCase().includes(search.toLowerCase())
+  })
 
   return (
     <div className="p-6 space-y-6">
@@ -178,6 +181,20 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
               >
                 {m}
               </a>
+            ))}
+          </div>
+          {/* Estado filter */}
+          <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+            {(['todos', 'activos', 'inactivos'] as const).map(e => (
+              <button
+                key={e}
+                onClick={() => setEstadoFiltro(e)}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors capitalize ${
+                  estadoFiltro === e ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {e === 'todos' ? `Todos (${clientes.length})` : e === 'activos' ? `Activos (${clientes.filter(c => c.activo).length})` : `Inactivos (${clientes.filter(c => !c.activo).length})`}
+              </button>
             ))}
           </div>
           <input
