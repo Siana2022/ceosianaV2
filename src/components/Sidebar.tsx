@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 const menu = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
@@ -21,6 +22,17 @@ const menu = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const [alertCount, setAlertCount] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/alertas')
+      .then(async r => {
+        if (!r.ok) return
+        const data = await r.json()
+        if (Array.isArray(data)) setAlertCount(data.length)
+      })
+      .catch(() => {})
+  }, [pathname]) // refresh count on navigation
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -31,11 +43,22 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 min-h-screen bg-gray-900 border-r border-gray-800 flex flex-col">
-      <div className="p-6 border-b border-gray-800">
-        <h1 className="text-xl font-bold text-white tracking-tight">
-          CEO<span className="text-blue-500">SIANA</span>
-        </h1>
-        <p className="text-gray-500 text-xs mt-1">Panel de dirección</p>
+      <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">
+            CEO<span className="text-blue-500">SIANA</span>
+          </h1>
+          <p className="text-gray-500 text-xs mt-1">Panel de dirección</p>
+        </div>
+        {/* Bell icon — solo visible si hay alertas */}
+        {alertCount > 0 && (
+          <Link href="/alertas" className="relative group">
+            <span className="text-xl">🔔</span>
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+              {alertCount > 9 ? '9+' : alertCount}
+            </span>
+          </Link>
+        )}
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
@@ -53,6 +76,26 @@ export default function Sidebar() {
             <span>{item.label}</span>
           </Link>
         ))}
+
+        {/* Alertas — solo aparece si el usuario es admin (alertCount > 0) */}
+        {alertCount > 0 && (
+          <Link
+            href="/alertas"
+            className={`flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              pathname === '/alertas'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span>🔔</span>
+              <span>Alertas</span>
+            </div>
+            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+              {alertCount > 9 ? '9+' : alertCount}
+            </span>
+          </Link>
+        )}
       </nav>
 
       <div className="p-4 border-t border-gray-800">
