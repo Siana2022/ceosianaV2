@@ -11,11 +11,13 @@ const formatEur = (v: number) =>
 
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
-interface Cliente { id: string; nombre: string }
+interface Cliente { id: string; nombre: string; activo: boolean }
 
 interface DatoAno {
   ano: number
   facturacion: number
+  coste_directo: number
+  coste_personal: number
   coste: number
   margen: number
   margen_pct: number
@@ -73,6 +75,8 @@ export default function HistoricoClient({ clientes, datosPorAno, clienteSeleccio
   })
 
   const totalFac = datosPorAno.reduce((s, d) => s + d.facturacion, 0)
+  const totalCosteDirecto = datosPorAno.reduce((s, d) => s + d.coste_directo, 0)
+  const totalCostePersonal = datosPorAno.reduce((s, d) => s + d.coste_personal, 0)
   const totalCoste = datosPorAno.reduce((s, d) => s + d.coste, 0)
   const totalMargen = totalFac - totalCoste
 
@@ -99,11 +103,16 @@ export default function HistoricoClient({ clientes, datosPorAno, clienteSeleccio
           className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
         >
           <option value="">— Elige un cliente —</option>
-          {clientes.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
+          {clientes.filter(c => c.activo).map(c => (
+            <option key={c.id} value={c.id}>{c.nombre}</option>
           ))}
+          {clientes.some(c => !c.activo) && (
+            <optgroup label="── Inactivos ──">
+              {clientes.filter(c => !c.activo).map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </div>
 
@@ -201,7 +210,9 @@ export default function HistoricoClient({ clientes, datosPorAno, clienteSeleccio
                   <th className="text-left text-gray-400 font-medium py-2 pr-4">Año</th>
                   <th className="text-right text-gray-400 font-medium py-2 pr-4">Facturación</th>
                   <th className="text-right text-gray-400 font-medium py-2 pr-4">vs anterior</th>
-                  <th className="text-right text-gray-400 font-medium py-2 pr-4">Coste</th>
+                  <th className="text-right text-gray-400 font-medium py-2 pr-4">Costes dir.</th>
+                  <th className="text-right text-gray-400 font-medium py-2 pr-4">Coste personal</th>
+                  <th className="text-right text-gray-400 font-medium py-2 pr-4">Coste total</th>
                   <th className="text-right text-gray-400 font-medium py-2 pr-4">Margen</th>
                   <th className="text-right text-gray-400 font-medium py-2">Margen %</th>
                 </tr>
@@ -235,19 +246,13 @@ export default function HistoricoClient({ clientes, datosPorAno, clienteSeleccio
                         <span className="text-gray-600 text-xs">—</span>
                       )}
                     </td>
+                    <td className="text-right text-orange-400 py-3 pr-4">{d.coste_directo > 0 ? formatEur(d.coste_directo) : <span className="text-gray-600">—</span>}</td>
+                    <td className="text-right text-orange-300 py-3 pr-4">{d.coste_personal > 0 ? formatEur(d.coste_personal) : <span className="text-gray-600">—</span>}</td>
                     <td className="text-right text-yellow-400 py-3 pr-4">{formatEur(d.coste)}</td>
-                    <td
-                      className={`text-right py-3 pr-4 font-medium ${
-                        d.margen >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}
-                    >
+                    <td className={`text-right py-3 pr-4 font-medium ${d.margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {formatEur(d.margen)}
                     </td>
-                    <td
-                      className={`text-right py-3 ${
-                        d.margen_pct >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}
-                    >
+                    <td className={`text-right py-3 ${d.margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {d.margen_pct.toFixed(1)}%
                     </td>
                   </tr>
@@ -258,21 +263,13 @@ export default function HistoricoClient({ clientes, datosPorAno, clienteSeleccio
                   <td className="text-white py-3 pr-4 font-bold">TOTAL</td>
                   <td className="text-right text-blue-400 py-3 pr-4 font-bold">{formatEur(totalFac)}</td>
                   <td></td>
+                  <td className="text-right text-orange-400 py-3 pr-4 font-bold">{formatEur(totalCosteDirecto)}</td>
+                  <td className="text-right text-orange-300 py-3 pr-4 font-bold">{formatEur(totalCostePersonal)}</td>
                   <td className="text-right text-yellow-400 py-3 pr-4 font-bold">{formatEur(totalCoste)}</td>
-                  <td
-                    className={`text-right py-3 pr-4 font-bold ${
-                      totalMargen >= 0 ? 'text-green-400' : 'text-red-400'
-                    }`}
-                  >
+                  <td className={`text-right py-3 pr-4 font-bold ${totalMargen >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {formatEur(totalMargen)}
                   </td>
-                  <td
-                    className={`text-right py-3 font-bold ${
-                      totalFac > 0 && (totalMargen / totalFac) * 100 >= 0
-                        ? 'text-green-400'
-                        : 'text-red-400'
-                    }`}
-                  >
+                  <td className={`text-right py-3 font-bold ${totalFac > 0 && (totalMargen / totalFac) * 100 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {totalFac > 0 ? ((totalMargen / totalFac) * 100).toFixed(1) : 0}%
                   </td>
                 </tr>
