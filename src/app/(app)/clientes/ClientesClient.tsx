@@ -140,56 +140,59 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
         onConfirm={confirmModal?.onConfirm ?? (() => {})}
         onCancel={() => setConfirmModal(null)}
       />
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      {/* Header — row 1: título + años */}
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Clientes</h2>
           <p className="text-gray-400 text-sm mt-1">{clientes.length} clientes · {clientes.filter(c => c.activo).length} activos</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Year selector */}
-          <div className="flex items-center gap-1">
-            {years.map(y => (
-              <a
-                key={y}
-                href={`/clientes?year=${y}${month > 0 ? `&month=${month}` : ''}`}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  y === year ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
-              >
-                {y}
-              </a>
-            ))}
-          </div>
-          {/* Month selector */}
-          <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1">
+          {years.map(y => (
             <a
-              href={`/clientes?year=${year}`}
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                month === 0 ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+              key={y}
+              href={`/clientes?year=${y}${month > 0 ? `&month=${month}` : ''}`}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                y === year ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
               }`}
             >
-              Todos
+              {y}
             </a>
-            {MESES_CORTO.map((m, i) => (
-              <a
-                key={i}
-                href={`/clientes?year=${year}&month=${i + 1}`}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                  month === i + 1 ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
-              >
-                {m}
-              </a>
-            ))}
-          </div>
-          {/* Estado filter */}
+          ))}
+        </div>
+      </div>
+
+      {/* Header — row 2: meses (izq) + filtro/buscador/botón (der) */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Month selector */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <a
+            href={`/clientes?year=${year}`}
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              month === 0 ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+            }`}
+          >
+            Año
+          </a>
+          {MESES_CORTO.map((m, i) => (
+            <a
+              key={i}
+              href={`/clientes?year=${year}&month=${i + 1}`}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                month === i + 1 ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+            >
+              {m}
+            </a>
+          ))}
+        </div>
+        {/* Estado filter + buscador + nuevo */}
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
             {(['todos', 'activos', 'inactivos'] as const).map(e => (
               <button
                 key={e}
                 onClick={() => setEstadoFiltro(e)}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors capitalize ${
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                   estadoFiltro === e ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -202,11 +205,11 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
             placeholder="Buscar cliente..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-56"
+            className="bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-48"
           />
           <button
             onClick={openCreate}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           >
             + Nuevo cliente
           </button>
