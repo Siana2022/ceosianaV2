@@ -145,6 +145,11 @@ export default function SueldoDedicacionClient({ deptDedicacion, year }: Props) 
                           <span className={`font-medium ${data.rentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {fmt(data.rentabilidad)}
                           </span>
+                          {data.facturacion > 0 && (
+                            <span className={`block text-[11px] ${data.rentabilidad >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {((data.rentabilidad / data.facturacion) * 100).toFixed(1)}%
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )
