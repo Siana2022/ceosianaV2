@@ -181,6 +181,17 @@ export default async function EmpleadoPage({
 
   const proyectos = [...servicioStats.values()].sort((a, b) => b.facturacion - a.facturacion)
 
+  // Facturación atribuida por dept/mes
+  const facturacionByDeptMes = new Map<string, number>()
+  for (const r of responsablesRaw ?? []) {
+    const sInfo = servicioMap.get(r.id_servicio)
+    if (!sInfo?.id_departamento) continue
+    const valor = ingresoMap.get(`${r.id_servicio}_${r.mes}`) ?? 0
+    const atrib = valor * r.porcentaje / 100
+    const key = `${sInfo.id_departamento}_${r.mes}`
+    facturacionByDeptMes.set(key, (facturacionByDeptMes.get(key) ?? 0) + atrib)
+  }
+
   // Build deptDedicacion for SueldoDedicacionClient
   type MesDedicacion = {
     mes: number
@@ -189,6 +200,8 @@ export default async function EmpleadoPage({
     costeDept: number
     proyectos: { id: string; clienteNombre: string }[]
     costePorProyecto: number
+    facturacion: number
+    rentabilidad: number
   }
 
   const deptMesMap = new Map<string, Map<number, { sueldo: number; dedicacionPct: number; proyectos: { id: string; clienteNombre: string }[] }>>()
@@ -222,6 +235,7 @@ export default async function EmpleadoPage({
       const meses: MesDedicacion[] = []
       for (const [mes, data] of mesMap.entries()) {
         const costeDept = data.sueldo * data.dedicacionPct / 100
+        const facturacion = facturacionByDeptMes.get(`${d.id}_${mes}`) ?? 0
         meses.push({
           mes,
           sueldo: data.sueldo,
@@ -229,6 +243,8 @@ export default async function EmpleadoPage({
           costeDept,
           proyectos: data.proyectos,
           costePorProyecto: data.proyectos.length > 0 ? costeDept / data.proyectos.length : 0,
+          facturacion,
+          rentabilidad: facturacion - costeDept,
         })
       }
       meses.sort((a, b) => a.mes - b.mes)

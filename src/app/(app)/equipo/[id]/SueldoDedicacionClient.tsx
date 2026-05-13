@@ -15,6 +15,8 @@ interface MesDedicacion {
   costeDept: number
   proyectos: Proyecto[]
   costePorProyecto: number
+  facturacion: number
+  rentabilidad: number
 }
 
 interface DeptDedicacion {
@@ -35,10 +37,7 @@ function ProyectosBadges({ proyectos }: { proyectos: Proyecto[] }) {
     <div className="flex flex-wrap gap-1 items-center">
       <span className="text-white font-semibold text-sm mr-1">{proyectos.length}</span>
       {visible.map(p => (
-        <span
-          key={p.id}
-          className="text-[10px] text-gray-400 bg-gray-800 px-1.5 py-0.5 rounded"
-        >
+        <span key={p.id} className="text-[10px] text-gray-400 bg-gray-800 px-1.5 py-0.5 rounded">
           {p.clienteNombre}
         </span>
       ))}
@@ -59,14 +58,15 @@ export default function SueldoDedicacionClient({ deptDedicacion, year }: Props) 
       <h3 className="text-white font-semibold text-lg">Sueldo por dedicación {year}</h3>
 
       {deptDedicacion.map(dept => {
-        const totalSueldo = dept.meses.reduce((s, m) => s + m.sueldo, 0)
-        const totalCoste = dept.meses.reduce((s, m) => s + m.costeDept, 0)
-        const avgDedicacion =
-          dept.meses.length > 0
-            ? dept.meses.reduce((s, m) => s + m.dedicacionPct, 0) / dept.meses.length
-            : 0
+        const totalSueldo      = dept.meses.reduce((s, m) => s + m.sueldo, 0)
+        const totalCoste       = dept.meses.reduce((s, m) => s + m.costeDept, 0)
+        const totalFact        = dept.meses.reduce((s, m) => s + m.facturacion, 0)
+        const totalRentab      = dept.meses.reduce((s, m) => s + m.rentabilidad, 0)
+        const avgDedicacion    = dept.meses.length > 0
+          ? dept.meses.reduce((s, m) => s + m.dedicacionPct, 0) / dept.meses.length
+          : 0
+        const rentabPct = totalFact > 0 ? (totalRentab / totalFact) * 100 : 0
 
-        // Build a full 12-month view: months with data show data, others show dimmed row
         const mesByMes = new Map(dept.meses.map(m => [m.mes, m]))
 
         return (
@@ -77,6 +77,13 @@ export default function SueldoDedicacionClient({ deptDedicacion, year }: Props) 
                 <h4 className="text-white font-semibold">{dept.deptNombre}</h4>
                 <span className="text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">
                   {avgDedicacion.toFixed(0)}% dedicación media
+                </span>
+                <span className={`text-[11px] border px-2 py-0.5 rounded-full ${
+                  totalRentab >= 0
+                    ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                    : 'bg-red-500/20 text-red-400 border-red-500/30'
+                }`}>
+                  {totalRentab >= 0 ? '+' : ''}{fmt(totalRentab)} rentabilidad
                 </span>
               </div>
               <div className="text-right">
@@ -95,7 +102,8 @@ export default function SueldoDedicacionClient({ deptDedicacion, year }: Props) 
                     <th className="text-right px-4 py-3">Dedicación</th>
                     <th className="text-right px-4 py-3">Coste al depto</th>
                     <th className="text-left px-4 py-3">Proyectos</th>
-                    <th className="text-right px-4 py-3">Coste/proyecto</th>
+                    <th className="text-right px-4 py-3">Facturación</th>
+                    <th className="text-right px-4 py-3">Rentabilidad</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -111,6 +119,7 @@ export default function SueldoDedicacionClient({ deptDedicacion, year }: Props) 
                           <td className="px-4 py-2.5 text-right text-gray-700">—</td>
                           <td className="px-4 py-2.5 text-gray-700">—</td>
                           <td className="px-4 py-2.5 text-right text-gray-700">—</td>
+                          <td className="px-4 py-2.5 text-right text-gray-700">—</td>
                         </tr>
                       )
                     }
@@ -121,20 +130,21 @@ export default function SueldoDedicacionClient({ deptDedicacion, year }: Props) 
                         <td className="px-4 py-2.5 text-right">
                           <span className="text-blue-400 font-medium">{data.dedicacionPct}%</span>
                         </td>
-                        <td className="px-4 py-2.5 text-right text-white font-medium">{fmt(data.costeDept)}</td>
+                        <td className="px-4 py-2.5 text-right text-orange-400">{fmt(data.costeDept)}</td>
                         <td className="px-4 py-2.5">
-                          {data.proyectos.length > 0 ? (
-                            <ProyectosBadges proyectos={data.proyectos} />
-                          ) : (
-                            <span className="text-gray-600">—</span>
-                          )}
+                          {data.proyectos.length > 0
+                            ? <ProyectosBadges proyectos={data.proyectos} />
+                            : <span className="text-gray-600">—</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          {data.proyectos.length > 0 ? (
-                            <span className="text-gray-300">{fmt(data.costePorProyecto)}</span>
-                          ) : (
-                            <span className="text-gray-600">—</span>
-                          )}
+                          {data.facturacion > 0
+                            ? <span className="text-white">{fmt(data.facturacion)}</span>
+                            : <span className="text-gray-600">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <span className={`font-medium ${data.rentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {fmt(data.rentabilidad)}
+                          </span>
                         </td>
                       </tr>
                     )
@@ -145,9 +155,19 @@ export default function SueldoDedicacionClient({ deptDedicacion, year }: Props) 
                     <td className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total anual</td>
                     <td className="px-4 py-3 text-right text-gray-300 font-bold">{fmt(totalSueldo)}</td>
                     <td className="px-4 py-3" />
-                    <td className="px-4 py-3 text-right text-white font-bold">{fmt(totalCoste)}</td>
+                    <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(totalCoste)}</td>
                     <td className="px-4 py-3" />
-                    <td className="px-4 py-3" />
+                    <td className="px-4 py-3 text-right text-white font-bold">{fmt(totalFact)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-bold ${totalRentab >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {fmt(totalRentab)}
+                      </span>
+                      {totalFact > 0 && (
+                        <span className={`block text-[11px] ${rentabPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {rentabPct.toFixed(1)}%
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
