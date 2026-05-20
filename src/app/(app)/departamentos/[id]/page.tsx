@@ -193,17 +193,13 @@ export default async function DepartamentoDetailPage({
   const personalRows = Array.from(empDedicMap.entries()).map(([empId, { pcts, meses }]) => {
     const avgPct = pcts.length > 0 ? pcts.reduce((a, b) => a + b, 0) / pcts.length : 0
 
-    // Sueldo imputado al depto: sum across months of (sueldo × dedicacion% / num_proyectos_activos_en_dept)
+    // Sueldo imputado al depto: sum across months of (sueldo × dedicacion%)
     let sueldoImputado = 0
     for (let i = 0; i < meses.length; i++) {
       const mes = meses[i]
       const pct = pcts[i]
       const sueldo = sueldoMap.get(`${empId}_${mes}`) ?? 0
-      // num_proyectos = number of ACTIVE services in this dept this employee is responsible for in this month
-      const numProyectos = responsablesServicio.filter(
-        r => r.id_empleado === empId && r.mes === mes && activeServicioIds.has(r.id_servicio)
-      ).length
-      sueldoImputado += sueldo * pct / 100 / Math.max(numProyectos, 1)
+      sueldoImputado += sueldo * pct / 100
     }
 
     // Clientes activos: unique active clients this employee works on in this dept
