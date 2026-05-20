@@ -172,51 +172,37 @@ export default async function DepartamentoDetailPage({
     entry.meses.push(d.mes)
   }
 
-  // Personal section rows with improved metrics
-  const personalRows = Array.from(empDedicMap.entries()).map(([empId, { pcts, meses }]) => {
+  // Per-employee monthly detail
+  const personalDetalle = Array.from(empDedicMap.entries()).map(([empId, { pcts, meses }]) => {
     const avgPct = pcts.length > 0 ? pcts.reduce((a, b) => a + b, 0) / pcts.length : 0
 
-    // Sueldo imputado al depto: sum across months of (sueldo × dedicacion%)
-    let sueldoImputado = 0
-    for (let i = 0; i < meses.length; i++) {
-      const mes = meses[i]
+    const mesData = meses.map((mes, i) => {
       const pct = pcts[i]
       const sueldo = sueldoMap.get(`${empId}_${mes}`) ?? 0
-      sueldoImputado += sueldo * pct / 100
-    }
+      const costeDept = sueldo * pct / 100
+      const facturacion = responsablesServicio
+        .filter(r => r.id_empleado === empId && r.mes === mes)
+        .reduce((sum, r) => sum + (ingresosMap.get(`${r.id_servicio}_${r.mes}`) ?? 0) * r.porcentaje / 100, 0)
+      return { mes, sueldo, pct, costeDept, facturacion, rentabilidad: facturacion - costeDept }
+    }).sort((a, b) => a.mes - b.mes)
 
-    // Clientes activos: unique active clients this employee works on in this dept
-    const clientesActivos = new Set(
-      responsablesServicio
-        .filter(r => r.id_empleado === empId && activeServicioIds.has(r.id_servicio))
-        .map(r => {
-          const s = serviciosList.find(sv => sv.id === r.id_servicio)
-          return s?.cliente?.id ?? null
-        })
-        .filter((cid): cid is string => cid !== null)
-    ).size
-
-    // Ingresos atribuidos: sum of ingresos.valor × responsable.porcentaje/100 for this employee's services in this dept
-    const ingresosAtrib = responsablesServicio
-      .filter(r => r.id_empleado === empId)
-      .reduce((sum, r) => {
-        const valor = ingresosMap.get(`${r.id_servicio}_${r.mes}`) ?? 0
-        return sum + valor * r.porcentaje / 100
-      }, 0)
-
-    const rentabilidad = ingresosAtrib - sueldoImputado
-    const costeMedioMes = meses.length > 0 ? sueldoImputado / meses.length : 0
+    const totalCosteDept = mesData.reduce((s, m) => s + m.costeDept, 0)
+    const totalFacturacion = mesData.reduce((s, m) => s + m.facturacion, 0)
+    const totalRentabilidad = totalFacturacion - totalCosteDept
 
     return {
       empId,
       nombre: empNameMap.get(empId) ?? empId,
       avgPct,
-      clientesActivos,
-      costeMedioMes,
-      sueldoImputado,
-      rentabilidad,
+      mesData,
+      totalCosteDept,
+      totalFacturacion,
+      totalRentabilidad,
     }
   }).sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  // Summary for KPI totals (kept for totals calculation)
+  const personalRows = personalDetalle.map(r => ({ sueldoImputado: r.totalCosteDept }))
 
   // Totals
   const ingresosTotal = ingresosList.reduce((s, i) => s + Number(i.valor), 0)
@@ -296,53 +282,135 @@ export default async function DepartamentoDetailPage({
         </div>
       </div>
 
-      {/* Personal section */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-800">
-          <h3 className="text-white font-semibold">Personal</h3>
-          <p className="text-gray-500 text-xs mt-0.5">Empleados con dedicación en {anio}</p>
+      {/* Personal section — per-employee monthly breakdown */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-white font-semibold text-lg">Personal</h3>
+          <p className="text-gray-500 text-xs mt-0.5">Empleados con dedicación en {anio} · Desglose mensual</p>
         </div>
-        {personalRows.length === 0 ? (
-          <p className="text-gray-500 text-sm py-8 text-center">Sin empleados con dedicación asignada este año</p>
+
+        {personalDetalle.length === 0 ? (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl py-8 text-center">
+            <p className="text-gray-500 text-sm">Sin empleados con dedicación asignada este año</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-                  <th className="text-left px-6 py-3">Nombre</th>
-                  <th className="text-right px-4 py-3">Dedicación media %</th>
-                  <th className="text-right px-4 py-3">Clientes activos</th>
-                  <th className="text-right px-4 py-3">Coste medio/mes al depto</th>
-                  <th className="text-right px-4 py-3">Coste total anual al depto</th>
-                  <th className="text-right px-6 py-3">Rentabilidad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {personalRows.map(r => (
-                  <tr key={r.empId} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                    <td className="px-6 py-3 text-white font-medium">{r.nombre}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`font-mono text-sm ${r.avgPct === 100 ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {fmtPct(r.avgPct)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-300">{r.clientesActivos}</td>
-                    <td className="px-4 py-3 text-right text-gray-300">{r.costeMedioMes > 0 ? fmt(r.costeMedioMes) : '—'}</td>
-                    <td className="px-4 py-3 text-right text-orange-400 font-medium">{fmt(r.sueldoImputado)}</td>
-                    <td className={`px-6 py-3 text-right font-medium ${r.rentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {fmt(r.rentabilidad)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-700 bg-gray-800/50">
-                  <td colSpan={4} className="px-6 py-3 text-gray-400 text-sm font-medium">Total coste personal imputado</td>
-                  <td className="px-4 py-3 text-right text-white font-bold">{fmt(costePersonalTotal)}</td>
-                  <td className="px-6 py-3"></td>
-                </tr>
-              </tfoot>
-            </table>
+          personalDetalle.map(emp => {
+            const rentabPct = emp.totalFacturacion > 0 ? (emp.totalRentabilidad / emp.totalFacturacion) * 100 : 0
+            const mesByMes = new Map(emp.mesData.map(m => [m.mes, m]))
+
+            return (
+              <div key={emp.empId} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                {/* Card header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h4 className="text-white font-semibold">{emp.nombre}</h4>
+                    <span className="text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">
+                      {emp.avgPct.toFixed(0)}% dedicación media
+                    </span>
+                    <span className={`text-[11px] border px-2 py-0.5 rounded-full ${
+                      emp.totalRentabilidad >= 0
+                        ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                        : 'bg-red-500/20 text-red-400 border-red-500/30'
+                    }`}>
+                      {emp.totalRentabilidad >= 0 ? '+' : ''}{fmt(emp.totalRentabilidad)} rentabilidad
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">Coste total al depto</p>
+                    <p className="text-white font-bold">{fmt(emp.totalCosteDept)}</p>
+                  </div>
+                </div>
+
+                {/* Monthly table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                        <th className="text-left px-6 py-3">Mes</th>
+                        <th className="text-right px-4 py-3">Sueldo</th>
+                        <th className="text-right px-4 py-3">Dedicación</th>
+                        <th className="text-right px-4 py-3">Coste al depto</th>
+                        <th className="text-right px-4 py-3">Facturación</th>
+                        <th className="text-right px-6 py-3">Rentabilidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const mes = i + 1
+                        const d = mesByMes.get(mes)
+                        if (!d) {
+                          return (
+                            <tr key={mes} className="border-b border-gray-800/40">
+                              <td className="px-6 py-2.5 text-gray-700 font-medium">{MESES[i]}</td>
+                              <td className="px-4 py-2.5 text-right text-gray-700">—</td>
+                              <td className="px-4 py-2.5 text-right text-gray-700">—</td>
+                              <td className="px-4 py-2.5 text-right text-gray-700">—</td>
+                              <td className="px-4 py-2.5 text-right text-gray-700">—</td>
+                              <td className="px-6 py-2.5 text-right text-gray-700">—</td>
+                            </tr>
+                          )
+                        }
+                        const rentMesPct = d.facturacion > 0 ? (d.rentabilidad / d.facturacion) * 100 : null
+                        return (
+                          <tr key={mes} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                            <td className="px-6 py-2.5 text-white font-medium">{MESES[i]}</td>
+                            <td className="px-4 py-2.5 text-right text-gray-300">{fmt(d.sueldo)}</td>
+                            <td className="px-4 py-2.5 text-right">
+                              <span className="text-blue-400 font-medium">{d.pct}%</span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-orange-400">{fmt(d.costeDept)}</td>
+                            <td className="px-4 py-2.5 text-right">
+                              {d.facturacion > 0
+                                ? <span className="text-white">{fmt(d.facturacion)}</span>
+                                : <span className="text-gray-600">—</span>}
+                            </td>
+                            <td className="px-6 py-2.5 text-right">
+                              <span className={`font-medium ${d.rentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {fmt(d.rentabilidad)}
+                              </span>
+                              {rentMesPct !== null && (
+                                <span className={`block text-[11px] ${d.rentabilidad >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {rentMesPct.toFixed(1)}%
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-gray-700 bg-gray-800/30">
+                        <td className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total anual</td>
+                        <td className="px-4 py-3" />
+                        <td className="px-4 py-3" />
+                        <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(emp.totalCosteDept)}</td>
+                        <td className="px-4 py-3 text-right text-white font-bold">{fmt(emp.totalFacturacion)}</td>
+                        <td className="px-6 py-3 text-right">
+                          <span className={`font-bold ${emp.totalRentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {fmt(emp.totalRentabilidad)}
+                          </span>
+                          {emp.totalFacturacion > 0 && (
+                            <span className={`block text-[11px] ${rentabPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {rentabPct.toFixed(1)}%
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )
+          })
+        )}
+
+        {/* Total personal imputado */}
+        {personalDetalle.length > 0 && (
+          <div className="flex justify-end">
+            <div className="bg-gray-800/50 border border-gray-700 rounded-lg px-6 py-3 text-sm">
+              <span className="text-gray-400">Total coste personal imputado: </span>
+              <span className="text-white font-bold ml-2">{fmt(costePersonalTotal)}</span>
+            </div>
           </div>
         )}
       </div>
