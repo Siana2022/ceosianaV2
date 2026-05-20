@@ -156,24 +156,7 @@ export default async function DepartamentoDetailPage({
     if (ing.id_servicio) ingresosMap.set(`${ing.id_servicio}_${ing.mes}`, Number(ing.valor))
   }
 
-  // Build sueldo mensual promedio by employee (for this year)
-  const sueldoMensualMap = new Map<string, number>()
-  for (const s of sueldosList) {
-    if (!sueldoMensualMap.has(s.id_empleado)) {
-      sueldoMensualMap.set(s.id_empleado, 0)
-    }
-    sueldoMensualMap.set(s.id_empleado, sueldoMensualMap.get(s.id_empleado)! + Number(s.coste_total ?? 0))
-  }
-  // average over months with data
-  const sueldoMesesCount = new Map<string, number>()
-  for (const s of sueldosList) {
-    sueldoMesesCount.set(s.id_empleado, (sueldoMesesCount.get(s.id_empleado) ?? 0) + 1)
-  }
-  const sueldoMensualPromedio = new Map<string, number>()
-  for (const [empId, total] of sueldoMensualMap.entries()) {
-    const count = sueldoMesesCount.get(empId) ?? 1
-    sueldoMensualPromedio.set(empId, total / count)
-  }
+
 
   // Set of active service IDs in this dept
   const activeServicioIds = new Set(serviciosList.filter(s => s.activo === true).map(s => s.id))
@@ -222,14 +205,14 @@ export default async function DepartamentoDetailPage({
       }, 0)
 
     const rentabilidad = ingresosAtrib - sueldoImputado
-    const sueldoMensual = sueldoMensualPromedio.get(empId) ?? 0
+    const costeMedioMes = meses.length > 0 ? sueldoImputado / meses.length : 0
 
     return {
       empId,
       nombre: empNameMap.get(empId) ?? empId,
       avgPct,
       clientesActivos,
-      sueldoMensual,
+      costeMedioMes,
       sueldoImputado,
       rentabilidad,
     }
@@ -329,8 +312,8 @@ export default async function DepartamentoDetailPage({
                   <th className="text-left px-6 py-3">Nombre</th>
                   <th className="text-right px-4 py-3">Dedicación media %</th>
                   <th className="text-right px-4 py-3">Clientes activos</th>
-                  <th className="text-right px-4 py-3">Sueldo mensual</th>
-                  <th className="text-right px-4 py-3">Sueldo imputado al depto</th>
+                  <th className="text-right px-4 py-3">Coste medio/mes al depto</th>
+                  <th className="text-right px-4 py-3">Coste total anual al depto</th>
                   <th className="text-right px-6 py-3">Rentabilidad</th>
                 </tr>
               </thead>
@@ -344,7 +327,7 @@ export default async function DepartamentoDetailPage({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-gray-300">{r.clientesActivos}</td>
-                    <td className="px-4 py-3 text-right text-gray-300">{r.sueldoMensual > 0 ? fmt(r.sueldoMensual) : '—'}</td>
+                    <td className="px-4 py-3 text-right text-gray-300">{r.costeMedioMes > 0 ? fmt(r.costeMedioMes) : '—'}</td>
                     <td className="px-4 py-3 text-right text-orange-400 font-medium">{fmt(r.sueldoImputado)}</td>
                     <td className={`px-6 py-3 text-right font-medium ${r.rentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {fmt(r.rentabilidad)}
