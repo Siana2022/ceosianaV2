@@ -21,7 +21,7 @@ type Empleado = {
 type ModalState = { mode: 'new' } | { mode: 'edit'; empleado: Empleado }
 
 const fmt = (v: number) =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
 
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'

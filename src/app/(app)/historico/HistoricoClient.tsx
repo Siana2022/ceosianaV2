@@ -7,7 +7,7 @@ import {
 } from 'recharts'
 
 const formatEur = (v: number) =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
 
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 

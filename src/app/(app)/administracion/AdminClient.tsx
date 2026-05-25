@@ -9,7 +9,7 @@ const formatEur = (value: number) =>
   new Intl.NumberFormat('es-ES', {
     style: 'currency',
     currency: 'EUR',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value)
 
 const ESTADOS = {

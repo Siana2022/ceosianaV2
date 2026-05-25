@@ -81,7 +81,7 @@ export async function GET() {
       costePersonalByCliente.set(info.id_cliente, (costePersonalByCliente.get(info.id_cliente) ?? 0) + sueldo * (dedicacion / 100) / numServicios)
     }
 
-    const fmt = (v: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+    const fmt = (v: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
     const negativos = (clientes ?? []).filter(c => {
       const ing = ingresosByCliente.get(c.id) ?? 0
       if (ing === 0) return false
