@@ -306,7 +306,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const totalGastosDepartamentos = gastosDepartamentos.reduce((s, g) => s + Number(g.valor), 0)
   const totalGastosClientes = gastosClientes.reduce((s, g) => s + Number(g.valor), 0)
   const totalGastos = gastos.reduce((s, g) => s + Number(g.valor), 0)
-  const totalSueldos = sueldos.reduce((s, r) => s + Math.round(Number(r.coste_total ?? 0)), 0)
+  const totalSueldos = sueldos.reduce((s, r) => s + Number(r.coste_total ?? 0), 0)
   const totalCombinado = totalGastos + totalSueldos
 
   // ── Annual cell editing (gastos) — unified gastosDetail for all categories ──
@@ -740,7 +740,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                     <tr><td colSpan={14} className="text-center text-gray-500 py-10">Sin empleados</td></tr>
                   )}
                   {empAnuales.map(([empId, { nombre, meses }]) => {
-                    const rowTotal = Array.from(meses.values()).reduce((a: number, v) => a + Math.round(Number(v ?? 0)), 0)
+                    const rowTotal = Array.from(meses.values()).reduce((a: number, v) => a + Number(v ?? 0), 0)
                     return (
                       <tr key={empId} className="border-b border-gray-800/30 hover:bg-gray-800/20">
                         <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium">{nombre}</td>
@@ -793,7 +793,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                     <tr className="border-t border-gray-700 bg-gray-800/30">
                       <td className="py-3 px-4 sticky left-0 bg-gray-800/30 z-10 text-gray-400 font-semibold text-xs uppercase">Total</td>
                       {Array.from({ length: 12 }, (_, i) => {
-                        const colTotal = empAnuales.reduce((sum, [, { meses: ms }]) => sum + Math.round(Number(ms.get(i + 1) ?? 0)), 0)
+                        const colTotal = empAnuales.reduce((sum, [, { meses: ms }]) => sum + Number(ms.get(i + 1) ?? 0), 0)
                         return (
                           <td key={i} className="py-3 px-1 text-center">
                             <span className={`font-semibold ${colTotal > 0 ? 'text-white' : 'text-gray-700'}`}>
