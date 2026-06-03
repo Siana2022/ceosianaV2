@@ -2,14 +2,34 @@ import { createClient } from '@/lib/server/supabase'
 import { getPerfil } from '@/lib/server/perfil'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET(req: NextRequest) {
+// Resolve the empleado ID for the current session.
+// Priority: perfiles table → fallback to email match in empleados
+async function resolveEmpleadoId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<{ id: string; rol: 'admin' | 'empleado' } | null> {
   const perfil = await getPerfil()
-  if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (perfil?.id_empleado) return { id: perfil.id_empleado, rol: perfil.rol }
 
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user?.email) return null
+
+  const { data: emp } = await supabase
+    .from('empleados')
+    .select('id')
+    .eq('email', session.user.email)
+    .maybeSingle()
+
+  if (!emp) return null
+  // No profile row → treat as admin (existing users)
+  return { id: emp.id, rol: perfil?.rol ?? 'admin' }
+}
+
+export async function GET(req: NextRequest) {
   const supabase = await createClient()
+  const resolved = await resolveEmpleadoId(supabase)
+  if (!resolved) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
-  const fecha = searchParams.get('fecha') // YYYY-MM or YYYY-MM-DD
-  const id_empleado = searchParams.get('id_empleado') // admin only
+  const fecha = searchParams.get('fecha')
+  const id_empleado_filter = searchParams.get('id_empleado')
 
   let query = supabase
     .from('time_logs')
@@ -25,15 +45,12 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
 
   // Employees only see their own logs
-  if (perfil.rol === 'empleado') {
-    if (!perfil.id_empleado) return NextResponse.json([])
-    query = query.eq('id_empleado', perfil.id_empleado)
-  } else if (id_empleado) {
-    // Admin filtering by specific employee
-    query = query.eq('id_empleado', id_empleado)
+  if (resolved.rol === 'empleado') {
+    query = query.eq('id_empleado', resolved.id)
+  } else if (id_empleado_filter) {
+    query = query.eq('id_empleado', id_empleado_filter)
   }
 
-  // Filter by month (YYYY-MM) or specific date
   if (fecha) {
     if (fecha.length === 7) {
       query = query.gte('fecha', `${fecha}-01`).lte('fecha', `${fecha}-31`)
@@ -48,22 +65,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const perfil = await getPerfil()
   const supabase = await createClient()
-
-  // Resolve id_empleado: from perfil, or fallback to matching by auth email
-  let id_empleado_resolved = perfil?.id_empleado ?? null
-  if (!id_empleado_resolved) {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const { data: emp } = await supabase
-      .from('empleados')
-      .select('id')
-      .eq('email', session.user.email)
-      .maybeSingle()
-    if (!emp) return NextResponse.json({ error: 'No se encontró tu empleado. Pide al admin que configure tu perfil.' }, { status: 401 })
-    id_empleado_resolved = emp.id
-  }
+  const resolved = await resolveEmpleadoId(supabase)
+  if (!resolved) return NextResponse.json({ error: 'No autorizado. Asegúrate de que tu email coincide con un empleado en el sistema.' }, { status: 401 })
 
   const body = await req.json()
   const { id_servicio, id_cliente, id_departamento, descripcion, fecha, hora_inicio, hora_fin, minutos } = body
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('time_logs')
     .insert({
-      id_empleado: id_empleado_resolved,
+      id_empleado: resolved.id,
       id_servicio: id_servicio || null,
       id_cliente: id_cliente || null,
       id_departamento: id_departamento || null,
@@ -93,19 +97,18 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const perfil = await getPerfil()
-  if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const supabase = await createClient()
+  const resolved = await resolveEmpleadoId(supabase)
+  if (!resolved) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
-  const supabase = await createClient()
-
-  // Check ownership if not admin
-  if (perfil.rol !== 'admin') {
+  // Employees can only delete their own logs
+  if (resolved.rol === 'empleado') {
     const { data: log } = await supabase.from('time_logs').select('id_empleado').eq('id', id).single()
-    if (log?.id_empleado !== perfil.id_empleado) {
+    if (log?.id_empleado !== resolved.id) {
       return NextResponse.json({ error: 'No puedes eliminar logs de otros' }, { status: 403 })
     }
   }
