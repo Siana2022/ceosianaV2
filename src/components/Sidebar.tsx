@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-const menu = [
+const menuAdmin = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/clientes', label: 'Clientes', icon: '🏢' },
   { href: '/ingresos', label: 'Ingresos', icon: '💶' },
@@ -17,14 +17,32 @@ const menu = [
   { href: '/costes', label: 'Costes', icon: '💰' },
   { href: '/administracion', label: 'Administración', icon: '🧾' },
   { href: '/historico', label: 'Histórico', icon: '📈' },
+  { href: '/fichar', label: 'Fichar', icon: '🕐' },
+]
+
+const menuEmpleado = [
+  { href: '/fichar', label: 'Fichar', icon: '🕐' },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [alertCount, setAlertCount] = useState(0)
+  const [rol, setRol] = useState<'admin' | 'empleado' | null>(null)
 
   useEffect(() => {
+    // Fetch current user's role from perfiles
+    fetch('/api/perfil')
+      .then(async r => {
+        if (!r.ok) return
+        const data = await r.json()
+        if (data?.rol) setRol(data.rol)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (rol !== 'admin') return
     fetch('/api/alertas')
       .then(async r => {
         if (!r.ok) return
@@ -32,7 +50,7 @@ export default function Sidebar() {
         if (Array.isArray(data)) setAlertCount(data.length)
       })
       .catch(() => {})
-  }, [pathname]) // refresh count on navigation
+  }, [pathname, rol])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -41,6 +59,8 @@ export default function Sidebar() {
     router.refresh()
   }
 
+  const menu = rol === 'empleado' ? menuEmpleado : menuAdmin
+
   return (
     <aside className="w-64 min-h-screen bg-gray-900 border-r border-gray-800 flex flex-col">
       <div className="p-6 border-b border-gray-800 flex items-center justify-between">
@@ -48,7 +68,9 @@ export default function Sidebar() {
           <h1 className="text-xl font-bold text-white tracking-tight">
             CEO<span className="text-blue-500">SIANA</span>
           </h1>
-          <p className="text-gray-500 text-xs mt-1">Panel de dirección</p>
+          <p className="text-gray-500 text-xs mt-1">
+            {rol === 'empleado' ? 'Control de tiempos' : 'Panel de dirección'}
+          </p>
         </div>
         {/* Bell icon — solo visible si hay alertas */}
         {alertCount > 0 && (
@@ -77,8 +99,8 @@ export default function Sidebar() {
           </Link>
         ))}
 
-        {/* Alertas — solo aparece si el usuario es admin (alertCount > 0) */}
-        {alertCount > 0 && (
+        {/* Alertas — solo aparece si el usuario es admin y hay alertas */}
+        {rol === 'admin' && alertCount > 0 && (
           <Link
             href="/alertas"
             className={`flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
