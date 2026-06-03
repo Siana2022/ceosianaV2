@@ -4,8 +4,9 @@ import { redirect } from 'next/navigation'
 import FicharClient from './FicharClient'
 
 export default async function FicharPage() {
-  const perfil = await getPerfil()
-  if (!perfil) redirect('/login')
+  const perfilData = await getPerfil()
+  // If no profile row exists, treat as admin (backward compat for existing users)
+  const perfil = perfilData ?? { id: '', id_empleado: null, rol: 'admin' as const }
 
   const supabase = await createClient()
 
