@@ -272,10 +272,10 @@ export default async function EmpleadoPage({
     costeImputadoByMes.set(d.mes, (costeImputadoByMes.get(d.mes) ?? 0) + coste)
   }
 
-  // Totals
+  // Totals — rentabilidad = facturación total - sueldo total (coste real del empleado)
   const totalFact = monthData.reduce((s, m) => s + m.facturacion, 0)
   const totalSueldo = monthData.reduce((s, m) => s + m.sueldo, 0)
-  const totalRentabilidad = totalFact - costeImputadoTotal
+  const totalRentabilidad = totalFact - totalSueldo
   const rentabilidadPct = totalFact > 0 ? (totalRentabilidad / totalFact) * 100 : 0
 
   return (
@@ -340,7 +340,7 @@ export default async function EmpleadoPage({
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm">Rentabilidad</p>
           <p className={`text-2xl font-bold mt-1 ${totalRentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(totalRentabilidad)}</p>
-          <p className="text-gray-500 text-xs mt-0.5">ingresos atribuidos - coste imputado</p>
+          <p className="text-gray-500 text-xs mt-0.5">facturación atribuida - sueldo total</p>
           <p className="text-gray-600 text-[10px] mt-0.5">{rentabilidadPct.toFixed(1)}% sobre fact.</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
