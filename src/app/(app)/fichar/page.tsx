@@ -56,7 +56,8 @@ export default async function FicharPage() {
     <FicharClient
       perfil={perfil}
       empleadoNombre={empleadoNombre}
-      servicios={servicios ?? []}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      servicios={(servicios ?? []) as any[]}
       departamentos={departamentos ?? []}
       clientes={clientes ?? []}
       empleados={empleados}
