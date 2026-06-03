@@ -49,8 +49,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const perfil = await getPerfil()
-  if (!perfil || !perfil.id_empleado) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const supabase = await createClient()
+
+  // Resolve id_empleado: from perfil, or fallback to matching by auth email
+  let id_empleado_resolved = perfil?.id_empleado ?? null
+  if (!id_empleado_resolved) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { data: emp } = await supabase
+      .from('empleados')
+      .select('id')
+      .eq('email', session.user.email)
+      .maybeSingle()
+    if (!emp) return NextResponse.json({ error: 'No se encontró tu empleado. Pide al admin que configure tu perfil.' }, { status: 401 })
+    id_empleado_resolved = emp.id
   }
 
   const body = await req.json()
@@ -60,11 +72,10 @@ export async function POST(req: NextRequest) {
   if (!fecha) return NextResponse.json({ error: 'La fecha es obligatoria' }, { status: 400 })
   if (!minutos || minutos <= 0) return NextResponse.json({ error: 'Los minutos deben ser mayores que 0' }, { status: 400 })
 
-  const supabase = await createClient()
   const { data, error } = await supabase
     .from('time_logs')
     .insert({
-      id_empleado: perfil.id_empleado,
+      id_empleado: id_empleado_resolved,
       id_servicio: id_servicio || null,
       id_cliente: id_cliente || null,
       id_departamento: id_departamento || null,
