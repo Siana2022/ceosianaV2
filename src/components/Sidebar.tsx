@@ -24,22 +24,14 @@ const menuEmpleado = [
   { href: '/fichar', label: 'Fichar', icon: '🕐' },
 ]
 
-export default function Sidebar() {
+interface Props {
+  rol: 'admin' | 'empleado'
+}
+
+export default function Sidebar({ rol }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const [alertCount, setAlertCount] = useState(0)
-  const [rol, setRol] = useState<'admin' | 'empleado' | null>(null)
-
-  useEffect(() => {
-    // Fetch current user's role from perfiles
-    fetch('/api/perfil')
-      .then(async r => {
-        if (!r.ok) return
-        const data = await r.json()
-        if (data?.rol) setRol(data.rol)
-      })
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     if (rol !== 'admin') return
@@ -72,7 +64,6 @@ export default function Sidebar() {
             {rol === 'empleado' ? 'Control de tiempos' : 'Panel de dirección'}
           </p>
         </div>
-        {/* Bell icon — solo visible si hay alertas */}
         {alertCount > 0 && (
           <Link href="/alertas" className="relative group">
             <span className="text-xl">🔔</span>
@@ -99,7 +90,6 @@ export default function Sidebar() {
           </Link>
         ))}
 
-        {/* Alertas — solo aparece si el usuario es admin y hay alertas */}
         {rol === 'admin' && alertCount > 0 && (
           <Link
             href="/alertas"
