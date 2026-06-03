@@ -18,6 +18,7 @@ const menuAdmin = [
   { href: '/administracion', label: 'Administración', icon: '🧾' },
   { href: '/historico', label: 'Histórico', icon: '📈' },
   { href: '/fichar', label: 'Fichar', icon: '🕐' },
+  { href: '/rendimiento', label: 'Rendimiento', icon: '⚡' },
 ]
 
 const menuEmpleado = [

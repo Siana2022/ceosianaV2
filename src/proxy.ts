@@ -18,7 +18,8 @@ export async function proxy(req: NextRequest) {
       !pathname.startsWith('/historico') &&
       !pathname.startsWith('/fichar') &&
       !pathname.startsWith('/alertas') &&
-      !pathname.startsWith('/servicios')) {
+      !pathname.startsWith('/servicios') &&
+      !pathname.startsWith('/rendimiento')) {
     return res
   }
 
