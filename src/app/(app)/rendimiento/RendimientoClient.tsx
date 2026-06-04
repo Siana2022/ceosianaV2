@@ -329,11 +329,6 @@ export default function RendimientoClient({ rows, anio, years }: Props) {
   const [tab, setTab] = useState<'empleado' | 'proyecto'>('empleado')
   const [mes, setMes] = useState<number | null>(null)
 
-  const totalCoste = rows.reduce((s, r) => s + r.costeAsignado, 0)
-  const totalHoras = rows.reduce((s, r) => s + r.horasFichadas, 0)
-  const totalFact = rows.reduce((s, r) => s + r.facturacion, 0)
-  const totalMargen = totalFact - totalCoste
-
   const filteredRows = mes ? rows.filter(r => r.mes === mes) : rows
 
   return (
@@ -353,22 +348,6 @@ export default function RendimientoClient({ rows, anio, years }: Props) {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Coste total asignado', value: fmt(totalCoste), color: 'text-orange-400' },
-          { label: 'Horas fichadas', value: totalHoras > 0 ? `${totalHoras.toFixed(1)}h` : '—', color: 'text-blue-400' },
-          { label: 'Facturación', value: fmt(totalFact), color: 'text-green-400' },
-          { label: 'Margen total', value: fmt(totalMargen), color: totalMargen >= 0 ? 'text-green-400' : 'text-red-400' },
-        ].map(k => (
-          <div key={k.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-gray-400 text-xs font-medium">{k.label}</p>
-            <p className={`text-xl font-bold mt-1 ${k.color}`}>{k.value}</p>
-            <p className="text-gray-600 text-[10px] mt-0.5">Año {anio}{mes ? ` · ${MESES[mes-1]}` : ''}</p>
-          </div>
-        ))}
       </div>
 
       {/* Filters + tabs */}
