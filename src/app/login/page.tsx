@@ -47,6 +47,12 @@ export default async function LoginPage({
           >
             Entrar
           </button>
+
+          <div className="text-center pt-1">
+            <a href="/login/reset-password" className="text-gray-500 text-xs hover:text-gray-300 transition-colors">
+              ¿Olvidaste tu contraseña?
+            </a>
+          </div>
         </form>
       </div>
     </div>
