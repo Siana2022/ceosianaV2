@@ -50,13 +50,12 @@ function getDepartamentoNombre(s: Servicio): string {
 }
 
 // ─── TIMER TAB ────────────────────────────────────────────────────────────────
-function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes, onSaved }: {
-  perfil: Perfil; empleadoNombre: string; servicios: Servicio[]
+function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }: {
+  perfil: Perfil; empleadoNombre: string
   departamentos: Departamento[]; clientes: Cliente[]; onSaved: () => void
 }) {
   const [modo, setModo] = useState<'timer' | 'manual'>('timer')
   const [descripcion, setDescripcion] = useState('')
-  const [servicioId, setServicioId] = useState('')
   const [clienteId, setClienteId] = useState('')
   const [departamentoId, setDepartamentoId] = useState('')
   const [fecha, setFecha] = useState(todayStr())
@@ -74,9 +73,9 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     const saved = localStorage.getItem(TIMER_KEY)
     if (saved) {
       try {
-        const { startTs, d, s, c, dep } = JSON.parse(saved)
+        const { startTs, d, c, dep } = JSON.parse(saved)
         setTimerStart(startTs); setTimerRunning(true)
-        setDescripcion(d ?? ''); setServicioId(s ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? '')
+        setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? '')
         setElapsed(Math.floor((Date.now() - startTs) / 1000))
       } catch { localStorage.removeItem(TIMER_KEY) }
     }
@@ -89,24 +88,11 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [timerRunning, timerStart])
 
-  useEffect(() => {
-    if (!servicioId) return
-    const s = servicios.find(sv => sv.id === servicioId)
-    if (!s) return
-    const cNombre = getClienteNombre(s)
-    const dNombre = getDepartamentoNombre(s)
-    const c = clientes.find(x => x.nombre === cNombre)
-    const d = departamentos.find(x => x.nombre === dNombre)
-    if (c) setClienteId(c.id)
-    if (d) setDepartamentoId(d.id)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicioId])
-
   function startTimer() {
     if (!descripcion.trim()) { setError('Añade una descripción'); return }
     setError(''); const now = Date.now()
     setTimerStart(now); setTimerRunning(true); setElapsed(0)
-    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, s: servicioId, c: clienteId, dep: departamentoId }))
+    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId }))
   }
 
   async function stopTimer() {
@@ -132,18 +118,17 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     try {
       const res = await fetch('/api/time-logs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ descripcion, ...extra, id_servicio: servicioId || null, id_cliente: clienteId || null, id_departamento: departamentoId || null }),
+        body: JSON.stringify({ descripcion, ...extra, id_cliente: clienteId || null, id_departamento: departamentoId || null }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
-      setDescripcion(''); setServicioId(''); setClienteId(''); setDepartamentoId('')
+      setDescripcion(''); setClienteId(''); setDepartamentoId('')
       setManualHoras(''); setManualMin('30')
       onSaved()
     } finally { setSaving(false) }
   }
 
-  const activeServicio = servicios.find(s => s.id === servicioId)
-  const activeCliente = activeServicio ? getClienteNombre(activeServicio) : clientes.find(c => c.id === clienteId)?.nombre ?? ''
-  const activeDept = activeServicio ? getDepartamentoNombre(activeServicio) : departamentos.find(d => d.id === departamentoId)?.nombre ?? ''
+  const activeCliente = clientes.find(c => c.id === clienteId)?.nombre ?? ''
+  const activeDept = departamentos.find(d => d.id === departamentoId)?.nombre ?? ''
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -214,23 +199,8 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30" />
           </div>
 
-          {/* Servicio selector */}
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">2. Proyecto / Cliente</label>
-            <select value={servicioId} onChange={e => setServicioId(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
-              <option value="">— Sin proyecto específico —</option>
-              {servicios.map(s => (
-                <option key={s.id} value={s.id}>
-                  {getClienteNombre(s) ? `${getClienteNombre(s)} · ` : ''}{s.notas ?? s.nombre ?? s.id}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Dept (if no servicio) */}
-          {!servicioId && (
-            <div className="grid grid-cols-2 gap-3">
+          {/* Cliente + Departamento */}
+          <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Cliente</label>
                 <select value={clienteId} onChange={e => setClienteId(e.target.value)}
@@ -248,7 +218,6 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                 </select>
               </div>
             </div>
-          )}
 
           {/* Timer action */}
           {modo === 'timer' && (
@@ -843,7 +812,7 @@ export default function FicharClient({ perfil, empleadoNombre, servicios, depart
 
       {tab === 'fichar' && (
         <TabFichar key={refreshKey} perfil={perfil} empleadoNombre={empleadoNombre}
-          servicios={servicios} departamentos={departamentos} clientes={clientes}
+          departamentos={departamentos} clientes={clientes}
           onSaved={() => setRefreshKey(k => k + 1)} />
       )}
       {tab === 'analisis' && perfil.rol === 'admin' && (
