@@ -57,7 +57,9 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
   const [modo, setModo] = useState<'timer' | 'manual'>('timer')
   const [descripcion, setDescripcion] = useState('')
   const [clienteId, setClienteId] = useState('')
+  const [clienteOtros, setClienteOtros] = useState('')
   const [departamentoId, setDepartamentoId] = useState('')
+  const [departamentoOtros, setDepartamentoOtros] = useState('')
   const [fecha, setFecha] = useState(todayStr())
   const [manualHoras, setManualHoras] = useState('')
   const [manualMin, setManualMin] = useState('30')
@@ -116,12 +118,25 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
     if (!descripcion.trim()) { setError('La descripción es obligatoria'); return }
     setSaving(true); setError('')
     try {
+      let finalDesc = descripcion
+      let finalClienteId: string | null = clienteId || null
+      let finalDeptId: string | null = departamentoId || null
+
+      if (clienteId === '__otros__') {
+        finalClienteId = null
+        if (clienteOtros.trim()) finalDesc = `[${clienteOtros.trim()}] ${finalDesc}`
+      }
+      if (departamentoId === '__otros__') {
+        finalDeptId = null
+        if (departamentoOtros.trim()) finalDesc = `[${departamentoOtros.trim()}] ${finalDesc}`
+      }
+
       const res = await fetch('/api/time-logs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ descripcion, ...extra, id_cliente: clienteId || null, id_departamento: departamentoId || null }),
+        body: JSON.stringify({ descripcion: finalDesc, ...extra, id_cliente: finalClienteId, id_departamento: finalDeptId }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
-      setDescripcion(''); setClienteId(''); setDepartamentoId('')
+      setDescripcion(''); setClienteId(''); setClienteOtros(''); setDepartamentoId(''); setDepartamentoOtros('')
       setManualHoras(''); setManualMin('30')
       onSaved()
     } finally { setSaving(false) }
@@ -207,7 +222,13 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
                   <option value="">— Ninguno —</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  <option value="__otros__">— Otros... —</option>
                 </select>
+                {clienteId === '__otros__' && (
+                  <input type="text" value={clienteOtros} onChange={e => setClienteOtros(e.target.value)}
+                    placeholder="Especifica el cliente..."
+                    className="mt-1.5 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Departamento</label>
@@ -215,7 +236,13 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
                   <option value="">— Ninguno —</option>
                   {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                  <option value="__otros__">— Otros... —</option>
                 </select>
+                {departamentoId === '__otros__' && (
+                  <input type="text" value={departamentoOtros} onChange={e => setDepartamentoOtros(e.target.value)}
+                    placeholder="Especifica el departamento..."
+                    className="mt-1.5 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+                )}
               </div>
             </div>
 
@@ -262,20 +289,34 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
 
       {/* RIGHT: History */}
       <div className="lg:col-span-7">
-        <HistorialPersonal onDelete={async (id) => { await fetch(`/api/time-logs?id=${id}`, { method: 'DELETE' }); onSaved() }} />
+        <HistorialPersonal
+          clientes={clientes}
+          departamentos={departamentos}
+          onDelete={async (id) => { await fetch(`/api/time-logs?id=${id}`, { method: 'DELETE' }); onSaved() }} />
       </div>
     </div>
   )
 }
 
 // ─── HISTORIAL PERSONAL ───────────────────────────────────────────────────────
-function HistorialPersonal({ onDelete }: { onDelete: (id: string) => void }) {
+function HistorialPersonal({ onDelete, clientes, departamentos }: {
+  onDelete: (id: string) => void
+  clientes: Cliente[]
+  departamentos: Departamento[]
+}) {
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'custom'>('dia')
-  const [customDate, setCustomDate] = useState(todayStr)
+  const [customDesde, setCustomDesde] = useState(todayStr)
+  const [customHasta, setCustomHasta] = useState(todayStr)
   const [logs, setLogs] = useState<TimeLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDesc, setEditDesc] = useState('')
+  const [editClienteId, setEditClienteId] = useState('')
+  const [editDeptId, setEditDeptId] = useState('')
+  const [editMinutos, setEditMinutos] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
-  useEffect(() => { fetchLogs() }, [periodo, customDate]) // eslint-disable-line
+  useEffect(() => { fetchLogs() }, [periodo, customDesde, customHasta]) // eslint-disable-line
 
   async function fetchLogs() {
     setLoading(true)
@@ -284,16 +325,40 @@ function HistorialPersonal({ onDelete }: { onDelete: (id: string) => void }) {
       const mesStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
       const params = new URLSearchParams()
       if (periodo === 'mes') params.set('fecha', mesStr)
+      if (periodo === 'custom') { params.set('desde', customDesde); params.set('hasta', customHasta) }
       const res = await fetch(`/api/time-logs?${params}`)
       const data = await res.json()
       setLogs(Array.isArray(data) ? data : [])
     } finally { setLoading(false) }
   }
 
+  function startEdit(l: TimeLog) {
+    setEditingId(l.id)
+    setEditDesc(l.descripcion)
+    setEditClienteId(l.cliente?.id ?? '')
+    setEditDeptId(l.departamento?.id ?? '')
+    setEditMinutos(String(l.minutos))
+  }
+
+  function cancelEdit() { setEditingId(null) }
+
+  async function saveEdit(id: string) {
+    setEditSaving(true)
+    try {
+      const res = await fetch(`/api/time-logs?id=${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ descripcion: editDesc, id_cliente: editClienteId || null, id_departamento: editDeptId || null, minutos: editMinutos }),
+      })
+      if (!res.ok) return
+      setEditingId(null)
+      await fetchLogs()
+    } finally { setEditSaving(false) }
+  }
+
   const filteredLogs = useMemo(() => {
     const today = todayStr()
     if (periodo === 'dia') return logs.filter(l => l.fecha === today)
-    if (periodo === 'custom') return logs.filter(l => l.fecha === customDate)
+    if (periodo === 'custom') return logs.filter(l => l.fecha >= customDesde && l.fecha <= customHasta)
     if (periodo === 'semana') {
       return logs.filter(l => {
         const diff = (new Date(today).getTime() - new Date(l.fecha).getTime()) / 86400000
@@ -301,7 +366,7 @@ function HistorialPersonal({ onDelete }: { onDelete: (id: string) => void }) {
       })
     }
     return logs
-  }, [logs, periodo, customDate])
+  }, [logs, periodo, customDesde, customHasta])
 
   const totalMin = filteredLogs.reduce((s, l) => s + l.minutos, 0)
   const goalMin = periodo === 'dia' || periodo === 'custom' ? 480 : periodo === 'semana' ? 2400 : 9600
@@ -333,8 +398,18 @@ function HistorialPersonal({ onDelete }: { onDelete: (id: string) => void }) {
             ))}
           </div>
           {periodo === 'custom' && (
-            <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500">Desde</span>
+                <input type="date" value={customDesde} onChange={e => setCustomDesde(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500">Hasta</span>
+                <input type="date" value={customHasta} onChange={e => setCustomHasta(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+              </div>
+            </div>
           )}
         </div>
 
@@ -378,24 +453,59 @@ function HistorialPersonal({ onDelete }: { onDelete: (id: string) => void }) {
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {filteredLogs.map(l => (
-                <div key={l.id} className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-gray-800 hover:border-gray-700 hover:bg-gray-800/30 transition-all">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{l.descripcion}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
-                      {l.cliente?.nombre && (
-                        <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full text-gray-300">{l.cliente.nombre}</span>
-                      )}
-                      {l.departamento?.nombre && (
-                        <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">{l.departamento.nombre}</span>
-                      )}
-                      <span className="font-mono text-gray-600">{new Date(l.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day:'2-digit', month:'short' })}</span>
-                      {l.hora_inicio && <span className="font-mono text-gray-600">{l.hora_inicio}–{l.hora_fin}</span>}
+                <div key={l.id} className="p-3.5 rounded-xl border border-gray-800 hover:border-gray-700 hover:bg-gray-800/30 transition-all">
+                  {editingId === l.id ? (
+                    <div className="space-y-2">
+                      <input type="text" value={editDesc} onChange={e => setEditDesc(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <select value={editClienteId} onChange={e => setEditClienteId(e.target.value)}
+                          className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500">
+                          <option value="">— Sin cliente —</option>
+                          {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                        <select value={editDeptId} onChange={e => setEditDeptId(e.target.value)}
+                          className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500">
+                          <option value="">— Sin depto —</option>
+                          {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="number" min="1" value={editMinutos} onChange={e => setEditMinutos(e.target.value)}
+                          className="w-24 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+                        <span className="text-xs text-gray-500">min</span>
+                        <button onClick={() => saveEdit(l.id)} disabled={editSaving}
+                          className="ml-auto text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                          ✓ Guardar
+                        </button>
+                        <button onClick={cancelEdit}
+                          className="text-xs font-bold bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg transition-colors">
+                          ✕ Cancelar
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-mono text-sm font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-lg">{fmtMin(l.minutos)}</span>
-                    <button onClick={() => onDelete(l.id)} className="text-gray-700 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10 transition-colors" title="Eliminar">✕</button>
-                  </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{l.descripcion}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
+                          {l.cliente?.nombre && (
+                            <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full text-gray-300">{l.cliente.nombre}</span>
+                          )}
+                          {l.departamento?.nombre && (
+                            <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">{l.departamento.nombre}</span>
+                          )}
+                          <span className="font-mono text-gray-600">{new Date(l.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day:'2-digit', month:'short' })}</span>
+                          {l.hora_inicio && <span className="font-mono text-gray-600">{l.hora_inicio}–{l.hora_fin}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono text-sm font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-lg">{fmtMin(l.minutos)}</span>
+                        <button onClick={() => startEdit(l)} className="text-gray-700 hover:text-blue-400 p-1 rounded-lg hover:bg-blue-500/10 transition-colors" title="Editar">✏️</button>
+                        <button onClick={() => onDelete(l.id)} className="text-gray-700 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10 transition-colors" title="Eliminar">✕</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

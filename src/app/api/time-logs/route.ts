@@ -51,7 +51,12 @@ export async function GET(req: NextRequest) {
     query = query.eq('id_empleado', id_empleado_filter)
   }
 
-  if (fecha) {
+  const desde = searchParams.get('desde')
+  const hasta = searchParams.get('hasta')
+
+  if (desde && hasta) {
+    query = query.gte('fecha', desde).lte('fecha', hasta)
+  } else if (fecha) {
     if (fecha.length === 7) {
       query = query.gte('fecha', `${fecha}-01`).lte('fecha', `${fecha}-31`)
     } else {
@@ -91,6 +96,30 @@ export async function POST(req: NextRequest) {
     })
     .select()
     .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
+
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const resolved = await resolveEmpleadoId(supabase)
+  if (!resolved) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+  if (resolved.rol === 'empleado') {
+    const { data: log } = await supabase.from('time_logs').select('id_empleado').eq('id', id).single()
+    if (log?.id_empleado !== resolved.id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+
+  const body = await req.json()
+  const { descripcion, id_cliente, id_departamento, minutos } = body
+  const { data, error } = await supabase.from('time_logs')
+    .update({ descripcion, id_cliente: id_cliente || null, id_departamento: id_departamento || null, minutos: parseInt(minutos) })
+    .eq('id', id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
