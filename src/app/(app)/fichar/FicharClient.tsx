@@ -50,14 +50,15 @@ function getDepartamentoNombre(s: Servicio): string {
 }
 
 // ─── TIMER TAB ────────────────────────────────────────────────────────────────
-function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }: {
-  perfil: Perfil; empleadoNombre: string
+function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes, onSaved }: {
+  perfil: Perfil; empleadoNombre: string; servicios: Servicio[]
   departamentos: Departamento[]; clientes: Cliente[]; onSaved: () => void
 }) {
   const [modo, setModo] = useState<'timer' | 'manual'>('timer')
   const [descripcion, setDescripcion] = useState('')
   const [clienteId, setClienteId] = useState('')
-  const [clienteOtros, setClienteOtros] = useState('')
+  const [proyectoOtrosId, setProyectoOtrosId] = useState('')   // servicio dentro de Otros
+  const [proyectoOtrosManual, setProyectoOtrosManual] = useState('') // texto libre si Manual
   const [departamentoId, setDepartamentoId] = useState('')
   const [departamentoOtros, setDepartamentoOtros] = useState('')
   const [fecha, setFecha] = useState(todayStr())
@@ -121,25 +122,54 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
       let finalDesc = descripcion
       let finalClienteId: string | null = clienteId || null
       let finalDeptId: string | null = departamentoId || null
+      let finalServicioId: string | null = null
+
+      const esOtrosCliente = isOtrosCliente()
 
       if (clienteId === '__otros__') {
         finalClienteId = null
-        if (clienteOtros.trim()) finalDesc = `[${clienteOtros.trim()}] ${finalDesc}`
       }
+
+      // Si es Otros: usar proyecto seleccionado o texto manual
+      if (esOtrosCliente) {
+        if (proyectoOtrosId && proyectoOtrosId !== '__manual__') {
+          finalServicioId = proyectoOtrosId
+        } else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) {
+          finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
+        }
+      }
+
       if (departamentoId === '__otros__') {
         finalDeptId = null
-        if (departamentoOtros.trim()) finalDesc = `[${departamentoOtros.trim()}] ${finalDesc}`
+        if (departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
       }
 
       const res = await fetch('/api/time-logs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ descripcion: finalDesc, ...extra, id_cliente: finalClienteId, id_departamento: finalDeptId }),
+        body: JSON.stringify({ descripcion: finalDesc, ...extra, id_servicio: finalServicioId, id_cliente: finalClienteId, id_departamento: finalDeptId }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
-      setDescripcion(''); setClienteId(''); setClienteOtros(''); setDepartamentoId(''); setDepartamentoOtros('')
+      setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual('')
+      setDepartamentoId(''); setDepartamentoOtros('')
       setManualHoras(''); setManualMin('30')
       onSaved()
     } finally { setSaving(false) }
+  }
+
+  // Helper: ¿el cliente seleccionado es "Otros"?
+  function isOtrosCliente() {
+    if (clienteId === '__otros__') return true
+    return clientes.find(c => c.id === clienteId)?.nombre?.toLowerCase() === 'otros'
+  }
+
+  // Proyectos del cliente Otros
+  function serviciosDeOtros(): Servicio[] {
+    const otrosCliente = clientes.find(c => c.nombre?.toLowerCase() === 'otros')
+    if (!otrosCliente) return servicios
+    return servicios.filter(s => {
+      const cn = getClienteNombre(s)
+      return cn.toLowerCase() === 'otros'
+    })
   }
 
   const activeCliente = clientes.find(c => c.id === clienteId)?.nombre ?? ''
@@ -224,10 +254,24 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   <option value="__otros__">— Otros... —</option>
                 </select>
-                {(clienteId === '__otros__' || clientes.find(c => c.id === clienteId)?.nombre?.toLowerCase() === 'otros') && (
-                  <input type="text" value={clienteOtros} onChange={e => setClienteOtros(e.target.value)}
-                    placeholder="Especifica el proyecto / tarea..."
-                    className="mt-1.5 w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-400" />
+                {isOtrosCliente() && (
+                  <div className="mt-1.5 space-y-1.5">
+                    <select value={proyectoOtrosId} onChange={e => setProyectoOtrosId(e.target.value)}
+                      className="w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400">
+                      <option value="">— Selecciona proyecto —</option>
+                      {serviciosDeOtros().map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.notas ?? s.nombre ?? s.id}
+                        </option>
+                      ))}
+                      <option value="__manual__">✏️ Manual (escribir)</option>
+                    </select>
+                    {proyectoOtrosId === '__manual__' && (
+                      <input type="text" value={proyectoOtrosManual} onChange={e => setProyectoOtrosManual(e.target.value)}
+                        placeholder="Escribe el proyecto o tarea..."
+                        className="w-full bg-gray-800 border border-blue-400 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-300" />
+                    )}
+                  </div>
                 )}
               </div>
               <div>
@@ -922,7 +966,7 @@ export default function FicharClient({ perfil, empleadoNombre, servicios, depart
 
       {tab === 'fichar' && (
         <TabFichar key={refreshKey} perfil={perfil} empleadoNombre={empleadoNombre}
-          departamentos={departamentos} clientes={clientes}
+          servicios={servicios} departamentos={departamentos} clientes={clientes}
           onSaved={() => setRefreshKey(k => k + 1)} />
       )}
       {tab === 'analisis' && perfil.rol === 'admin' && (
