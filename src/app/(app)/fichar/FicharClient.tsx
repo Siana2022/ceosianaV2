@@ -224,10 +224,10 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   <option value="__otros__">— Otros... —</option>
                 </select>
-                {clienteId === '__otros__' && (
+                {(clienteId === '__otros__' || clientes.find(c => c.id === clienteId)?.nombre?.toLowerCase() === 'otros') && (
                   <input type="text" value={clienteOtros} onChange={e => setClienteOtros(e.target.value)}
-                    placeholder="Especifica el cliente..."
-                    className="mt-1.5 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+                    placeholder="Especifica el proyecto / tarea..."
+                    className="mt-1.5 w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-400" />
                 )}
               </div>
               <div>
@@ -238,10 +238,10 @@ function TabFichar({ perfil, empleadoNombre, departamentos, clientes, onSaved }:
                   {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
                   <option value="__otros__">— Otros... —</option>
                 </select>
-                {departamentoId === '__otros__' && (
+                {(departamentoId === '__otros__' || departamentos.find(d => d.id === departamentoId)?.nombre?.toLowerCase() === 'otros') && (
                   <input type="text" value={departamentoOtros} onChange={e => setDepartamentoOtros(e.target.value)}
                     placeholder="Especifica el departamento..."
-                    className="mt-1.5 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+                    className="mt-1.5 w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-400" />
                 )}
               </div>
             </div>
