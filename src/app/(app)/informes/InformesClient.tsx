@@ -141,7 +141,7 @@ export default function InformesClient() {
     return Array.from(map.values()).sort((a, b) => b.minutos - a.minutos)
   }, [logs])
 
-  // ── Ingresos por cliente ────────────────────────────────────────────────
+  // ── Ingresos por cliente (total) ───────────────────────────────────────
   const ingresosPorCliente = useMemo(() => {
     const map = new Map<string, number>()
     for (const i of ingresos) {
@@ -150,6 +150,47 @@ export default function InformesClient() {
     }
     return map
   }, [ingresos])
+
+  // ── Ingresos por cliente+departamento ──────────────────────────────────
+  // key: `${clienteId}__${deptoId}`
+  const ingresosPorClienteDepto = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const i of ingresos) {
+      if (!i.cliente?.id) continue
+      const deptId = (i as unknown as { id_departamento?: string }).id_departamento ?? '__sin__'
+      const key = `${i.cliente.id}__${deptId}`
+      map.set(key, (map.get(key) ?? 0) + Number(i.valor))
+    }
+    return map
+  }, [ingresos])
+
+  // ── Horas + ingresos por departamento dentro de un cliente ────────────
+  function rentabilidadPorDepto(clienteId: string) {
+    const deptMap = new Map<string, { nombre: string; minutos: number; ingresos: number }>()
+    for (const l of logs) {
+      if ((l.cliente?.id ?? '__sin__') !== clienteId) continue
+      const did = l.departamento?.id ?? '__sin__'
+      const dn = l.departamento?.nombre ?? 'Sin departamento'
+      if (!deptMap.has(did)) {
+        const ingresosDepto = ingresosPorClienteDepto.get(`${clienteId}__${did}`) ?? 0
+        deptMap.set(did, { nombre: dn, minutos: 0, ingresos: ingresosDepto })
+      }
+      deptMap.get(did)!.minutos += l.minutos
+    }
+    // Also add depts that have ingresos but no hours
+    for (const [key, valor] of ingresosPorClienteDepto.entries()) {
+      const [cid, did] = key.split('__')
+      if (cid !== clienteId) continue
+      if (!deptMap.has(did)) {
+        const ingreso = ingresos.find(i => i.cliente?.id === cid && ((i as unknown as {id_departamento?:string}).id_departamento ?? '__sin__') === did)
+        deptMap.set(did, { nombre: 'Sin departamento', minutos: 0, ingresos: valor })
+        if (ingreso) deptMap.get(did)!.nombre = 'Sin departamento'
+      }
+    }
+    return Array.from(deptMap.entries())
+      .map(([id, d]) => ({ id, ...d, eurHora: d.ingresos > 0 && d.minutos > 0 ? d.ingresos / (d.minutos / 60) : null }))
+      .sort((a, b) => b.minutos - a.minutos)
+  }
 
   const years = Array.from({ length: 4 }, (_, i) => now.getFullYear() - 1 + i)
 
@@ -290,21 +331,69 @@ export default function InformesClient() {
           )}
 
           {/* ── VISTA CLIENTE ── */}
-          {viewMode === 'cliente' && selectedClienteData && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <KPIBox label="Total horas" value={fmtMin(selectedClienteData.minutos)} />
-                <KPIBox label="Personas" value={String(selectedClienteData.empleados.size)} />
-                <KPIBox label="Ingresos mes" value={selectedIngresosTotal > 0 ? eur(selectedIngresosTotal) : '—'} color="text-green-400" />
-                <KPIBox label="€/hora" value={eurPorHora ? `${eurPorHora.toFixed(0)}€/h` : '—'}
-                  color={eurPorHora ? (eurPorHora >= 50 ? 'text-green-400' : eurPorHora >= 25 ? 'text-yellow-400' : 'text-red-400') : 'text-gray-400'} />
+          {viewMode === 'cliente' && selectedClienteData && (() => {
+            const rentDepto = rentabilidadPorDepto(selectedClienteData.id)
+            return (
+              <div className="space-y-4">
+                {/* KPIs globales del cliente */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <KPIBox label="Total horas" value={fmtMin(selectedClienteData.minutos)} />
+                  <KPIBox label="Personas" value={String(selectedClienteData.empleados.size)} />
+                  <KPIBox label="Ingresos mes" value={selectedIngresosTotal > 0 ? eur(selectedIngresosTotal) : '—'} color="text-green-400" />
+                  <KPIBox label="€/hora global" value={eurPorHora ? `${eurPorHora.toFixed(0)}€/h` : '—'}
+                    color={eurPorHora ? (eurPorHora >= 50 ? 'text-green-400' : eurPorHora >= 25 ? 'text-yellow-400' : 'text-red-400') : 'text-gray-400'} />
+                </div>
+
+                {/* Rentabilidad por departamento */}
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-800">
+                    <h3 className="text-white font-bold">Rentabilidad por departamento / servicio</h3>
+                    <p className="text-gray-500 text-xs mt-0.5">Cruce real: ingresos del servicio ÷ horas dedicadas = coste hora real</p>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead><tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                      <th className="text-left px-6 py-3">Departamento</th>
+                      <th className="text-right px-4 py-3">Horas</th>
+                      <th className="text-right px-4 py-3">Ingresos</th>
+                      <th className="text-right px-6 py-3">€/hora real</th>
+                    </tr></thead>
+                    <tbody>
+                      {rentDepto.map(d => (
+                        <tr key={d.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                          <td className="px-6 py-3 font-medium text-white">{d.nombre}</td>
+                          <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold">{fmtMin(d.minutos)}</td>
+                          <td className="px-4 py-3 text-right text-green-400 font-mono text-sm">
+                            {d.ingresos > 0 ? eur(d.ingresos) : <span className="text-gray-600">—</span>}
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            {d.eurHora != null ? (
+                              <span className={`text-sm font-bold font-mono px-3 py-1 rounded-full ${
+                                d.eurHora >= 50 ? 'bg-green-500/15 text-green-400' :
+                                d.eurHora >= 25 ? 'bg-yellow-500/15 text-yellow-400' :
+                                'bg-red-500/15 text-red-400'
+                              }`}>{d.eurHora.toFixed(0)}€/h</span>
+                            ) : d.minutos > 0 ? (
+                              <span className="text-xs text-gray-500">Sin ingreso asignado</span>
+                            ) : (
+                              <span className="text-xs text-gray-500">Sin horas</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Proyectos internos WAY/Otros/Ment */}
+                {clienteNecesitaProyecto(selectedClienteData.nombre) && selectedClienteData.proyectos.size > 0 && (
+                  <ProyectosBox proyectos={selectedClienteData.proyectos} sinProyecto={selectedClienteData.sinProyecto} />
+                )}
+
+                {/* Detalle completo */}
+                <DetalleTable logs={filteredLogs} showProyecto showDept />
               </div>
-              {clienteNecesitaProyecto(selectedClienteData.nombre) && selectedClienteData.proyectos.size > 0 && (
-                <ProyectosBox proyectos={selectedClienteData.proyectos} sinProyecto={selectedClienteData.sinProyecto} />
-              )}
-              <DetalleTable logs={filteredLogs} showProyecto />
-            </div>
-          )}
+            )
+          })()}
 
           {/* ── VISTA DEPARTAMENTO ── */}
           {viewMode === 'departamento' && selectedDeptData && (
@@ -470,7 +559,7 @@ function MiniTable({ title, items, total }: { title: string; items: [string, num
   )
 }
 
-function DetalleTable({ logs, showProyecto }: { logs: TimeLog[]; showProyecto?: boolean }) {
+function DetalleTable({ logs, showProyecto, showDept }: { logs: TimeLog[]; showProyecto?: boolean; showDept?: boolean }) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
@@ -485,6 +574,7 @@ function DetalleTable({ logs, showProyecto }: { logs: TimeLog[]; showProyecto?: 
               <th className="text-left px-4 py-2.5">Empleado</th>
               <th className="text-left px-4 py-2.5">Descripción</th>
               <th className="text-left px-4 py-2.5">Cliente</th>
+              {showDept && <th className="text-left px-4 py-2.5">Departamento</th>}
               {showProyecto && <th className="text-left px-4 py-2.5">Proyecto</th>}
               <th className="text-right px-5 py-2.5">Tiempo</th>
             </tr>
@@ -499,8 +589,11 @@ function DetalleTable({ logs, showProyecto }: { logs: TimeLog[]; showProyecto?: 
                     {new Date(l.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day:'2-digit', month:'short' })}
                   </td>
                   <td className="px-4 py-2 text-white text-sm">{l.empleado?.nombre ?? '—'}</td>
-                  <td className="px-4 py-2 text-gray-300 max-w-[180px] truncate" title={l.descripcion}>{l.descripcion}</td>
+                  <td className="px-4 py-2 text-gray-300 max-w-[160px] truncate" title={l.descripcion}>{l.descripcion}</td>
                   <td className="px-4 py-2 text-gray-400 text-xs">{l.cliente?.nombre ?? '—'}</td>
+                  {showDept && (
+                    <td className="px-4 py-2 text-xs text-purple-400">{l.departamento?.nombre ?? <span className="text-gray-600">—</span>}</td>
+                  )}
                   {showProyecto && (
                     <td className="px-4 py-2 text-xs">
                       {needsProyecto ? (
