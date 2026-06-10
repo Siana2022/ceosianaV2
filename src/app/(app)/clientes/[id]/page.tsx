@@ -60,7 +60,7 @@ export default async function ClienteDetailPage({
     supabase.from('gastos_fijos').select('concepto, valor, tipo, id_departamento').order('anio', { ascending: false }).order('mes', { ascending: false }),
     supabase
       .from('time_logs')
-      .select('id_empleado, id_servicio, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas)')
+      .select('id_empleado, id_servicio, id_departamento, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas), departamento:id_departamento(id, nombre)')
       .eq('id_cliente', id)
       .gte('fecha', `${year}-01-01`)
       .lte('fecha', `${year}-12-31`),
@@ -257,30 +257,14 @@ export default async function ClienteDetailPage({
   interface TimeLogCliente {
     id_empleado: string
     id_servicio: string | null
+    id_departamento: string | null
     minutos: number
-    empleado: { nombre: string } | null
-    servicio: { nombre: string | null; notas: string | null } | null
+    fecha: string
+    empleado: { id: string; nombre: string } | null
+    servicio: { id: string; nombre: string | null; notas: string | null } | null
+    departamento: { id: string; nombre: string } | null
   }
-  const timeLogs = (timeLogsRaw ?? []) as unknown as TimeLogCliente[]
-  const totalMinutosCliente = timeLogs.reduce((s, t) => s + Number(t.minutos), 0)
-
-  // Group by employee
-  const timeByEmpCliente = new Map<string, { nombre: string; minutos: number; proyectos: Map<string, number> }>()
-  for (const tl of timeLogs) {
-    const nombre = (tl.empleado as { nombre: string } | null)?.nombre ?? tl.id_empleado
-    const existing = timeByEmpCliente.get(tl.id_empleado)
-    const proyNombre = (tl.servicio as { notas?: string | null; nombre?: string | null } | null)?.notas
-      ?? (tl.servicio as { nombre?: string | null } | null)?.nombre ?? 'Sin proyecto'
-    if (existing) {
-      existing.minutos += Number(tl.minutos)
-      existing.proyectos.set(proyNombre, (existing.proyectos.get(proyNombre) ?? 0) + Number(tl.minutos))
-    } else {
-      const proyMap = new Map<string, number>()
-      proyMap.set(proyNombre, Number(tl.minutos))
-      timeByEmpCliente.set(tl.id_empleado, { nombre, minutos: Number(tl.minutos), proyectos: proyMap })
-    }
-  }
-  const timeByEmpClienteRows = Array.from(timeByEmpCliente.values()).sort((a, b) => b.minutos - a.minutos)
+  const timeLogsCliente = (timeLogsRaw ?? []) as unknown as TimeLogCliente[]
 
   return (
     <ClienteDetailClient
@@ -300,8 +284,7 @@ export default async function ClienteDetailPage({
       coste_personal={coste_personal}
       rentabilidadServicios={rentabilidadServicios}
       year={year}
-      totalMinutosCliente={totalMinutosCliente}
-      timeByEmpCliente={timeByEmpClienteRows}
+      timeLogsCliente={timeLogsCliente}
     />
   )
 }

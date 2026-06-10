@@ -113,8 +113,13 @@ interface Props {
   coste_personal: number
   rentabilidadServicios: RentabilidadServicio[]
   year: number
-  totalMinutosCliente: number
-  timeByEmpCliente: { nombre: string; minutos: number; proyectos: Map<string, number> }[]
+  timeLogsCliente: {
+    id_empleado: string; id_servicio: string | null; id_departamento: string | null
+    minutos: number; fecha: string
+    empleado: { id: string; nombre: string } | null
+    servicio: { id: string; nombre: string | null; notas: string | null } | null
+    departamento: { id: string; nombre: string } | null
+  }[]
 }
 
 function isServiceActiveInMonth(s: Servicio, mes: number, year: number): boolean {
@@ -152,6 +157,7 @@ export default function ClienteDetailClient({
   coste_personal,
   rentabilidadServicios,
   year,
+  timeLogsCliente,
 }: Props) {
   const router = useRouter()
 
@@ -464,6 +470,13 @@ export default function ClienteDetailClient({
     router.refresh()
     setSavingResp(false)
   }
+
+  // ── Horas fichadas ───────────────────────────────────────────────────
+  const todayStr = () => new Date().toISOString().split('T')[0]
+  const yearStart = `${year}-01-01`
+  const yearEnd = `${year}-12-31`
+  const [horasDesde, setHorasDesde] = useState(yearStart)
+  const [horasHasta, setHorasHasta] = useState(yearEnd)
 
   // ── Other modals ─────────────────────────────────────────────────────
   const [showEditCliente, setShowEditCliente] = useState(false)
@@ -1141,6 +1154,159 @@ export default function ClienteDetailClient({
           </table>
         </div>
       </div>
+
+      {/* ── Horas fichadas ─────────────────────────────────────────────── */}
+      {(() => {
+        function fmtMin(m: number) {
+          const h = Math.floor(m / 60); const min = m % 60
+          if (h > 0 && min > 0) return `${h}h ${min}m`
+          if (h > 0) return `${h}h`
+          return `${min}m`
+        }
+
+        // Filter by date range
+        const logs = timeLogsCliente.filter(t => t.fecha >= horasDesde && t.fecha <= horasHasta)
+        const totalMin = logs.reduce((s, t) => s + Number(t.minutos), 0)
+
+        // By person
+        const byPerson = new Map<string, { nombre: string; minutos: number }>()
+        for (const t of logs) {
+          const nombre = t.empleado?.nombre ?? t.id_empleado
+          const e = byPerson.get(t.id_empleado)
+          if (e) e.minutos += Number(t.minutos)
+          else byPerson.set(t.id_empleado, { nombre, minutos: Number(t.minutos) })
+        }
+        const personRows = Array.from(byPerson.values()).sort((a, b) => b.minutos - a.minutos)
+
+        // By department
+        const byDept = new Map<string, { nombre: string; minutos: number }>()
+        for (const t of logs) {
+          const nombre = t.departamento?.nombre ?? 'Sin departamento'
+          const key = t.departamento?.id ?? '__none__'
+          const e = byDept.get(key)
+          if (e) e.minutos += Number(t.minutos)
+          else byDept.set(key, { nombre, minutos: Number(t.minutos) })
+        }
+        const deptRows = Array.from(byDept.values()).sort((a, b) => b.minutos - a.minutos)
+
+        // By project (for clients with services like Way/Otros)
+        const byProject = new Map<string, { nombre: string; minutos: number }>()
+        for (const t of logs) {
+          if (!t.id_servicio) continue
+          const nombre = t.servicio?.notas ?? t.servicio?.nombre ?? t.id_servicio
+          const e = byProject.get(t.id_servicio)
+          if (e) e.minutos += Number(t.minutos)
+          else byProject.set(t.id_servicio, { nombre, minutos: Number(t.minutos) })
+        }
+        const projectRows = Array.from(byProject.values()).sort((a, b) => b.minutos - a.minutos)
+        const hasProjects = projectRows.length > 0
+
+        return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            {/* Header + date selector */}
+            <div className="px-6 py-4 border-b border-gray-800 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 className="text-white font-semibold">Horas fichadas</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Tiempo registrado por el equipo para este cliente</p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <span>Desde</span>
+                  <input type="date" value={horasDesde} onChange={e => setHorasDesde(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <span>Hasta</span>
+                  <input type="date" value={horasHasta} onChange={e => setHorasHasta(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+                </div>
+                {totalMin > 0 && (
+                  <span className="text-blue-400 font-bold text-sm bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg">
+                    Total: {fmtMin(totalMin)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {totalMin === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-gray-500 text-sm">Sin registros de tiempo en este periodo</p>
+              </div>
+            ) : (
+              <div className={`grid ${hasProjects ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2'} divide-y lg:divide-y-0 lg:divide-x divide-gray-800`}>
+
+                {/* Por persona */}
+                <div className="p-5">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por persona</p>
+                  <div className="space-y-2">
+                    {personRows.map(p => {
+                      const pct = totalMin > 0 ? (p.minutos / totalMin) * 100 : 0
+                      return (
+                        <div key={p.nombre}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-gray-300 font-medium">{p.nombre}</span>
+                            <span className="text-blue-400 font-mono font-bold">{fmtMin(p.minutos)}</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-gray-700">
+                            <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-gray-600 text-[10px] mt-0.5 text-right">{pct.toFixed(1)}%</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Por departamento */}
+                <div className="p-5">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por departamento</p>
+                  <div className="space-y-2">
+                    {deptRows.map(d => {
+                      const pct = totalMin > 0 ? (d.minutos / totalMin) * 100 : 0
+                      return (
+                        <div key={d.nombre}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-gray-300 font-medium">{d.nombre}</span>
+                            <span className="text-blue-400 font-mono font-bold">{fmtMin(d.minutos)}</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-gray-700">
+                            <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-gray-600 text-[10px] mt-0.5 text-right">{pct.toFixed(1)}%</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Por proyecto — solo si hay servicios vinculados (Way, Otros, etc.) */}
+                {hasProjects && (
+                  <div className="p-5">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por proyecto</p>
+                    <div className="space-y-2">
+                      {projectRows.map(p => {
+                        const pct = totalMin > 0 ? (p.minutos / totalMin) * 100 : 0
+                        return (
+                          <div key={p.nombre}>
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="text-gray-300 font-medium truncate max-w-[160px]" title={p.nombre}>{p.nombre}</span>
+                              <span className="text-blue-400 font-mono font-bold ml-2">{fmtMin(p.minutos)}</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-gray-700">
+                              <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-gray-600 text-[10px] mt-0.5 text-right">{pct.toFixed(1)}%</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Rentabilidad por servicio */}
       {(() => {
