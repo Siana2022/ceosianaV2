@@ -369,6 +369,7 @@ function HistorialPersonal({ onDelete, clientes, departamentos }: {
       const params = new URLSearchParams()
       if (periodo === 'mes') params.set('fecha', mesStr)
       if (periodo === 'custom') { params.set('desde', customDesde); params.set('hasta', customHasta) }
+      params.set('mine', '1')
       const res = await fetch(`/api/time-logs?${params}`)
       const data = await res.json()
       setLogs(Array.isArray(data) ? data : [])

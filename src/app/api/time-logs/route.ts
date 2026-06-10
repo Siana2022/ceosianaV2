@@ -44,8 +44,12 @@ export async function GET(req: NextRequest) {
     .order('fecha', { ascending: false })
     .order('created_at', { ascending: false })
 
-  // Employees only see their own logs
-  if (resolved.rol === 'empleado') {
+  const mine = searchParams.get('mine')
+
+  if (mine === '1') {
+    // Personal historial: always filter by own employee ID regardless of role
+    query = query.eq('id_empleado', resolved.id)
+  } else if (resolved.rol === 'empleado') {
     query = query.eq('id_empleado', resolved.id)
   } else if (id_empleado_filter) {
     query = query.eq('id_empleado', id_empleado_filter)
