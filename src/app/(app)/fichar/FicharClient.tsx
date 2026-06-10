@@ -25,7 +25,7 @@ interface Props {
   clientes: Cliente[]; empleados: Empleado[]
 }
 
-const TIMER_KEY = 'ceosiana_timer'
+const TIMER_KEY = 'ceosiana_timer_v2'
 
 function fmtMin(m: number) {
   const h = Math.floor(m / 60); const min = m % 60
@@ -66,6 +66,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   const [manualMin, setManualMin] = useState('30')
   const [timerRunning, setTimerRunning] = useState(false)
   const [timerStart, setTimerStart] = useState<number | null>(null)
+  const [timerDbId, setTimerDbId] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -76,13 +77,30 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     const saved = localStorage.getItem(TIMER_KEY)
     if (saved) {
       try {
-        const { startTs, d, c, dep } = JSON.parse(saved)
+        const { startTs, d, c, dep, dbId } = JSON.parse(saved)
         setTimerStart(startTs); setTimerRunning(true)
         setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? '')
+        setTimerDbId(dbId ?? null)
         setElapsed(Math.floor((Date.now() - startTs) / 1000))
       } catch { localStorage.removeItem(TIMER_KEY) }
     }
   }, [])
+
+  // Notification when returning to page with active timer
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible' && timerRunning && timerStart) {
+        const mins = Math.round((Date.now() - timerStart) / 60000)
+        const h = Math.floor(mins / 60), m = mins % 60
+        const label = h > 0 ? `${h}h ${m}m` : `${m}m`
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('⏱️ Timer activo — CEOSIANA', { body: `Llevas ${label} fichando: "${descripcion}"` })
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [timerRunning, timerStart, descripcion])
 
   useEffect(() => {
     if (timerRunning && timerStart) {
@@ -91,11 +109,34 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [timerRunning, timerStart])
 
-  function startTimer() {
+  async function startTimer() {
     if (!descripcion.trim()) { setError('Añade una descripción'); return }
     setError(''); const now = Date.now()
-    setTimerStart(now); setTimerRunning(true); setElapsed(0)
-    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId }))
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const hi = `${pad(new Date(now).getHours())}:${pad(new Date(now).getMinutes())}`
+
+    // Request notification permission on first timer start
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+
+    // Create open record in DB so admin can see active timers
+    let dbId: string | null = null
+    try {
+      const res = await fetch('/api/time-logs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          descripcion, fecha: todayStr(), hora_inicio: hi, hora_fin: null, minutos: 0,
+          id_cliente: clienteId && clienteId !== '__otros__' ? clienteId : null,
+          id_departamento: departamentoId && departamentoId !== '__otros__' ? departamentoId : null,
+          timer_abierto: true,
+        }),
+      })
+      if (res.ok) { const d = await res.json(); dbId = d.id ?? null }
+    } catch { /* non-critical */ }
+
+    setTimerStart(now); setTimerRunning(true); setElapsed(0); setTimerDbId(dbId)
+    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, dbId }))
   }
 
   async function stopTimer() {
@@ -104,9 +145,34 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     const pad = (n: number) => String(n).padStart(2, '0')
     const hi = `${pad(new Date(timerStart).getHours())}:${pad(new Date(timerStart).getMinutes())}`
     const hf = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`
-    setTimerRunning(false); setTimerStart(null); setElapsed(0)
+    const savedDbId = timerDbId
+    setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
     localStorage.removeItem(TIMER_KEY)
-    await save({ minutos, hora_inicio: hi, hora_fin: hf, fecha: todayStr() })
+
+    if (savedDbId) {
+      // Update the open record instead of creating a new one
+      setSaving(true)
+      try {
+        let finalDesc = descripcion
+        let finalClienteId: string | null = clienteId && clienteId !== '__otros__' ? clienteId : null
+        let finalDeptId: string | null = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
+        let finalServicioId: string | null = null
+        if (clienteTieneProyectos()) {
+          if (proyectoOtrosId && proyectoOtrosId !== '__manual__') finalServicioId = proyectoOtrosId
+          else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
+        }
+        if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
+        const res = await fetch(`/api/time-logs?id=${savedDbId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
+        })
+        if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error al guardar'); return }
+        setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros('')
+        onSaved()
+      } finally { setSaving(false) }
+    } else {
+      await save({ minutos, hora_inicio: hi, hora_fin: hf, fecha: todayStr() })
+    }
   }
 
   async function saveManual() {
@@ -570,16 +636,33 @@ function HistorialPersonal({ onDelete, clientes, departamentos }: {
 
 // ─── ADMIN ANALYSIS ───────────────────────────────────────────────────────────
 function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
-  const [tab, setTab] = useState<'persona' | 'proyecto' | 'resumen'>('persona')
-  const [periodo, setPeriodo] = useState<'todo' | 'hoy' | 'semana' | 'mes'>('mes')
+  const [tab, setTab] = useState<'realtime' | 'persona' | 'proyecto' | 'resumen'>('realtime')
+  const [periodo, setPeriodo] = useState<'todo' | 'hoy' | 'semana' | 'mes' | 'custom'>('mes')
+  const [customDesde, setCustomDesde] = useState(todayStr)
+  const [customHasta, setCustomHasta] = useState(todayStr)
   const [logs, setLogs] = useState<TimeLog[]>([])
+  const [timersActivos, setTimersActivos] = useState<TimeLog[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEmp, setSelectedEmp] = useState<string | null>(empleados[0]?.id ?? null)
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ descripcion: '', minutos: '' })
 
-  useEffect(() => { fetchLogs() }, [periodo]) // eslint-disable-line
+  useEffect(() => { fetchLogs() }, [periodo, customDesde, customHasta]) // eslint-disable-line
+  // Refresh real-time every 60 seconds
+  useEffect(() => {
+    fetchTimersActivos()
+    const interval = setInterval(fetchTimersActivos, 60000)
+    return () => clearInterval(interval)
+  }, []) // eslint-disable-line
+
+  async function fetchTimersActivos() {
+    try {
+      const res = await fetch('/api/time-logs?activos=1')
+      const data = await res.json()
+      setTimersActivos(Array.isArray(data) ? data : [])
+    } catch { /* silent */ }
+  }
 
   async function fetchLogs() {
     setLoading(true)
@@ -587,6 +670,7 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
       const now = new Date()
       const params = new URLSearchParams()
       if (periodo === 'mes') params.set('fecha', `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`)
+      if (periodo === 'custom') { params.set('desde', customDesde); params.set('hasta', customHasta) }
       const res = await fetch(`/api/time-logs?${params}`)
       const data = await res.json()
       setLogs(Array.isArray(data) ? data : [])
@@ -616,8 +700,9 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
       const diff = (new Date(today).getTime() - new Date(l.fecha).getTime()) / 86400000
       return diff >= 0 && diff <= 7
     })
+    if (periodo === 'custom') return logs.filter(l => l.fecha >= customDesde && l.fecha <= customHasta)
     return logs
-  }, [logs, periodo])
+  }, [logs, periodo, customDesde, customHasta])
 
   const totalMin = filteredLogs.reduce((s, l) => s + l.minutos, 0)
 
@@ -659,35 +744,152 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gray-900 border border-gray-800 rounded-2xl p-4">
-        <div className="flex bg-gray-800 rounded-xl p-1 gap-0.5">
-          {(['persona','proyecto','resumen'] as const).map((t, i) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
-                tab === t ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'
-              }`}>
-              {['👤','💼','📊'][i]} {['Por persona','Por proyecto','Resumen'][i]}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">Periodo:</span>
-          <div className="flex bg-gray-800 border border-gray-700 rounded-lg p-0.5">
-            {(['todo','hoy','semana','mes'] as const).map(p => (
-              <button key={p} onClick={() => setPeriodo(p)}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                  periodo === p ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500 hover:text-gray-300'
+      <div className="flex flex-col gap-3 bg-gray-900 border border-gray-800 rounded-2xl p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-wrap bg-gray-800 rounded-xl p-1 gap-0.5">
+            {(['realtime','persona','proyecto','resumen'] as const).map((t, i) => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
+                  tab === t ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'
                 }`}>
-                {p === 'todo' ? 'Todo' : p === 'hoy' ? 'Hoy' : p === 'semana' ? '7 días' : 'Mes'}
+                {['🟢','👤','💼','📊'][i]} {['En vivo','Por persona','Por proyecto','Resumen'][i]}
               </button>
             ))}
           </div>
-          <button onClick={fetchLogs} className="text-xs text-gray-500 hover:text-white transition-colors">↻</button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500">Periodo:</span>
+            <div className="flex bg-gray-800 border border-gray-700 rounded-lg p-0.5">
+              {(['todo','hoy','semana','mes','custom'] as const).map(p => (
+                <button key={p} onClick={() => setPeriodo(p)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                    periodo === p ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500 hover:text-gray-300'
+                  }`}>
+                  {p === 'todo' ? 'Todo' : p === 'hoy' ? 'Hoy' : p === 'semana' ? '7 días' : p === 'mes' ? 'Mes' : 'Rango'}
+                </button>
+              ))}
+            </div>
+            <button onClick={fetchLogs} className="text-xs text-gray-500 hover:text-white transition-colors">↻</button>
+          </div>
         </div>
+        {periodo === 'custom' && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500">Desde</span>
+              <input type="date" value={customDesde} onChange={e => setCustomDesde(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500">Hasta</span>
+              <input type="date" value={customHasta} onChange={e => setCustomHasta(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500" />
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? <p className="text-gray-500 text-sm py-10 text-center">Cargando...</p> : (
         <>
+          {/* REAL TIME */}
+          {tab === 'realtime' && (() => {
+            const today = todayStr()
+            const fichadosHoy = new Set(logs.filter(l => l.fecha === today).map(l => l.id_empleado))
+            const noFichadosHoy = empleados.filter(e => !fichadosHoy.has(e.id))
+            const totalHoyMin = logs.filter(l => l.fecha === today).reduce((s, l) => s + l.minutos, 0)
+            return (
+              <div className="space-y-4">
+                {/* Summary row */}
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { icon: '🟢', label: 'Timers activos', value: String(timersActivos.length), color: 'text-green-400' },
+                    { icon: '⏱️', label: 'Horas fichadas hoy', value: fmtMin(totalHoyMin), color: 'text-blue-400' },
+                    { icon: '⚠️', label: 'Sin fichar hoy', value: String(noFichadosHoy.length), color: noFichadosHoy.length > 0 ? 'text-yellow-400' : 'text-gray-500' },
+                  ].map(card => (
+                    <div key={card.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{card.icon} {card.label}</div>
+                      <p className={`font-mono text-2xl font-black ${card.color}`}>{card.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Active timers */}
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" /> Timers en marcha ahora
+                    </h3>
+                    <button onClick={fetchTimersActivos} className="text-xs text-gray-500 hover:text-white transition-colors">↻ Actualizar</button>
+                  </div>
+                  {timersActivos.length === 0 ? (
+                    <p className="text-gray-500 text-sm py-4 text-center">Nadie tiene un timer activo en este momento</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {timersActivos.map(t => {
+                        const startedAt = t.hora_inicio ? `Desde las ${t.hora_inicio}` : ''
+                        return (
+                          <div key={t.id} className="flex items-center gap-3 p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+                            <div className="h-9 w-9 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 font-bold shrink-0">
+                              {(t.empleado?.nombre ?? '?').charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-white truncate">{t.empleado?.nombre ?? '—'}</p>
+                              <p className="text-xs text-gray-400 truncate">{t.descripcion}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              {t.cliente && <p className="text-xs text-blue-400">{(t.cliente as {nombre:string}).nombre}</p>}
+                              <p className="text-xs text-gray-500">{startedAt}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* No-fichar alert */}
+                {noFichadosHoy.length > 0 && (
+                  <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl p-5">
+                    <h3 className="text-sm font-bold text-yellow-400 mb-3 flex items-center gap-2">⚠️ Sin fichaje hoy</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {noFichadosHoy.map(e => (
+                        <span key={e.id} className="px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-300 font-medium">{e.nombre}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Today's detail */}
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-gray-800">
+                    <h3 className="text-sm font-bold text-white">Fichajes de hoy — detalle</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                        <th className="text-left px-5 py-2.5">Empleado</th>
+                        <th className="text-left px-4 py-2.5">Tarea</th>
+                        <th className="text-left px-4 py-2.5">Cliente</th>
+                        <th className="text-right px-4 py-2.5">Tiempo</th>
+                      </tr></thead>
+                      <tbody>
+                        {logs.filter(l => l.fecha === today).length === 0
+                          ? <tr><td colSpan={4} className="text-center py-6 text-gray-500 text-sm">Sin fichajes hoy</td></tr>
+                          : logs.filter(l => l.fecha === today).map(l => (
+                            <tr key={l.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                              <td className="px-5 py-2.5 text-white text-sm font-medium">{l.empleado?.nombre ?? '—'}</td>
+                              <td className="px-4 py-2.5 text-gray-300 max-w-[200px] truncate">{l.descripcion}</td>
+                              <td className="px-4 py-2.5 text-gray-400 text-xs">{l.cliente?.nombre ?? '—'}</td>
+                              <td className="px-4 py-2.5 text-right font-mono text-blue-400 text-sm">{fmtMin(l.minutos)}</td>
+                            </tr>
+                          ))
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* BY PERSON */}
           {tab === 'persona' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

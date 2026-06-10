@@ -55,6 +55,21 @@ export async function GET(req: NextRequest) {
     query = query.eq('id_empleado', id_empleado_filter)
   }
 
+  // Timers activos (hora_fin IS NULL) — solo admin
+  const activos = searchParams.get('activos')
+  if (activos === '1') {
+    if (resolved.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    const today = new Date().toISOString().split('T')[0]
+    const { data: activosData, error: activosError } = await supabase
+      .from('time_logs')
+      .select('id, id_empleado, descripcion, fecha, hora_inicio, minutos, empleado:id_empleado(id, nombre), cliente:id_cliente(id, nombre), departamento:id_departamento(id, nombre)')
+      .is('hora_fin', null)
+      .eq('fecha', today)
+      .order('hora_inicio', { ascending: true })
+    if (activosError) return NextResponse.json({ error: activosError.message }, { status: 500 })
+    return NextResponse.json(activosData ?? [])
+  }
+
   const desde = searchParams.get('desde')
   const hasta = searchParams.get('hasta')
 
@@ -79,11 +94,12 @@ export async function POST(req: NextRequest) {
   if (!resolved) return NextResponse.json({ error: 'No autorizado. Asegúrate de que tu email coincide con un empleado en el sistema.' }, { status: 401 })
 
   const body = await req.json()
-  const { id_servicio, id_cliente, id_departamento, descripcion, fecha, hora_inicio, hora_fin, minutos } = body
+  const { id_servicio, id_cliente, id_departamento, descripcion, fecha, hora_inicio, hora_fin, minutos, timer_abierto } = body
 
   if (!descripcion?.trim()) return NextResponse.json({ error: 'La descripción es obligatoria' }, { status: 400 })
   if (!fecha) return NextResponse.json({ error: 'La fecha es obligatoria' }, { status: 400 })
-  if (!minutos || minutos <= 0) return NextResponse.json({ error: 'Los minutos deben ser mayores que 0' }, { status: 400 })
+  // Allow minutos=0 only for open timer records (timer_abierto=true)
+  if (!timer_abierto && (!minutos || minutos <= 0)) return NextResponse.json({ error: 'Los minutos deben ser mayores que 0' }, { status: 400 })
 
   const { data, error } = await supabase
     .from('time_logs')
@@ -96,7 +112,7 @@ export async function POST(req: NextRequest) {
       fecha,
       hora_inicio: hora_inicio || null,
       hora_fin: hora_fin || null,
-      minutos: parseInt(minutos),
+      minutos: parseInt(minutos) || 0,
     })
     .select()
     .single()
@@ -120,9 +136,20 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { descripcion, id_cliente, id_departamento, minutos } = body
+  const { descripcion, id_cliente, id_departamento, id_servicio, minutos, hora_fin, hora_inicio } = body
+  const updatePayload: Record<string, unknown> = {
+    descripcion,
+    id_cliente: id_cliente || null,
+    id_departamento: id_departamento || null,
+    id_servicio: id_servicio !== undefined ? (id_servicio || null) : undefined,
+  }
+  if (minutos !== undefined) updatePayload.minutos = parseInt(minutos)
+  if (hora_fin !== undefined) updatePayload.hora_fin = hora_fin || null
+  if (hora_inicio !== undefined) updatePayload.hora_inicio = hora_inicio || null
+  // Remove undefined keys
+  Object.keys(updatePayload).forEach(k => updatePayload[k] === undefined && delete updatePayload[k])
   const { data, error } = await supabase.from('time_logs')
-    .update({ descripcion, id_cliente: id_cliente || null, id_departamento: id_departamento || null, minutos: parseInt(minutos) })
+    .update(updatePayload)
     .eq('id', id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
