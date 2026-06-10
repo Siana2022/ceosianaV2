@@ -113,6 +113,8 @@ interface Props {
   coste_personal: number
   rentabilidadServicios: RentabilidadServicio[]
   year: number
+  totalMinutosCliente: number
+  timeByEmpCliente: { nombre: string; minutos: number; proyectos: Map<string, number> }[]
 }
 
 function isServiceActiveInMonth(s: Servicio, mes: number, year: number): boolean {

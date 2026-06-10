@@ -124,7 +124,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       let finalDeptId: string | null = departamentoId || null
       let finalServicioId: string | null = null
 
-      const esOtrosCliente = isOtrosCliente()
+      const esOtrosCliente = clienteTieneProyectos()
 
       if (clienteId === '__otros__') {
         finalClienteId = null
@@ -156,20 +156,19 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     } finally { setSaving(false) }
   }
 
-  // Helper: ¿el cliente seleccionado es "Otros"?
-  function isOtrosCliente() {
+  // Helper: ¿el cliente seleccionado tiene proyectos asociados?
+  function clienteTieneProyectos() {
     if (clienteId === '__otros__') return true
-    return clientes.find(c => c.id === clienteId)?.nombre?.toLowerCase() === 'otros'
+    if (!clienteId) return false
+    const nombre = clientes.find(c => c.id === clienteId)?.nombre ?? ''
+    return servicios.some(s => getClienteNombre(s).toLowerCase() === nombre.toLowerCase())
   }
 
-  // Proyectos del cliente Otros
-  function serviciosDeOtros(): Servicio[] {
-    const otrosCliente = clientes.find(c => c.nombre?.toLowerCase() === 'otros')
-    if (!otrosCliente) return servicios
-    return servicios.filter(s => {
-      const cn = getClienteNombre(s)
-      return cn.toLowerCase() === 'otros'
-    })
+  // Proyectos del cliente seleccionado
+  function serviciosDelCliente(): Servicio[] {
+    if (clienteId === '__otros__') return servicios
+    const nombre = clientes.find(c => c.id === clienteId)?.nombre ?? ''
+    return servicios.filter(s => getClienteNombre(s).toLowerCase() === nombre.toLowerCase())
   }
 
   const activeCliente = clientes.find(c => c.id === clienteId)?.nombre ?? ''
@@ -254,12 +253,12 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   <option value="__otros__">— Otros... —</option>
                 </select>
-                {isOtrosCliente() && (
+                {clienteTieneProyectos() && (
                   <div className="mt-1.5 space-y-1.5">
                     <select value={proyectoOtrosId} onChange={e => setProyectoOtrosId(e.target.value)}
                       className="w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400">
                       <option value="">— Selecciona proyecto —</option>
-                      {serviciosDeOtros().map(s => (
+                      {serviciosDelCliente().map(s => (
                         <option key={s.id} value={s.id}>
                           {s.notas ?? s.nombre ?? s.id}
                         </option>

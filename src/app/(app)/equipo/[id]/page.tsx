@@ -10,6 +10,13 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
 
+function fmtMin(m: number) {
+  const h = Math.floor(m / 60); const min = m % 60
+  if (h > 0 && min > 0) return `${h}h ${min}m`
+  if (h > 0) return `${h}h`
+  return `${min}m`
+}
+
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
 
@@ -29,7 +36,7 @@ export default async function EmpleadoPage({
   const supabase = await createClient()
 
   // Round 1: employee + all sueldos + responsables + dedicacion + departamentos (in parallel)
-  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, { data: dedicacionRaw }, { data: departamentosRaw }, { data: allRespYear }, { data: allServiciosYear }] = await Promise.all([
+  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, { data: dedicacionRaw }, { data: departamentosRaw }, { data: allRespYear }, { data: allServiciosYear }, { data: timeLogsRaw }] = await Promise.all([
     supabase
       .from('empleados')
       .select('id, nombre, email, activo, fecha_alta, fecha_baja')
@@ -63,6 +70,12 @@ export default async function EmpleadoPage({
     supabase
       .from('servicios')
       .select('id, id_departamento'),
+    supabase
+      .from('time_logs')
+      .select('id_cliente, id_servicio, minutos, fecha, descripcion, cliente:id_cliente(id, nombre), servicio:id_servicio(id, nombre, notas)')
+      .eq('id_empleado', id)
+      .gte('fecha', `${year}-01-01`)
+      .lte('fecha', `${year}-12-31`),
   ])
 
   if (!empleado) notFound()
@@ -271,6 +284,30 @@ export default async function EmpleadoPage({
     costeImputadoTotal += coste
     costeImputadoByMes.set(d.mes, (costeImputadoByMes.get(d.mes) ?? 0) + coste)
   }
+
+  // Time logs aggregation
+  interface TimeLogEmp {
+    id_cliente: string | null
+    id_servicio: string | null
+    minutos: number
+    cliente: { id: string; nombre: string } | null
+    servicio: { id: string; nombre: string; notas: string | null } | null
+  }
+  const timeLogsList = (timeLogsRaw ?? []) as unknown as TimeLogEmp[]
+  const totalMinutosEmp = timeLogsList.reduce((s, t) => s + Number(t.minutos), 0)
+
+  // Group by cliente
+  const timeByCliente = new Map<string, { nombre: string; minutos: number }>()
+  for (const tl of timeLogsList) {
+    const cliId = tl.id_cliente ?? '__none__'
+    const cliNombre = (tl.cliente as { nombre: string } | null)?.nombre ?? 'Sin cliente'
+    const existing = timeByCliente.get(cliId)
+    if (existing) existing.minutos += Number(tl.minutos)
+    else timeByCliente.set(cliId, { nombre: cliNombre, minutos: Number(tl.minutos) })
+  }
+  const timeByClienteRows = Array.from(timeByCliente.entries())
+    .map(([cliId, { nombre, minutos }]) => ({ cliId, nombre, minutos }))
+    .sort((a, b) => b.minutos - a.minutos)
 
   // Totals — rentabilidad = facturación total - sueldo total (coste real del empleado)
   const totalFact = monthData.reduce((s, m) => s + m.facturacion, 0)
@@ -497,6 +534,55 @@ export default async function EmpleadoPage({
 
       {/* Sueldo por dedicación */}
       <SueldoDedicacionClient deptDedicacion={deptDedicacion} year={year} />
+
+      {/* Horas fichadas */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="text-white font-semibold">Horas fichadas — {year}</h3>
+            <p className="text-gray-500 text-xs mt-0.5">Registros de tiempo por cliente</p>
+          </div>
+          {totalMinutosEmp > 0 && (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-2 text-center">
+              <p className="text-blue-400 text-xl font-bold">{fmtMin(totalMinutosEmp)}</p>
+              <p className="text-gray-500 text-[10px]">total año {year}</p>
+            </div>
+          )}
+        </div>
+        {timeByClienteRows.length === 0 ? (
+          <p className="text-gray-500 text-sm py-8 text-center">Sin registros de tiempo este año</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                  <th className="text-left px-6 py-3">Cliente</th>
+                  <th className="text-right px-6 py-3">Horas</th>
+                  <th className="text-right px-6 py-3">% del total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeByClienteRows.map(row => (
+                  <tr key={row.cliId} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                    <td className="px-6 py-3 text-white font-medium">{row.nombre}</td>
+                    <td className="px-6 py-3 text-right text-blue-400 font-medium">{fmtMin(row.minutos)}</td>
+                    <td className="px-6 py-3 text-right text-gray-400">
+                      {totalMinutosEmp > 0 ? (row.minutos / totalMinutosEmp * 100).toFixed(1) + '%' : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-700 bg-gray-800/30">
+                  <td className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
+                  <td className="px-6 py-3 text-right text-white font-bold">{fmtMin(totalMinutosEmp)}</td>
+                  <td className="px-6 py-3 text-right text-gray-400">100%</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Dedicacion section */}
       <DedicacionEmpleadoClient

@@ -10,6 +10,21 @@ const fmt = (v: number) =>
 
 const fmtPct = (v: number) => v.toFixed(1) + '%'
 
+function fmtMin(m: number) {
+  const h = Math.floor(m / 60); const min = m % 60
+  if (h > 0 && min > 0) return `${h}h ${min}m`
+  if (h > 0) return `${h}h`
+  return `${min}m`
+}
+
+interface TimeLog {
+  id_empleado: string
+  minutos: number
+  fecha: string
+  descripcion: string | null
+  empleado: { id: string; nombre: string } | null
+}
+
 interface Servicio {
   id: string
   nombre: string | null
@@ -74,6 +89,7 @@ export default async function DepartamentoDetailPage({
     { data: serviciosRaw },
     { data: gastosRaw },
     { data: empleadosRaw },
+    { data: timeLogsRaw },
   ] = await Promise.all([
     supabase.from('departamentos').select('id, nombre, activo').eq('id', id).single(),
     supabase
@@ -107,9 +123,17 @@ export default async function DepartamentoDetailPage({
       .from('empleados')
       .select('id, nombre')
       .eq('activo', true),
+    supabase
+      .from('time_logs')
+      .select('id_empleado, minutos, fecha, descripcion, empleado:id_empleado(id, nombre)')
+      .eq('id_departamento', id)
+      .gte('fecha', `${anio}-01-01`)
+      .lte('fecha', `${anio}-12-31`),
   ])
 
   if (!dept) notFound()
+
+  const timeLogsList = (timeLogsRaw ?? []) as unknown as TimeLog[]
 
   const dedicacionList = (dedicaciones ?? []) as EmpleadoDedicacion[]
   const sueldosList = (sueldosRaw ?? []) as Sueldo[]
@@ -121,6 +145,23 @@ export default async function DepartamentoDetailPage({
   // Build employee name map
   const empNameMap = new Map<string, string>()
   for (const e of empleadosList) empNameMap.set(e.id, e.nombre)
+
+  // Aggregate time_logs by employee
+  const timeByEmp = new Map<string, { nombre: string; minutos: number }>()
+  for (const tl of timeLogsList) {
+    const empId = tl.id_empleado
+    const empNombre = (tl.empleado as { nombre: string } | null)?.nombre ?? empNameMap.get(empId) ?? empId
+    const existing = timeByEmp.get(empId)
+    if (existing) {
+      existing.minutos += Number(tl.minutos)
+    } else {
+      timeByEmp.set(empId, { nombre: empNombre, minutos: Number(tl.minutos) })
+    }
+  }
+  const totalMinutosDept = Array.from(timeByEmp.values()).reduce((s, e) => s + e.minutos, 0)
+  const timeByEmpRows = Array.from(timeByEmp.entries())
+    .map(([empId, { nombre, minutos }]) => ({ empId, nombre, minutos }))
+    .sort((a, b) => b.minutos - a.minutos)
 
   // Build sueldo map: `${id_empleado}_${mes}` → coste_total
   const sueldoMap = new Map<string, number>()
@@ -411,6 +452,49 @@ export default async function DepartamentoDetailPage({
               <span className="text-gray-400">Total coste personal imputado: </span>
               <span className="text-white font-bold ml-2">{fmt(costePersonalTotal)}</span>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Horas fichadas */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-800">
+          <h3 className="text-white font-semibold">Horas fichadas — {anio}</h3>
+          <p className="text-gray-500 text-xs mt-0.5">
+            Total: <span className="text-blue-400 font-medium">{fmtMin(totalMinutosDept)}</span>
+          </p>
+        </div>
+        {timeByEmpRows.length === 0 ? (
+          <p className="text-gray-500 text-sm py-8 text-center">Sin registros de tiempo en este periodo</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
+                  <th className="text-left px-6 py-3">Empleado</th>
+                  <th className="text-right px-6 py-3">Horas</th>
+                  <th className="text-right px-6 py-3">% del total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeByEmpRows.map(row => (
+                  <tr key={row.empId} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                    <td className="px-6 py-3 text-white font-medium">{row.nombre}</td>
+                    <td className="px-6 py-3 text-right text-blue-400 font-medium">{fmtMin(row.minutos)}</td>
+                    <td className="px-6 py-3 text-right text-gray-400">
+                      {totalMinutosDept > 0 ? fmtPct((row.minutos / totalMinutosDept) * 100) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-700 bg-gray-800/30">
+                  <td className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
+                  <td className="px-6 py-3 text-right text-white font-bold">{fmtMin(totalMinutosDept)}</td>
+                  <td className="px-6 py-3 text-right text-gray-400">100%</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         )}
       </div>
