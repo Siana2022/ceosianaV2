@@ -90,7 +90,9 @@ export async function GET(req: NextRequest) {
     query = query.gte('fecha', desde).lte('fecha', hasta)
   } else if (fecha) {
     if (fecha.length === 7) {
-      query = query.gte('fecha', `${fecha}-01`).lte('fecha', `${fecha}-31`)
+      const [y, m] = fecha.split('-').map(Number)
+      const lastDay = new Date(y, m, 0).getDate()
+      query = query.gte('fecha', `${fecha}-01`).lte('fecha', `${fecha}-${String(lastDay).padStart(2,'0')}`)
     } else {
       query = query.eq('fecha', fecha)
     }
