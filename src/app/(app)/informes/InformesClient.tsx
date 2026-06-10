@@ -25,22 +25,16 @@ export default function InformesClient() {
   const [anio, setAnio] = useState(now.getFullYear())
   const [logs, setLogs] = useState<TimeLog[]>([])
   const [loading, setLoading] = useState(false)
-  const [debug, setDebug] = useState<string>('')
 
   useEffect(() => { fetchLogs() }, [mes, anio]) // eslint-disable-line
 
   async function fetchLogs() {
     setLoading(true)
-    setDebug('')
     try {
       const mesStr = `${anio}-${String(mes).padStart(2,'0')}`
       const res = await fetch(`/api/time-logs?fecha=${mesStr}`)
-      const text = await res.text()
-      setDebug(`Status: ${res.status} | Body: ${text.slice(0, 300)}`)
-      try {
-        const data = JSON.parse(text)
-        setLogs(Array.isArray(data) ? data : [])
-      } catch { setLogs([]) }
+      const data = await res.json()
+      setLogs(Array.isArray(data) ? data : [])
     } finally { setLoading(false) }
   }
 
@@ -130,12 +124,6 @@ export default function InformesClient() {
           ))}
         </div>
       </div>
-
-      {debug && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 font-mono text-xs text-yellow-300 break-all">
-          {debug}
-        </div>
-      )}
 
       {loading ? (
         <p className="text-gray-500 text-sm py-16 text-center">Cargando...</p>
