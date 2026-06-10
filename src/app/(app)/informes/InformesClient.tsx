@@ -12,7 +12,9 @@ interface TimeLog {
 }
 interface Ingreso {
   id: string; valor: number; mes: number; anio: number; concepto?: string
+  id_departamento?: string | null
   cliente: { id: string; nombre: string } | null
+  departamento: { id: string; nombre: string } | null
   servicio: { id: string; nombre: string | null } | null
 }
 
@@ -154,12 +156,15 @@ export default function InformesClient() {
   // ── Ingresos por cliente+departamento ──────────────────────────────────
   // key: `${clienteId}__${deptoId}`
   const ingresosPorClienteDepto = useMemo(() => {
-    const map = new Map<string, number>()
+    const map = new Map<string, { nombre: string; valor: number }>()
     for (const i of ingresos) {
       if (!i.cliente?.id) continue
-      const deptId = (i as unknown as { id_departamento?: string }).id_departamento ?? '__sin__'
+      const deptId = i.id_departamento ?? '__sin__'
+      const deptNombre = i.departamento?.nombre ?? 'Sin departamento'
       const key = `${i.cliente.id}__${deptId}`
-      map.set(key, (map.get(key) ?? 0) + Number(i.valor))
+      const existing = map.get(key)
+      if (existing) existing.valor += Number(i.valor)
+      else map.set(key, { nombre: deptNombre, valor: Number(i.valor) })
     }
     return map
   }, [ingresos])
@@ -167,29 +172,34 @@ export default function InformesClient() {
   // ── Horas + ingresos por departamento dentro de un cliente ────────────
   function rentabilidadPorDepto(clienteId: string) {
     const deptMap = new Map<string, { nombre: string; minutos: number; ingresos: number }>()
+
+    // Primero seed con todos los departamentos que tienen ingresos para este cliente
+    for (const [key, { nombre, valor }] of ingresosPorClienteDepto.entries()) {
+      const [cid, did] = key.split('__')
+      if (cid !== clienteId) continue
+      deptMap.set(did, { nombre, minutos: 0, ingresos: valor })
+    }
+
+    // Luego acumular horas de time_logs
     for (const l of logs) {
       if ((l.cliente?.id ?? '__sin__') !== clienteId) continue
       const did = l.departamento?.id ?? '__sin__'
       const dn = l.departamento?.nombre ?? 'Sin departamento'
       if (!deptMap.has(did)) {
-        const ingresosDepto = ingresosPorClienteDepto.get(`${clienteId}__${did}`) ?? 0
-        deptMap.set(did, { nombre: dn, minutos: 0, ingresos: ingresosDepto })
+        deptMap.set(did, { nombre: dn, minutos: 0, ingresos: 0 })
       }
       deptMap.get(did)!.minutos += l.minutos
     }
-    // Also add depts that have ingresos but no hours
-    for (const [key, valor] of ingresosPorClienteDepto.entries()) {
-      const [cid, did] = key.split('__')
-      if (cid !== clienteId) continue
-      if (!deptMap.has(did)) {
-        const ingreso = ingresos.find(i => i.cliente?.id === cid && ((i as unknown as {id_departamento?:string}).id_departamento ?? '__sin__') === did)
-        deptMap.set(did, { nombre: 'Sin departamento', minutos: 0, ingresos: valor })
-        if (ingreso) deptMap.get(did)!.nombre = 'Sin departamento'
-      }
-    }
+
     return Array.from(deptMap.entries())
-      .map(([id, d]) => ({ id, ...d, eurHora: d.ingresos > 0 && d.minutos > 0 ? d.ingresos / (d.minutos / 60) : null }))
-      .sort((a, b) => b.minutos - a.minutos)
+      .map(([id, d]) => ({
+        id,
+        nombre: d.nombre,
+        minutos: d.minutos,
+        ingresos: d.ingresos,
+        eurHora: d.ingresos > 0 && d.minutos > 0 ? d.ingresos / (d.minutos / 60) : null,
+      }))
+      .sort((a, b) => b.ingresos - a.ingresos)
   }
 
   const years = Array.from({ length: 4 }, (_, i) => now.getFullYear() - 1 + i)
