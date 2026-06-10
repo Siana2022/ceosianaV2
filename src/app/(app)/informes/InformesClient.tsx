@@ -169,34 +169,74 @@ export default function InformesClient() {
     return map
   }, [ingresos])
 
-  // ── Horas + ingresos por departamento dentro de un cliente ────────────
+  // ── Rentabilidad por departamento (clientes normales) ─────────────────
   function rentabilidadPorDepto(clienteId: string) {
     const deptMap = new Map<string, { nombre: string; minutos: number; ingresos: number }>()
 
-    // Primero seed con todos los departamentos que tienen ingresos para este cliente
     for (const [key, { nombre, valor }] of ingresosPorClienteDepto.entries()) {
       const [cid, did] = key.split('__')
       if (cid !== clienteId) continue
       deptMap.set(did, { nombre, minutos: 0, ingresos: valor })
     }
 
-    // Luego acumular horas de time_logs
     for (const l of logs) {
       if ((l.cliente?.id ?? '__sin__') !== clienteId) continue
       const did = l.departamento?.id ?? '__sin__'
       const dn = l.departamento?.nombre ?? 'Sin departamento'
-      if (!deptMap.has(did)) {
-        deptMap.set(did, { nombre: dn, minutos: 0, ingresos: 0 })
-      }
+      if (!deptMap.has(did)) deptMap.set(did, { nombre: dn, minutos: 0, ingresos: 0 })
       deptMap.get(did)!.minutos += l.minutos
     }
 
     return Array.from(deptMap.entries())
       .map(([id, d]) => ({
-        id,
-        nombre: d.nombre,
-        minutos: d.minutos,
-        ingresos: d.ingresos,
+        id, nombre: d.nombre, dept: null as string | null,
+        minutos: d.minutos, ingresos: d.ingresos,
+        eurHora: d.ingresos > 0 && d.minutos >= 60 ? d.ingresos / (d.minutos / 60) : null,
+      }))
+      .sort((a, b) => b.ingresos - a.ingresos)
+  }
+
+  // ── Rentabilidad por servicio/proyecto (WAY, Otros, Ment/Form) ─────────
+  // Para estos clientes cada proyecto tiene su propio ingreso; no se puede
+  // cruzar por departamento porque Google Ads tiene múltiples proyectos.
+  function rentabilidadPorServicio(clienteId: string) {
+    const svcMap = new Map<string, { nombre: string; dept: string; minutos: number; ingresos: number }>()
+
+    // Seed desde ingresos por id_servicio
+    for (const i of ingresos) {
+      if (i.cliente?.id !== clienteId || !i.servicio?.id) continue
+      const key = i.servicio.id
+      const nombre = i.servicio.nombre ?? 'Sin nombre'
+      const dept = i.departamento?.nombre ?? ''
+      const existing = svcMap.get(key)
+      if (existing) existing.ingresos += Number(i.valor)
+      else svcMap.set(key, { nombre, dept, minutos: 0, ingresos: Number(i.valor) })
+    }
+
+    // Acumular horas por id_servicio
+    for (const l of logs) {
+      if ((l.cliente?.id ?? '__sin__') !== clienteId) continue
+      if (!l.servicio?.id) {
+        const key = '__sin__'
+        if (!svcMap.has(key)) svcMap.set(key, { nombre: 'Sin proyecto', dept: '', minutos: 0, ingresos: 0 })
+        svcMap.get(key)!.minutos += l.minutos
+        continue
+      }
+      const key = l.servicio.id
+      if (!svcMap.has(key)) {
+        svcMap.set(key, {
+          nombre: l.servicio.notas ?? l.servicio.nombre ?? 'Sin nombre',
+          dept: l.departamento?.nombre ?? '',
+          minutos: 0, ingresos: 0,
+        })
+      }
+      svcMap.get(key)!.minutos += l.minutos
+    }
+
+    return Array.from(svcMap.entries())
+      .map(([id, d]) => ({
+        id, nombre: d.nombre, dept: d.dept,
+        minutos: d.minutos, ingresos: d.ingresos,
         eurHora: d.ingresos > 0 && d.minutos >= 60 ? d.ingresos / (d.minutos / 60) : null,
       }))
       .sort((a, b) => b.ingresos - a.ingresos)
@@ -342,7 +382,10 @@ export default function InformesClient() {
 
           {/* ── VISTA CLIENTE ── */}
           {viewMode === 'cliente' && selectedClienteData && (() => {
-            const rentDepto = rentabilidadPorDepto(selectedClienteData.id)
+            const esMultiProyecto = clienteNecesitaProyecto(selectedClienteData.nombre)
+            const rentRows = esMultiProyecto
+              ? rentabilidadPorServicio(selectedClienteData.id)
+              : rentabilidadPorDepto(selectedClienteData.id)
             return (
               <div className="space-y-4">
                 {/* KPIs globales del cliente */}
@@ -354,22 +397,28 @@ export default function InformesClient() {
                     color={eurPorHora ? (eurPorHora >= 50 ? 'text-green-400' : eurPorHora >= 25 ? 'text-yellow-400' : 'text-red-400') : 'text-gray-400'} />
                 </div>
 
-                {/* Rentabilidad por departamento */}
+                {/* Rentabilidad por proyecto (multi) o por departamento (resto) */}
                 <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-800">
-                    <h3 className="text-white font-bold">Rentabilidad por departamento / servicio</h3>
+                    <h3 className="text-white font-bold">
+                      {esMultiProyecto ? 'Rentabilidad por proyecto' : 'Rentabilidad por departamento / servicio'}
+                    </h3>
                     <p className="text-gray-500 text-xs mt-0.5">Cruce real: ingresos del servicio ÷ horas dedicadas = coste hora real</p>
                   </div>
                   <table className="w-full text-sm">
                     <thead><tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-                      <th className="text-left px-6 py-3">Departamento</th>
+                      {esMultiProyecto && <th className="text-left px-6 py-3">Departamento</th>}
+                      <th className="text-left px-6 py-3">{esMultiProyecto ? 'Proyecto' : 'Departamento'}</th>
                       <th className="text-right px-4 py-3">Horas</th>
                       <th className="text-right px-4 py-3">Ingresos</th>
                       <th className="text-right px-6 py-3">€/hora real</th>
                     </tr></thead>
                     <tbody>
-                      {rentDepto.map(d => (
+                      {rentRows.map(d => (
                         <tr key={d.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                          {esMultiProyecto && (
+                            <td className="px-6 py-3 text-xs text-gray-500">{d.dept || '—'}</td>
+                          )}
                           <td className="px-6 py-3 font-medium text-white">{d.nombre}</td>
                           <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold">{fmtMin(d.minutos)}</td>
                           <td className="px-4 py-3 text-right text-green-400 font-mono text-sm">
@@ -393,11 +442,6 @@ export default function InformesClient() {
                     </tbody>
                   </table>
                 </div>
-
-                {/* Proyectos internos WAY/Otros/Ment */}
-                {clienteNecesitaProyecto(selectedClienteData.nombre) && selectedClienteData.proyectos.size > 0 && (
-                  <ProyectosBox proyectos={selectedClienteData.proyectos} sinProyecto={selectedClienteData.sinProyecto} />
-                )}
 
                 {/* Detalle completo */}
                 <DetalleTable logs={filteredLogs} showProyecto showDept />
