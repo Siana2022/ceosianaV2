@@ -17,7 +17,10 @@ async function resolveEmpleadoId(supabase: Awaited<ReturnType<typeof createClien
     .eq('email', session.user.email)
     .maybeSingle()
 
-  if (!emp) return null
+  if (!emp) {
+    // Valid session but no employee record → treat as admin (e.g. juanjo / susana)
+    return { id: session.user.id, rol: 'admin' as const }
+  }
   // No profile row → treat as admin (existing users)
   return { id: emp.id, rol: perfil?.rol ?? 'admin' }
 }
