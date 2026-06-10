@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -33,8 +34,14 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const fecha = searchParams.get('fecha')
   const id_empleado_filter = searchParams.get('id_empleado')
+  const mine = searchParams.get('mine')
 
-  let query = supabase
+  // Admins use the service client to bypass RLS and see all employees' logs
+  const queryClient = (resolved.rol === 'admin' && mine !== '1')
+    ? createAdminClient()
+    : supabase
+
+  let query = queryClient
     .from('time_logs')
     .select(`
       id, id_empleado, id_servicio, id_cliente, id_departamento,
@@ -47,10 +54,7 @@ export async function GET(req: NextRequest) {
     .order('fecha', { ascending: false })
     .order('created_at', { ascending: false })
 
-  const mine = searchParams.get('mine')
-
   if (mine === '1') {
-    // Personal historial: always filter by own employee ID regardless of role
     query = query.eq('id_empleado', resolved.id)
   } else if (resolved.rol === 'empleado') {
     query = query.eq('id_empleado', resolved.id)
@@ -63,7 +67,7 @@ export async function GET(req: NextRequest) {
   if (activos === '1') {
     if (resolved.rol !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     const today = new Date().toISOString().split('T')[0]
-    const { data: activosData, error: activosError } = await supabase
+    const { data: activosData, error: activosError } = await createAdminClient()
       .from('time_logs')
       .select('id, id_empleado, descripcion, fecha, hora_inicio, minutos, empleado:id_empleado(id, nombre), cliente:id_cliente(id, nombre), departamento:id_departamento(id, nombre)')
       .is('hora_fin', null)
@@ -86,7 +90,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const { data, error } = await query.limit(200)
+  const { data, error } = await query.limit(500)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
