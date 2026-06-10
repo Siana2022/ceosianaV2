@@ -156,7 +156,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     } finally { setSaving(false) }
   }
 
-  const CLIENTES_CON_PROYECTOS = ['otros', 'way', 'mentorías', 'mentorias']
+  const CLIENTES_CON_PROYECTOS = ['otros', 'way', 'mentorías', 'mentorias', 'ment/form']
 
   // Helper: ¿el cliente seleccionado necesita segundo desplegable?
   function clienteTieneProyectos() {
