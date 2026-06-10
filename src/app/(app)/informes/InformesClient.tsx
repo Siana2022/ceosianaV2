@@ -197,7 +197,7 @@ export default function InformesClient() {
         nombre: d.nombre,
         minutos: d.minutos,
         ingresos: d.ingresos,
-        eurHora: d.ingresos > 0 && d.minutos > 0 ? d.ingresos / (d.minutos / 60) : null,
+        eurHora: d.ingresos > 0 && d.minutos >= 60 ? d.ingresos / (d.minutos / 60) : null,
       }))
       .sort((a, b) => b.ingresos - a.ingresos)
   }
@@ -217,7 +217,7 @@ export default function InformesClient() {
   const selectedEmpData = viewMode === 'empleado' && selectedId ? byEmpleado.find(e => e.id === selectedId) : null
   const selectedIngresosTotal = selectedClienteData ? (ingresosPorCliente.get(selectedId) ?? 0) : 0
   const selectedHoras = filteredLogs.reduce((s, l) => s + l.minutos, 0) / 60
-  const eurPorHora = selectedIngresosTotal > 0 && selectedHoras > 0 ? selectedIngresosTotal / selectedHoras : null
+  const eurPorHora = selectedIngresosTotal > 0 && selectedHoras >= 1 ? selectedIngresosTotal / selectedHoras : null
 
   return (
     <div className="p-6 space-y-6">
@@ -327,7 +327,7 @@ export default function InformesClient() {
                 detalle: Array.from(c.empleados.entries()).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n])=>n).join(', '),
                 pct: totalMin > 0 ? (c.minutos/totalMin)*100 : 0,
                 extra: ingresosPorCliente.get(c.id) ? eur(ingresosPorCliente.get(c.id)!) : undefined,
-                eurHora: ingresosPorCliente.get(c.id) && c.minutos > 0
+                eurHora: ingresosPorCliente.get(c.id) && c.minutos >= 60
                   ? ingresosPorCliente.get(c.id)! / (c.minutos/60) : undefined,
               }))} showRenta />
 
