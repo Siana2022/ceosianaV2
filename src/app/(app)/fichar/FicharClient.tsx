@@ -156,12 +156,14 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     } finally { setSaving(false) }
   }
 
-  // Helper: ¿el cliente seleccionado tiene proyectos asociados?
+  const CLIENTES_CON_PROYECTOS = ['otros', 'way', 'mentorías', 'mentorias']
+
+  // Helper: ¿el cliente seleccionado necesita segundo desplegable?
   function clienteTieneProyectos() {
     if (clienteId === '__otros__') return true
     if (!clienteId) return false
-    const nombre = clientes.find(c => c.id === clienteId)?.nombre ?? ''
-    return servicios.some(s => getClienteNombre(s).toLowerCase() === nombre.toLowerCase())
+    const nombre = clientes.find(c => c.id === clienteId)?.nombre?.toLowerCase() ?? ''
+    return CLIENTES_CON_PROYECTOS.includes(nombre)
   }
 
   // Proyectos del cliente seleccionado
