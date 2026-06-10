@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('ingresos')
-    .select('*, cliente:id_cliente(id,nombre), departamento:id_departamento(id,nombre), responsable:id_responsable(id,nombre), servicio:id_servicio(id,nombre)')
+    .select('*, cliente:id_cliente(id,nombre), departamento:id_departamento(id,nombre), responsable:id_responsable(id,nombre), servicio:id_servicio(id,nombre,notas)')
     .eq('mes', Number(mes))
     .eq('anio', Number(anio))
 

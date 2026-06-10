@@ -15,7 +15,7 @@ interface Ingreso {
   id_departamento?: string | null
   cliente: { id: string; nombre: string } | null
   departamento: { id: string; nombre: string } | null
-  servicio: { id: string; nombre: string | null } | null
+  servicio: { id: string; nombre: string | null; notas: string | null } | null
 }
 
 function fmtMin(m: number) {
@@ -206,7 +206,8 @@ export default function InformesClient() {
     for (const i of ingresos) {
       if (i.cliente?.id !== clienteId || !i.servicio?.id) continue
       const key = i.servicio.id
-      const nombre = i.servicio.nombre ?? 'Sin nombre'
+      // notas tiene el nombre del proyecto (ej. "Google Consum"); nombre es el dpto genérico
+      const nombre = i.servicio.notas ?? i.servicio.nombre ?? 'Sin nombre'
       const dept = i.departamento?.nombre ?? ''
       const existing = svcMap.get(key)
       if (existing) existing.ingresos += Number(i.valor)
