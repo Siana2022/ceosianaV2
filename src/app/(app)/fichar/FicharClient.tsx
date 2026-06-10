@@ -576,6 +576,8 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
   const [loading, setLoading] = useState(true)
   const [selectedEmp, setSelectedEmp] = useState<string | null>(empleados[0]?.id ?? null)
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ descripcion: '', minutos: '' })
 
   useEffect(() => { fetchLogs() }, [periodo]) // eslint-disable-line
 
@@ -589,6 +591,22 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
       const data = await res.json()
       setLogs(Array.isArray(data) ? data : [])
     } finally { setLoading(false) }
+  }
+
+  function startEdit(l: TimeLog) {
+    setEditingId(l.id)
+    setEditForm({ descripcion: l.descripcion, minutos: String(l.minutos) })
+  }
+
+  async function saveEdit(id: string) {
+    const mins = parseInt(editForm.minutos)
+    if (!editForm.descripcion.trim() || isNaN(mins) || mins <= 0) return
+    await fetch(`/api/time-logs?id=${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ descripcion: editForm.descripcion, minutos: mins }),
+    })
+    setEditingId(null)
+    fetchLogs()
   }
 
   const filteredLogs = useMemo(() => {
@@ -906,7 +924,8 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
                         <th className="text-left px-4 py-3">Empleado</th>
                         <th className="text-left px-4 py-3">Tarea</th>
                         <th className="text-left px-4 py-3">Cliente</th>
-                        <th className="text-right px-6 py-3">Tiempo</th>
+                        <th className="text-right px-4 py-3">Tiempo</th>
+                        <th className="px-4 py-3 w-16" />
                       </tr>
                     </thead>
                     <tbody>
@@ -916,9 +935,33 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
                             {new Date(l.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day:'2-digit', month:'short' })}
                           </td>
                           <td className="px-4 py-2.5 text-white text-sm">{l.empleado?.nombre ?? '—'}</td>
-                          <td className="px-4 py-2.5 text-gray-300 max-w-[200px] truncate" title={l.descripcion}>{l.descripcion}</td>
+                          <td className="px-4 py-2.5 text-gray-300 max-w-[200px]">
+                            {editingId === l.id ? (
+                              <input value={editForm.descripcion} onChange={e => setEditForm(f => ({ ...f, descripcion: e.target.value }))}
+                                className="w-full bg-gray-800 border border-blue-500 rounded px-2 py-1 text-white text-xs focus:outline-none" />
+                            ) : (
+                              <span className="truncate block" title={l.descripcion}>{l.descripcion}</span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5 text-gray-400 text-xs">{l.cliente?.nombre ?? '—'}</td>
-                          <td className="px-6 py-2.5 text-right text-blue-400 font-mono font-medium">{fmtMin(l.minutos)}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            {editingId === l.id ? (
+                              <input type="number" value={editForm.minutos} onChange={e => setEditForm(f => ({ ...f, minutos: e.target.value }))}
+                                className="w-16 bg-gray-800 border border-blue-500 rounded px-2 py-1 text-white text-xs text-right focus:outline-none" />
+                            ) : (
+                              <span className="text-blue-400 font-mono font-medium">{fmtMin(l.minutos)}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {editingId === l.id ? (
+                              <div className="flex items-center gap-1 justify-end">
+                                <button onClick={() => saveEdit(l.id)} className="text-green-400 hover:text-green-300 text-xs font-bold px-2 py-1 rounded bg-green-500/10 hover:bg-green-500/20 transition-colors">✓</button>
+                                <button onClick={() => setEditingId(null)} className="text-gray-500 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-700 transition-colors">✕</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => startEdit(l)} className="text-gray-600 hover:text-blue-400 transition-colors" title="Editar">✏️</button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
