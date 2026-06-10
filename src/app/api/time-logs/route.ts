@@ -27,6 +27,7 @@ async function resolveEmpleadoId(supabase: Awaited<ReturnType<typeof createClien
 }
 
 export async function GET(req: NextRequest) {
+  try {
   const supabase = await createClient()
   const resolved = await resolveEmpleadoId(supabase)
   if (!resolved) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -37,9 +38,14 @@ export async function GET(req: NextRequest) {
   const mine = searchParams.get('mine')
 
   // Admins use the service client to bypass RLS and see all employees' logs
-  const queryClient = (resolved.rol === 'admin' && mine !== '1')
-    ? createAdminClient()
-    : supabase
+  let queryClient = supabase
+  if (resolved.rol === 'admin' && mine !== '1') {
+    try {
+      queryClient = createAdminClient()
+    } catch (e) {
+      console.error('createAdminClient failed, falling back to user client:', e)
+    }
+  }
 
   let query = queryClient
     .from('time_logs')
@@ -93,6 +99,10 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query.limit(500)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
+  } catch (err) {
+    console.error('GET /api/time-logs error:', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
