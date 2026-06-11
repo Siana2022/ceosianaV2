@@ -17,6 +17,11 @@ interface Ingreso {
   departamento: { id: string; nombre: string } | null
   servicio: { id: string; nombre: string | null; notas: string | null } | null
 }
+interface SueldoAgg { id_empleado: string; total: number }
+interface DedicacionRow {
+  id_empleado: string; id_departamento: string; porcentaje: number
+  departamento: { id: string; nombre: string } | null
+}
 
 function fmtMin(m: number) {
   const h = Math.floor(m / 60), min = m % 60
@@ -27,8 +32,9 @@ function eur(n: number) {
   return n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
-const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const CLIENTES_CON_PROYECTOS = ['otros', 'way', 'ment/form', 'mentorías', 'mentorias']
+const BAR_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-yellow-500', 'bg-pink-500', 'bg-orange-500', 'bg-teal-500']
+const BORDER_COLORS = ['border-blue-500', 'border-purple-500', 'border-green-500']
 
 function clienteNecesitaProyecto(nombre: string) {
   return CLIENTES_CON_PROYECTOS.includes(nombre.toLowerCase())
@@ -38,28 +44,43 @@ type ViewMode = 'todo' | 'cliente' | 'departamento' | 'empleado'
 
 export default function InformesClient() {
   const now = new Date()
-  const [mes, setMes] = useState(now.getMonth() + 1)
-  const [anio, setAnio] = useState(now.getFullYear())
+  const todayStr = now.toISOString().split('T')[0]
+  const firstOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+
+  const [desde, setDesde] = useState(firstOfMonth)
+  const [hasta, setHasta] = useState(todayStr)
   const [logs, setLogs] = useState<TimeLog[]>([])
   const [ingresos, setIngresos] = useState<Ingreso[]>([])
+  const [sueldos, setSueldos] = useState<SueldoAgg[]>([])
+  const [dedicacion, setDedicacion] = useState<DedicacionRow[]>([])
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('todo')
   const [selectedId, setSelectedId] = useState<string>('')
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
 
-  useEffect(() => { fetchData() }, [mes, anio]) // eslint-disable-line
+  useEffect(() => { fetchData() }, [desde, hasta]) // eslint-disable-line
 
   async function fetchData() {
     setLoading(true)
     try {
-      const mesStr = `${anio}-${String(mes).padStart(2,'0')}`
-      const [logsRes, ingresosRes] = await Promise.all([
-        fetch(`/api/time-logs?fecha=${mesStr}`),
-        fetch(`/api/ingresos?mes=${mes}&anio=${anio}`),
+      const hastaDate = new Date(hasta + 'T12:00:00')
+      const hastaMes = hastaDate.getMonth() + 1
+      const hastaAnio = hastaDate.getFullYear()
+
+      const [logsRes, ingresosRes, sueldosRes, dedicacionRes] = await Promise.all([
+        fetch(`/api/time-logs?desde=${desde}&hasta=${hasta}`),
+        fetch(`/api/ingresos?desde=${desde}&hasta=${hasta}`),
+        fetch(`/api/sueldos?desde=${desde}&hasta=${hasta}`),
+        fetch(`/api/dedicacion?mes=${hastaMes}&anio=${hastaAnio}`),
       ])
       const logsData = await logsRes.json()
       const ingresosData = await ingresosRes.json()
+      const sueldosData = await sueldosRes.json()
+      const dedicacionData = await dedicacionRes.json()
       setLogs(Array.isArray(logsData) ? logsData : [])
       setIngresos(Array.isArray(ingresosData) ? ingresosData : [])
+      setSueldos(Array.isArray(sueldosData) ? sueldosData : [])
+      setDedicacion(Array.isArray(dedicacionData) ? dedicacionData : [])
     } finally { setLoading(false) }
   }
 
@@ -84,24 +105,61 @@ export default function InformesClient() {
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = `fichajes_${anio}_${String(mes).padStart(2,'0')}.csv`; a.click()
+    a.href = url; a.download = `fichajes_${desde}_${hasta}.csv`; a.click()
     URL.revokeObjectURL(url)
   }
 
   const totalMin = logs.reduce((s, l) => s + l.minutos, 0)
 
-  // ── Agrupaciones ──────────────────────────────────────────────────────────
+  // ── Memos ─────────────────────────────────────────────────────────────────
+
+  const sueldoMap = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const s of sueldos) m.set(s.id_empleado, s.total)
+    return m
+  }, [sueldos])
+
+  const dedicacionMap = useMemo(() => {
+    const m = new Map<string, { id_departamento: string; nombre: string; porcentaje: number }[]>()
+    for (const d of dedicacion) {
+      if (!m.has(d.id_empleado)) m.set(d.id_empleado, [])
+      m.get(d.id_empleado)!.push({
+        id_departamento: d.id_departamento,
+        nombre: d.departamento?.nombre ?? d.id_departamento,
+        porcentaje: d.porcentaje,
+      })
+    }
+    return m
+  }, [dedicacion])
+
+  const ingresosPorDepartamento = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const i of ingresos) {
+      const did = i.id_departamento ?? '__sin__'
+      m.set(did, (m.get(did) ?? 0) + Number(i.valor))
+    }
+    return m
+  }, [ingresos])
 
   const byEmpleado = useMemo(() => {
-    const map = new Map<string, { id: string; nombre: string; minutos: number; clientes: Map<string, { minutos: number; proyectos: Set<string> }> }>()
+    const map = new Map<string, {
+      id: string; nombre: string; minutos: number
+      clientes: Map<string, { minutos: number; proyectos: Set<string>; logs: TimeLog[] }>
+      departamentos: Set<string>
+    }>()
     for (const l of logs) {
-      if (!map.has(l.id_empleado)) map.set(l.id_empleado, { id: l.id_empleado, nombre: l.empleado?.nombre ?? l.id_empleado, minutos: 0, clientes: new Map() })
+      if (!map.has(l.id_empleado)) map.set(l.id_empleado, {
+        id: l.id_empleado, nombre: l.empleado?.nombre ?? l.id_empleado,
+        minutos: 0, clientes: new Map(), departamentos: new Set(),
+      })
       const e = map.get(l.id_empleado)!
       e.minutos += l.minutos
+      if (l.departamento?.id) e.departamentos.add(l.departamento.id)
       const cn = l.cliente?.nombre ?? 'Sin cliente'
-      if (!e.clientes.has(cn)) e.clientes.set(cn, { minutos: 0, proyectos: new Set() })
+      if (!e.clientes.has(cn)) e.clientes.set(cn, { minutos: 0, proyectos: new Set(), logs: [] })
       const c = e.clientes.get(cn)!
       c.minutos += l.minutos
+      c.logs.push(l)
       if (l.servicio) c.proyectos.add(l.servicio.notas ?? l.servicio.nombre ?? l.servicio.id)
     }
     return Array.from(map.values()).sort((a, b) => b.minutos - a.minutos)
@@ -128,22 +186,48 @@ export default function InformesClient() {
   }, [logs])
 
   const byDepartamento = useMemo(() => {
-    const map = new Map<string, { id: string; nombre: string; minutos: number; empleados: Map<string, number>; proyectos: Map<string, number> }>()
+    const map = new Map<string, {
+      id: string; nombre: string; minutos: number; ingresos: number
+      empleados: Map<string, { minutos: number; empleadoId: string }>
+      clientes: Map<string, number>
+    }>()
     for (const l of logs) {
       const dn = l.departamento?.nombre ?? 'Sin departamento'
       const did = l.departamento?.id ?? '__sin__'
-      if (!map.has(did)) map.set(did, { id: did, nombre: dn, minutos: 0, empleados: new Map(), proyectos: new Map() })
+      if (!map.has(did)) map.set(did, {
+        id: did, nombre: dn, minutos: 0,
+        ingresos: ingresosPorDepartamento.get(did) ?? 0,
+        empleados: new Map(), clientes: new Map(),
+      })
       const d = map.get(did)!
       d.minutos += l.minutos
-      const en = l.empleado?.nombre ?? l.id_empleado
-      d.empleados.set(en, (d.empleados.get(en) ?? 0) + l.minutos)
+      const eid = l.id_empleado
+      const en = l.empleado?.nombre ?? eid
+      if (!d.empleados.has(eid)) d.empleados.set(eid, { minutos: 0, empleadoId: eid })
+      d.empleados.get(eid)!.minutos += l.minutos
+      // store nombre in empleados map by using eid as key but needing nombre separately:
       const cn = l.cliente?.nombre ?? 'Sin cliente'
-      d.proyectos.set(cn, (d.proyectos.get(cn) ?? 0) + l.minutos)
+      d.clientes.set(cn, (d.clientes.get(cn) ?? 0) + l.minutos)
+      void en
+    }
+    // Update ingresos after building (in case dept had ingresos but no logs)
+    for (const [did, val] of ingresosPorDepartamento.entries()) {
+      if (!map.has(did)) continue
+      map.get(did)!.ingresos = val
     }
     return Array.from(map.values()).sort((a, b) => b.minutos - a.minutos)
+  }, [logs, ingresosPorDepartamento])
+
+  // Employee name lookup from logs
+  const empleadoNombres = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const l of logs) {
+      if (l.empleado) m.set(l.id_empleado, l.empleado.nombre)
+    }
+    return m
   }, [logs])
 
-  // ── Ingresos por cliente (total) ───────────────────────────────────────
+  // ── Ingresos por cliente (total) ─────────────────────────────────────────
   const ingresosPorCliente = useMemo(() => {
     const map = new Map<string, number>()
     for (const i of ingresos) {
@@ -153,8 +237,6 @@ export default function InformesClient() {
     return map
   }, [ingresos])
 
-  // ── Ingresos por cliente+departamento ──────────────────────────────────
-  // key: `${clienteId}__${deptoId}`
   const ingresosPorClienteDepto = useMemo(() => {
     const map = new Map<string, { nombre: string; valor: number }>()
     for (const i of ingresos) {
@@ -169,16 +251,13 @@ export default function InformesClient() {
     return map
   }, [ingresos])
 
-  // ── Rentabilidad por departamento (clientes normales) ─────────────────
   function rentabilidadPorDepto(clienteId: string) {
     const deptMap = new Map<string, { nombre: string; minutos: number; ingresos: number }>()
-
     for (const [key, { nombre, valor }] of ingresosPorClienteDepto.entries()) {
       const [cid, did] = key.split('__')
       if (cid !== clienteId) continue
       deptMap.set(did, { nombre, minutos: 0, ingresos: valor })
     }
-
     for (const l of logs) {
       if ((l.cliente?.id ?? '__sin__') !== clienteId) continue
       const did = l.departamento?.id ?? '__sin__'
@@ -186,7 +265,6 @@ export default function InformesClient() {
       if (!deptMap.has(did)) deptMap.set(did, { nombre: dn, minutos: 0, ingresos: 0 })
       deptMap.get(did)!.minutos += l.minutos
     }
-
     return Array.from(deptMap.entries())
       .map(([id, d]) => ({
         id, nombre: d.nombre, dept: null as string | null,
@@ -196,25 +274,17 @@ export default function InformesClient() {
       .sort((a, b) => b.ingresos - a.ingresos)
   }
 
-  // ── Rentabilidad por servicio/proyecto (WAY, Otros, Ment/Form) ─────────
-  // Para estos clientes cada proyecto tiene su propio ingreso; no se puede
-  // cruzar por departamento porque Google Ads tiene múltiples proyectos.
   function rentabilidadPorServicio(clienteId: string) {
     const svcMap = new Map<string, { nombre: string; dept: string; minutos: number; ingresos: number }>()
-
-    // Seed desde ingresos por id_servicio
     for (const i of ingresos) {
       if (i.cliente?.id !== clienteId || !i.servicio?.id) continue
       const key = i.servicio.id
-      // notas tiene el nombre del proyecto (ej. "Google Consum"); nombre es el dpto genérico
       const nombre = i.servicio.notas ?? i.servicio.nombre ?? 'Sin nombre'
       const dept = i.departamento?.nombre ?? ''
       const existing = svcMap.get(key)
       if (existing) existing.ingresos += Number(i.valor)
       else svcMap.set(key, { nombre, dept, minutos: 0, ingresos: Number(i.valor) })
     }
-
-    // Acumular horas por id_servicio
     for (const l of logs) {
       if ((l.cliente?.id ?? '__sin__') !== clienteId) continue
       if (!l.servicio?.id) {
@@ -233,7 +303,6 @@ export default function InformesClient() {
       }
       svcMap.get(key)!.minutos += l.minutos
     }
-
     return Array.from(svcMap.entries())
       .map(([id, d]) => ({
         id, nombre: d.nombre, dept: d.dept,
@@ -243,9 +312,7 @@ export default function InformesClient() {
       .sort((a, b) => b.ingresos - a.ingresos)
   }
 
-  const years = Array.from({ length: 4 }, (_, i) => now.getFullYear() - 1 + i)
-
-  // ── Vista detalle ───────────────────────────────────────────────────────
+  // ── Vista detalle ─────────────────────────────────────────────────────────
   const filteredLogs = useMemo(() => {
     if (viewMode === 'cliente' && selectedId) return logs.filter(l => (l.cliente?.id ?? '__sin__') === selectedId)
     if (viewMode === 'departamento' && selectedId) return logs.filter(l => (l.departamento?.id ?? '__sin__') === selectedId)
@@ -260,14 +327,16 @@ export default function InformesClient() {
   const selectedHoras = filteredLogs.reduce((s, l) => s + l.minutos, 0) / 60
   const eurPorHora = selectedIngresosTotal > 0 && selectedHoras >= 1 ? selectedIngresosTotal / selectedHoras : null
 
+  const inputDateCls = 'bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500'
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <p className="text-xs font-extrabold text-blue-400 uppercase tracking-widest">Siana Digital CRM</p>
-          <h2 className="text-2xl font-black text-white mt-0.5">Informe mensual de tiempos</h2>
-          <p className="text-gray-400 text-sm mt-1">Fichajes del equipo por mes</p>
+          <h2 className="text-2xl font-black text-white mt-0.5">Informe de tiempos</h2>
+          <p className="text-gray-400 text-sm mt-1">Fichajes del equipo por rango de fechas</p>
         </div>
         <button onClick={exportCSV} disabled={logs.length === 0}
           className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
@@ -275,24 +344,16 @@ export default function InformesClient() {
         </button>
       </div>
 
-      {/* Selector mes/año */}
-      <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-wrap">
+      {/* Selector de rango */}
+      <div className="flex items-center gap-4 bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-wrap">
         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Periodo:</span>
-        <div className="flex flex-wrap gap-1.5">
-          {MESES.map((nombre, i) => (
-            <button key={i} onClick={() => setMes(i + 1)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${mes === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-              {nombre.slice(0, 3)}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Desde</span>
+          <input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={inputDateCls} />
         </div>
-        <div className="flex gap-1.5 ml-2">
-          {years.map(y => (
-            <button key={y} onClick={() => setAnio(y)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${anio === y ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-              {y}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Hasta</span>
+          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={inputDateCls} />
         </div>
       </div>
 
@@ -300,7 +361,7 @@ export default function InformesClient() {
         <p className="text-gray-500 text-sm py-16 text-center">Cargando...</p>
       ) : logs.length === 0 ? (
         <div className="py-16 border border-dashed border-gray-700 rounded-2xl text-center text-gray-500">
-          <p className="font-bold text-gray-400">Sin registros en {MESES[mes-1]} {anio}</p>
+          <p className="font-bold text-gray-400">Sin registros en el periodo seleccionado</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -323,28 +384,28 @@ export default function InformesClient() {
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
             <div className="flex flex-wrap gap-2">
               {(['todo','cliente','departamento','empleado'] as ViewMode[]).map((v, i) => (
-                <button key={v} onClick={() => { setViewMode(v); setSelectedId('') }}
+                <button key={v} onClick={() => { setViewMode(v); setSelectedId(''); setExpandedKey(null) }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${viewMode === v ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
                   {['🗂 Todo','🏢 Por cliente','🗄 Por departamento','👤 Por empleado'][i]}
                 </button>
               ))}
             </div>
             {viewMode === 'cliente' && (
-              <select value={selectedId} onChange={e => setSelectedId(e.target.value)}
+              <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setExpandedKey(null) }}
                 className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 min-w-[220px]">
                 <option value="">— Selecciona cliente —</option>
                 {byCliente.map(c => <option key={c.id} value={c.id}>{c.nombre} ({fmtMin(c.minutos)})</option>)}
               </select>
             )}
             {viewMode === 'departamento' && (
-              <select value={selectedId} onChange={e => setSelectedId(e.target.value)}
+              <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setExpandedKey(null) }}
                 className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 min-w-[220px]">
                 <option value="">— Selecciona departamento —</option>
                 {byDepartamento.map(d => <option key={d.id} value={d.id}>{d.nombre} ({fmtMin(d.minutos)})</option>)}
               </select>
             )}
             {viewMode === 'empleado' && (
-              <select value={selectedId} onChange={e => setSelectedId(e.target.value)}
+              <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setExpandedKey(null) }}
                 className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 min-w-[220px]">
                 <option value="">— Selecciona empleado —</option>
                 {byEmpleado.map(e => <option key={e.id} value={e.id}>{e.nombre} ({fmtMin(e.minutos)})</option>)}
@@ -375,7 +436,7 @@ export default function InformesClient() {
               <ResumenTable title="Por departamento" rows={byDepartamento.map(d => ({
                 nombre: d.nombre,
                 minutos: d.minutos,
-                detalle: Array.from(d.proyectos.entries()).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n])=>n).join(', '),
+                detalle: Array.from(d.clientes.entries()).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n])=>n).join(', '),
                 pct: totalMin > 0 ? (d.minutos/totalMin)*100 : 0,
               }))} />
             </div>
@@ -389,22 +450,20 @@ export default function InformesClient() {
               : rentabilidadPorDepto(selectedClienteData.id)
             return (
               <div className="space-y-4">
-                {/* KPIs globales del cliente */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <KPIBox label="Total horas" value={fmtMin(selectedClienteData.minutos)} />
                   <KPIBox label="Personas" value={String(selectedClienteData.empleados.size)} />
-                  <KPIBox label="Ingresos mes" value={selectedIngresosTotal > 0 ? eur(selectedIngresosTotal) : '—'} color="text-green-400" />
+                  <KPIBox label="Ingresos periodo" value={selectedIngresosTotal > 0 ? eur(selectedIngresosTotal) : '—'} color="text-green-400" />
                   <KPIBox label="€/hora global" value={eurPorHora ? `${eurPorHora.toFixed(0)}€/h` : '—'}
                     color={eurPorHora ? (eurPorHora >= 50 ? 'text-green-400' : eurPorHora >= 25 ? 'text-yellow-400' : 'text-red-400') : 'text-gray-400'} />
                 </div>
 
-                {/* Rentabilidad por proyecto (multi) o por departamento (resto) */}
                 <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-800">
                     <h3 className="text-white font-bold">
                       {esMultiProyecto ? 'Rentabilidad por proyecto' : 'Rentabilidad por departamento / servicio'}
                     </h3>
-                    <p className="text-gray-500 text-xs mt-0.5">Cruce real: ingresos del servicio ÷ horas dedicadas = coste hora real</p>
+                    <p className="text-gray-500 text-xs mt-0.5">Cruce real: ingresos del servicio ÷ horas dedicadas</p>
                   </div>
                   <table className="w-full text-sm">
                     <thead><tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
@@ -444,7 +503,6 @@ export default function InformesClient() {
                   </table>
                 </div>
 
-                {/* Detalle completo */}
                 <DetalleTable logs={filteredLogs} showProyecto showDept />
               </div>
             )
@@ -453,15 +511,129 @@ export default function InformesClient() {
           {/* ── VISTA DEPARTAMENTO ── */}
           {viewMode === 'departamento' && selectedDeptData && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {/* KPIs */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <KPIBox label="Total ingresos" value={selectedDeptData.ingresos > 0 ? eur(selectedDeptData.ingresos) : '—'} color="text-green-400" />
                 <KPIBox label="Total horas" value={fmtMin(selectedDeptData.minutos)} />
                 <KPIBox label="Personas" value={String(selectedDeptData.empleados.size)} />
-                <KPIBox label="Clientes" value={String(selectedDeptData.proyectos.size)} />
+                {(() => {
+                  const eh = selectedDeptData.ingresos > 0 && selectedDeptData.minutos >= 60
+                    ? selectedDeptData.ingresos / (selectedDeptData.minutos / 60) : null
+                  return (
+                    <KPIBox label="€/hora" value={eh ? `${eh.toFixed(0)}€/h` : '—'}
+                      color={eh ? (eh >= 50 ? 'text-green-400' : eh >= 25 ? 'text-yellow-400' : 'text-red-400') : 'text-gray-400'} />
+                  )
+                })()}
+                <KPIBox label="Clientes" value={String(selectedDeptData.clientes.size)} />
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MiniTable title="Por empleado" items={Array.from(selectedDeptData.empleados.entries()).sort((a,b)=>b[1]-a[1])} total={selectedDeptData.minutos} />
-                <MiniTable title="Por cliente" items={Array.from(selectedDeptData.proyectos.entries()).sort((a,b)=>b[1]-a[1])} total={selectedDeptData.minutos} />
+                {/* Por empleado — collapsible */}
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                  <h4 className="text-sm font-bold text-white mb-3">Por empleado</h4>
+                  <div className="space-y-1">
+                    {Array.from(selectedDeptData.empleados.entries())
+                      .sort((a, b) => b[1].minutos - a[1].minutos)
+                      .map(([eid, empData], idx) => {
+                        const nombre = empleadoNombres.get(eid) ?? eid
+                        const pct = selectedDeptData.minutos > 0 ? (empData.minutos / selectedDeptData.minutos) * 100 : 0
+                        const key = `${selectedId}_${eid}`
+                        const isExpanded = expandedKey === key
+                        const empLogs = filteredLogs.filter(l => l.id_empleado === eid)
+                        return (
+                          <div key={eid}>
+                            <button
+                              onClick={() => setExpandedKey(isExpanded ? null : key)}
+                              className={`w-full flex items-center justify-between text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                                isExpanded ? 'bg-gray-800/40' : 'hover:bg-gray-800/20'
+                              } border-l-2 ${BORDER_COLORS[idx % BORDER_COLORS.length]}`}
+                            >
+                              <span className="text-gray-300">{nombre}</span>
+                              <span className="flex items-center gap-2">
+                                <span className="font-mono text-white">{fmtMin(empData.minutos)}</span>
+                                <span className="text-gray-500">({pct.toFixed(0)}%)</span>
+                                <span className="text-gray-500">{isExpanded ? '▼' : '▶'}</span>
+                              </span>
+                            </button>
+                            <div className="px-3 mb-1">
+                              <div className="h-1.5 w-full rounded-full bg-gray-700 mt-1">
+                                <div className={`h-full rounded-full ${BAR_COLORS[idx % BAR_COLORS.length]}`} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                            {isExpanded && (
+                              <div className="mt-1 mb-2 bg-gray-900/60 rounded-lg overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="text-gray-500 border-b border-gray-800">
+                                      <th className="text-left px-3 py-1.5">Fecha</th>
+                                      <th className="text-left px-3 py-1.5">Cliente</th>
+                                      <th className="text-left px-3 py-1.5">Descripción</th>
+                                      <th className="text-right px-3 py-1.5">Tiempo</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {empLogs.map(l => (
+                                      <tr key={l.id} className="border-b border-gray-800/30 hover:bg-gray-800/20">
+                                        <td className="px-3 py-1.5 text-gray-400 whitespace-nowrap">
+                                          {new Date(l.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-gray-300">{l.cliente?.nombre ?? '—'}</td>
+                                        <td className="px-3 py-1.5 text-gray-400 max-w-[140px] truncate" title={l.descripcion}>{l.descripcion}</td>
+                                        <td className="px-3 py-1.5 text-right font-mono text-blue-400 font-bold">{fmtMin(l.minutos)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+
+                {/* Por cliente — with project badges */}
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                  <h4 className="text-sm font-bold text-white mb-3">Por cliente</h4>
+                  <div className="space-y-2">
+                    {Array.from(selectedDeptData.clientes.entries())
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cn, mins], idx) => {
+                        const pct = selectedDeptData.minutos > 0 ? (mins / selectedDeptData.minutos) * 100 : 0
+                        // Find project badges for this client
+                        const proyectos = clienteNecesitaProyecto(cn)
+                          ? (() => {
+                              const ps = new Map<string, number>()
+                              for (const l of filteredLogs) {
+                                if ((l.cliente?.nombre ?? 'Sin cliente') === cn && l.servicio) {
+                                  const p = l.servicio.notas ?? l.servicio.nombre ?? l.servicio.id
+                                  ps.set(p, (ps.get(p) ?? 0) + l.minutos)
+                                }
+                              }
+                              return Array.from(ps.entries()).sort((a,b) => b[1]-a[1])
+                            })()
+                          : []
+                        return (
+                          <div key={cn}>
+                            <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                              <span className="flex items-center gap-1.5 text-gray-300 flex-wrap">
+                                {cn}
+                                {proyectos.map(([p]) => (
+                                  <span key={p} className="text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">{p}</span>
+                                ))}
+                              </span>
+                              <span className="font-mono text-white shrink-0 ml-2">{fmtMin(mins)}</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-gray-700">
+                              <div className={`h-full rounded-full ${BAR_COLORS[idx % BAR_COLORS.length]}`} style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
               </div>
+
               <DetalleTable logs={filteredLogs} showProyecto />
             </div>
           )}
@@ -469,36 +641,122 @@ export default function InformesClient() {
           {/* ── VISTA EMPLEADO ── */}
           {viewMode === 'empleado' && selectedEmpData && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {/* KPIs */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <KPIBox label="Total horas" value={fmtMin(selectedEmpData.minutos)} />
                 <KPIBox label="Clientes" value={String(selectedEmpData.clientes.size)} />
-                <KPIBox label="Registros" value={String(filteredLogs.length)} />
+                {(() => {
+                  const sueldo = sueldoMap.get(selectedEmpData.id)
+                  return <KPIBox label="Sueldo periodo" value={sueldo != null ? eur(sueldo) : '—'} color="text-orange-400" />
+                })()}
+                {(() => {
+                  const sueldo = sueldoMap.get(selectedEmpData.id) ?? 0
+                  const horas = selectedEmpData.minutos / 60
+                  const eh = sueldo > 0 && horas >= 1 ? sueldo / horas : null
+                  return (
+                    <KPIBox label="€/hora" value={eh ? `${eh.toFixed(0)}€/h` : '—'}
+                      color={eh ? (eh <= 25 ? 'text-green-400' : eh <= 50 ? 'text-yellow-400' : 'text-red-400') : 'text-gray-400'} />
+                  )
+                })()}
+                <KPIBox label="Dptos activos" value={String(selectedEmpData.departamentos.size)} />
               </div>
+
+              {/* Departamentos activos panel */}
+              {(() => {
+                const depts = Array.from(selectedEmpData.departamentos)
+                const dedicRows = dedicacionMap.get(selectedEmpData.id) ?? []
+                if (depts.length === 0 && dedicRows.length === 0) return null
+                // Collect all dept ids
+                const allDepts = new Map<string, string>()
+                for (const l of filteredLogs) {
+                  if (l.id_empleado === selectedEmpData.id && l.departamento) {
+                    allDepts.set(l.departamento.id, l.departamento.nombre)
+                  }
+                }
+                return (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                    <h4 className="text-sm font-bold text-white mb-3">Departamentos activos</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(allDepts.entries()).map(([did, dn]) => {
+                        const ded = dedicRows.find(d => d.id_departamento === did)
+                        return (
+                          <span key={did} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
+                            ded ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
+                          }`}>
+                            {ded ? '✓' : '⚠️'} {dn}
+                            {ded && <span className="text-gray-400">({ded.porcentaje}%)</span>}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Desglose por cliente — collapsible */}
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
                 <h4 className="text-sm font-bold text-white mb-3">Desglose por cliente</h4>
-                <div className="space-y-3">
-                  {Array.from(selectedEmpData.clientes.entries()).sort((a,b)=>b[1].minutos-a[1].minutos).map(([cn, data]) => (
-                    <div key={cn}>
-                      <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                        <span className="text-gray-300">{cn}</span>
-                        <span className="font-mono text-white">{fmtMin(data.minutos)}
-                          <span className="text-gray-500 ml-1">({selectedEmpData.minutos > 0 ? ((data.minutos/selectedEmpData.minutos)*100).toFixed(0) : 0}%)</span>
-                        </span>
-                      </div>
-                      {data.proyectos.size > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-1">
-                          {Array.from(data.proyectos).map(p => (
-                            <span key={p} className="text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">{p}</span>
-                          ))}
+                <div className="space-y-1">
+                  {Array.from(selectedEmpData.clientes.entries()).sort((a,b)=>b[1].minutos-a[1].minutos).map(([cn, data]) => {
+                    const key = `emp_${selectedEmpData.id}_${cn}`
+                    const isExpanded = expandedKey === key
+                    return (
+                      <div key={cn}>
+                        <button
+                          onClick={() => setExpandedKey(isExpanded ? null : key)}
+                          className={`w-full flex items-center justify-between text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                            isExpanded ? 'bg-gray-800/40' : 'hover:bg-gray-800/20'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 text-gray-300">
+                            {cn}
+                            {data.proyectos.size > 0 && Array.from(data.proyectos).map(p => (
+                              <span key={p} className="text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">{p}</span>
+                            ))}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <span className="font-mono text-white">{fmtMin(data.minutos)}</span>
+                            <span className="text-gray-500">({selectedEmpData.minutos > 0 ? ((data.minutos/selectedEmpData.minutos)*100).toFixed(0) : 0}%)</span>
+                            <span className="text-gray-500">{isExpanded ? '▼' : '▶'}</span>
+                          </span>
+                        </button>
+                        {isExpanded && (
+                          <div className="mt-1 mb-2 bg-gray-900/60 rounded-lg overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-gray-500 border-b border-gray-800">
+                                  <th className="text-left px-3 py-1.5">Fecha</th>
+                                  <th className="text-left px-3 py-1.5">Descripción</th>
+                                  <th className="text-left px-3 py-1.5">Departamento</th>
+                                  <th className="text-right px-3 py-1.5">Tiempo</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {data.logs.map(l => (
+                                  <tr key={l.id} className="border-b border-gray-800/30 hover:bg-gray-800/20">
+                                    <td className="px-3 py-1.5 text-gray-400 whitespace-nowrap">
+                                      {new Date(l.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-gray-300 max-w-[160px] truncate" title={l.descripcion}>{l.descripcion}</td>
+                                    <td className="px-3 py-1.5 text-purple-400">{l.departamento?.nombre ?? '—'}</td>
+                                    <td className="px-3 py-1.5 text-right font-mono text-blue-400 font-bold">{fmtMin(l.minutos)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        <div className="px-3 mb-1">
+                          <div className="h-1.5 w-full rounded-full bg-gray-700">
+                            <div className="h-full rounded-full bg-blue-500" style={{ width: `${selectedEmpData.minutos > 0 ? (data.minutos/selectedEmpData.minutos)*100 : 0}%` }} />
+                          </div>
                         </div>
-                      )}
-                      <div className="h-1.5 w-full rounded-full bg-gray-700">
-                        <div className="h-full rounded-full bg-blue-500" style={{ width: `${selectedEmpData.minutos > 0 ? (data.minutos/selectedEmpData.minutos)*100 : 0}%` }} />
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
+
               <DetalleTable logs={filteredLogs} showProyecto />
             </div>
           )}
@@ -566,50 +824,6 @@ function ResumenTable({ title, rows, showRenta }: {
           ))}
         </tbody>
       </table>
-    </div>
-  )
-}
-
-function ProyectosBox({ proyectos, sinProyecto }: { proyectos: Map<string, number>; sinProyecto: number }) {
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-      <h4 className="text-sm font-bold text-white mb-3">Proyectos internos</h4>
-      <div className="flex flex-wrap gap-2">
-        {Array.from(proyectos.entries()).sort((a,b)=>b[1]-a[1]).map(([nombre, mins]) => (
-          <span key={nombre} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs px-3 py-1.5 rounded-full font-medium">
-            {nombre} <span className="text-blue-500 font-mono">{fmtMin(mins)}</span>
-          </span>
-        ))}
-        {sinProyecto > 0 && (
-          <span className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-xs px-3 py-1.5 rounded-full font-medium">
-            ⚠️ Sin proyecto asignado <span className="text-yellow-500 font-mono">{fmtMin(sinProyecto)}</span>
-          </span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function MiniTable({ title, items, total }: { title: string; items: [string, number][]; total: number }) {
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-      <h4 className="text-sm font-bold text-white mb-3">{title}</h4>
-      <div className="space-y-2">
-        {items.map(([nombre, mins]) => {
-          const pct = total > 0 ? (mins/total)*100 : 0
-          return (
-            <div key={nombre}>
-              <div className="flex justify-between text-xs font-semibold mb-1">
-                <span className="text-gray-300 truncate">{nombre}</span>
-                <span className="font-mono text-white shrink-0 ml-2">{fmtMin(mins)}</span>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-gray-700">
-                <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }

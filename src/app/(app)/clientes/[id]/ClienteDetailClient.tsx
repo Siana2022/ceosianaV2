@@ -115,7 +115,7 @@ interface Props {
   year: number
   timeLogsCliente: {
     id_empleado: string; id_servicio: string | null; id_departamento: string | null
-    minutos: number; fecha: string
+    minutos: number; fecha: string; descripcion: string
     empleado: { id: string; nombre: string } | null
     servicio: { id: string; nombre: string | null; notas: string | null } | null
     departamento: { id: string; nombre: string } | null
@@ -472,11 +472,11 @@ export default function ClienteDetailClient({
   }
 
   // ── Horas fichadas ───────────────────────────────────────────────────
-  const todayStr = () => new Date().toISOString().split('T')[0]
   const yearStart = `${year}-01-01`
   const yearEnd = `${year}-12-31`
   const [horasDesde, setHorasDesde] = useState(yearStart)
   const [horasHasta, setHorasHasta] = useState(yearEnd)
+  const [expandedPersona, setExpandedPersona] = useState<string | null>(null)
 
   // ── Other modals ─────────────────────────────────────────────────────
   const [showEditCliente, setShowEditCliente] = useState(false)
@@ -1238,19 +1238,53 @@ export default function ClienteDetailClient({
                 {/* Por persona */}
                 <div className="p-5">
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por persona</p>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {personRows.map(p => {
                       const pct = totalMin > 0 ? (p.minutos / totalMin) * 100 : 0
+                      const isExpanded = expandedPersona === p.nombre
+                      const personLogs = logs.filter(t => (t.empleado?.nombre ?? t.id_empleado) === p.nombre)
                       return (
                         <div key={p.nombre}>
-                          <div className="flex items-center justify-between text-xs mb-1">
+                          <button
+                            onClick={() => setExpandedPersona(isExpanded ? null : p.nombre)}
+                            className={`w-full flex items-center justify-between text-xs px-2 py-1.5 rounded-lg transition-colors ${isExpanded ? 'bg-gray-800/40' : 'hover:bg-gray-800/20'}`}
+                          >
                             <span className="text-gray-300 font-medium">{p.nombre}</span>
-                            <span className="text-blue-400 font-mono font-bold">{fmtMin(p.minutos)}</span>
+                            <span className="flex items-center gap-2">
+                              <span className="text-blue-400 font-mono font-bold">{fmtMin(p.minutos)}</span>
+                              <span className="text-gray-500">{isExpanded ? '▼' : '▶'}</span>
+                            </span>
+                          </button>
+                          <div className="px-2 mb-1">
+                            <div className="h-1.5 w-full rounded-full bg-gray-700">
+                              <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-gray-600 text-[10px] mt-0.5 text-right">{pct.toFixed(1)}%</p>
                           </div>
-                          <div className="h-1.5 w-full rounded-full bg-gray-700">
-                            <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                          <p className="text-gray-600 text-[10px] mt-0.5 text-right">{pct.toFixed(1)}%</p>
+                          {isExpanded && (
+                            <div className="mb-2 bg-gray-900/60 rounded-lg overflow-hidden">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="text-gray-500 border-b border-gray-800">
+                                    <th className="text-left px-3 py-1.5">Fecha</th>
+                                    <th className="text-left px-3 py-1.5">Descripción</th>
+                                    <th className="text-right px-3 py-1.5">Tiempo</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {personLogs.map((t, i) => (
+                                    <tr key={i} className="border-b border-gray-800/30 hover:bg-gray-800/20">
+                                      <td className="px-3 py-1.5 text-gray-400 whitespace-nowrap">
+                                        {new Date(t.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-gray-300 max-w-[160px] truncate" title={t.descripcion}>{t.descripcion}</td>
+                                      <td className="px-3 py-1.5 text-right font-mono text-blue-400 font-bold">{fmtMin(Number(t.minutos))}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -1310,7 +1344,26 @@ export default function ClienteDetailClient({
 
       {/* Rentabilidad por servicio */}
       {(() => {
+        function fmtMin(m: number) {
+          const h = Math.floor(m / 60); const min = m % 60
+          if (h > 0 && min > 0) return `${h}h ${min}m`
+          if (h > 0) return `${h}h`
+          return `${min}m`
+        }
         // Aggregate data based on selected month
+        // Build hours per service (and per responsable) from timeLogsCliente filtered by date range
+        const horasPorServicio = new Map<string, number>()
+        const horasPorServicioResponsable = new Map<string, Map<string, number>>()
+        const logsFiltered = timeLogsCliente.filter(t => t.fecha >= horasDesde && t.fecha <= horasHasta)
+        for (const t of logsFiltered) {
+          const svcId = t.id_servicio ?? '__sin__'
+          horasPorServicio.set(svcId, (horasPorServicio.get(svcId) ?? 0) + Number(t.minutos))
+          if (!horasPorServicioResponsable.has(svcId)) horasPorServicioResponsable.set(svcId, new Map())
+          const respNombre = t.empleado?.nombre ?? t.id_empleado
+          const rm = horasPorServicioResponsable.get(svcId)!
+          rm.set(respNombre, (rm.get(respNombre) ?? 0) + Number(t.minutos))
+        }
+
         const rentData = rentabilidadServicios.map(s => {
           const filteredMeses = rentMes === null ? s.meses : s.meses.filter(m => m.mes === rentMes)
           const facturado = filteredMeses.reduce((sum, m) => sum + m.facturado, 0)
@@ -1322,10 +1375,14 @@ export default function ClienteDetailClient({
               respMap.set(r.nombre, (respMap.get(r.nombre) ?? 0) + r.coste)
             }
           }
-          const responsables = [...respMap.entries()].map(([nombre, coste]) => ({ nombre, coste }))
+          const responsables = [...respMap.entries()].map(([nombre, coste]) => ({
+            nombre, coste,
+            minutos: horasPorServicioResponsable.get(s.id)?.get(nombre) ?? 0,
+          }))
           const coste_personal_srv = responsables.reduce((sum, r) => sum + r.coste, 0)
+          const totalMin = horasPorServicio.get(s.id) ?? 0
 
-          return { id: s.id, nombre: s.nombre, facturado, responsables, coste_personal: coste_personal_srv }
+          return { id: s.id, nombre: s.nombre, facturado, responsables, coste_personal: coste_personal_srv, totalMin }
         }).filter(s => s.facturado > 0 || s.coste_personal > 0)
 
         const totalFacturado = rentData.reduce((sum, s) => sum + s.facturado, 0)
@@ -1355,10 +1412,12 @@ export default function ClienteDetailClient({
                 <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800 bg-gray-800/30">
                   <th className="text-left px-6 py-3">Servicio</th>
                   <th className="text-left px-4 py-3">Responsables</th>
+                  <th className="text-right px-4 py-3">Horas</th>
                   <th className="text-right px-4 py-3">Facturado</th>
                   <th className="text-right px-4 py-3">Coste personal</th>
                   <th className="text-right px-4 py-3">Margen</th>
-                  <th className="text-right px-6 py-3">%</th>
+                  <th className="text-right px-4 py-3">%</th>
+                  <th className="text-right px-6 py-3">€/hora</th>
                 </tr>
               </thead>
               <tbody>
@@ -1367,6 +1426,7 @@ export default function ClienteDetailClient({
                   const pct = s.facturado > 0 ? (margen / s.facturado) * 100 : null
                   const margenColor = margen > 0 ? 'text-green-400' : margen < 0 ? 'text-red-400' : 'text-gray-400'
                   const multiResp = s.responsables.length > 1
+                  const eurHora = s.facturado > 0 && s.totalMin >= 60 ? s.facturado / (s.totalMin / 60) : null
 
                   return (
                     <Fragment key={s.id}>
@@ -1376,19 +1436,35 @@ export default function ClienteDetailClient({
                         <td className="px-4 py-3 text-gray-400 text-xs">
                           {s.responsables.map(r => r.nombre).join(', ') || '—'}
                         </td>
+                        <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold text-xs">
+                          {s.totalMin > 0 ? fmtMin(s.totalMin) : <span className="text-gray-600">—</span>}
+                        </td>
                         <td className="px-4 py-3 text-right text-white">{s.facturado > 0 ? fmt(s.facturado) : <span className="text-gray-600">0 €</span>}</td>
                         <td className="px-4 py-3 text-right text-gray-300">{s.coste_personal > 0 ? fmt(s.coste_personal) : <span className="text-gray-600">—</span>}</td>
                         <td className={`px-4 py-3 text-right font-medium ${margenColor}`}>{fmt(margen)}</td>
-                        <td className={`px-6 py-3 text-right text-sm ${margenColor}`}>{pct !== null ? `${pct.toFixed(1)}%` : '—'}</td>
+                        <td className={`px-4 py-3 text-right text-sm ${margenColor}`}>{pct !== null ? `${pct.toFixed(1)}%` : '—'}</td>
+                        <td className="px-6 py-3 text-right">
+                          {eurHora != null ? (
+                            <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full ${
+                              eurHora >= 50 ? 'bg-green-500/15 text-green-400' :
+                              eurHora >= 25 ? 'bg-yellow-500/15 text-yellow-400' :
+                              'bg-red-500/15 text-red-400'
+                            }`}>{eurHora.toFixed(0)}€/h</span>
+                          ) : <span className="text-gray-600 text-xs">—</span>}
+                        </td>
                       </tr>
                       {/* Sub-rows per responsable (only when multiple) */}
                       {multiResp && s.responsables.map(r => (
                         <tr key={r.nombre} className="border-b border-gray-800/20 hover:bg-gray-800/20">
                           <td className="px-6 py-2 text-gray-500 text-xs pl-10">↳</td>
                           <td className="px-4 py-2 text-gray-400 text-xs">{r.nombre}</td>
+                          <td className="px-4 py-2 text-right font-mono text-blue-400 text-xs">
+                            {r.minutos > 0 ? fmtMin(r.minutos) : <span className="text-gray-600">—</span>}
+                          </td>
                           <td className="px-4 py-2 text-right text-gray-600 text-xs">—</td>
                           <td className="px-4 py-2 text-right text-gray-400 text-xs">{fmt(r.coste)}</td>
                           <td className="px-4 py-2 text-right text-gray-500 text-xs">—</td>
+                          <td className="px-6 py-2 text-right text-gray-600 text-xs">—</td>
                           <td className="px-6 py-2 text-right text-gray-600 text-xs">—</td>
                         </tr>
                       ))}
@@ -1399,14 +1475,18 @@ export default function ClienteDetailClient({
               <tfoot>
                 <tr className="border-t border-gray-700 bg-gray-800/30">
                   <td colSpan={2} className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
+                  <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold text-xs">
+                    {(() => { const t = rentData.reduce((s,r)=>s+r.totalMin,0); return t > 0 ? fmtMin(t) : '—' })()}
+                  </td>
                   <td className="px-4 py-3 text-right text-white font-bold">{fmt(totalFacturado)}</td>
                   <td className="px-4 py-3 text-right text-gray-300 font-bold">{fmt(totalCoste)}</td>
                   <td className={`px-4 py-3 text-right font-bold ${totalMargen >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {fmt(totalMargen)}
                   </td>
-                  <td className="px-6 py-3 text-right text-sm text-gray-400">
+                  <td className="px-4 py-3 text-right text-sm text-gray-400">
                     {totalFacturado > 0 ? `${((totalMargen / totalFacturado) * 100).toFixed(1)}%` : '—'}
                   </td>
+                  <td className="px-6 py-3" />
                 </tr>
               </tfoot>
             </table>

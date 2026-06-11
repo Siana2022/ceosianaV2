@@ -8,6 +8,29 @@ export async function GET(request: NextRequest) {
   const anio = searchParams.get('anio')
   const id_servicio = searchParams.get('id_servicio')
 
+  const desde = searchParams.get('desde')
+  const hasta = searchParams.get('hasta')
+
+  // Range mode: ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+  if (desde && hasta) {
+    const [desdeAnio, desdeMes] = desde.split('-').map(Number)
+    const [hastaAnio, hastaMes] = hasta.split('-').map(Number)
+    const { data, error } = await supabase
+      .from('ingresos')
+      .select('*, cliente:id_cliente(id,nombre), departamento:id_departamento(id,nombre), responsable:id_responsable(id,nombre), servicio:id_servicio(id,nombre,notas)')
+      .gte('anio', desdeAnio)
+      .lte('anio', hastaAnio)
+    if (error) {
+      console.error('GET /api/ingresos range', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    const filtered = (data ?? []).filter(r => {
+      const n = r.anio * 12 + r.mes
+      return n >= desdeAnio * 12 + desdeMes && n <= hastaAnio * 12 + hastaMes
+    })
+    return NextResponse.json(filtered)
+  }
+
   // Allow fetching all ingresos for a specific service (used for historical backfill)
   if (id_servicio) {
     const { data, error } = await supabase

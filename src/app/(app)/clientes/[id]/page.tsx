@@ -260,6 +260,7 @@ export default async function ClienteDetailPage({
     id_departamento: string | null
     minutos: number
     fecha: string
+    descripcion: string
     empleado: { id: string; nombre: string } | null
     servicio: { id: string; nombre: string | null; notas: string | null } | null
     departamento: { id: string; nombre: string } | null

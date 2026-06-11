@@ -7,7 +7,9 @@ export async function GET(request: NextRequest) {
   const mes = searchParams.get('mes')
   const anio = searchParams.get('anio')
 
-  let query = supabase.from('empleado_dedicacion').select('*')
+  let query = supabase.from('empleado_dedicacion').select(
+    mes && anio ? '*, departamento:id_departamento(id,nombre)' : '*'
+  )
 
   if (mes && anio) {
     query = query.eq('mes', Number(mes)).eq('anio', Number(anio))
