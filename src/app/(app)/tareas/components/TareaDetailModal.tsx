@@ -19,12 +19,66 @@ function formatMinutos(m: number) {
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
 }
 
+type TimerStatus = 'idle' | 'loading' | 'running'
+
 export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onClose: () => void }) {
   const { state, actions } = useTareas()
-  const [explicacion, setExplicacion] = useState(tarea.explicacionBloqueo ?? '')
+
+  // ── Local draft state (se persiste al pulsar Guardar) ──────────────────
+  const [draft, setDraft] = useState({
+    nombre: tarea.nombre,
+    tipo: tarea.tipo,
+    estado: tarea.estado,
+    enlaceInfo: tarea.enlaceInfo,
+    idsResponsables: tarea.idsResponsables,
+    fechaLimite: tarea.fechaLimite,
+    hora: tarea.hora,
+    lugar: tarea.lugar,
+    recurrencia: tarea.recurrencia,
+    idDepartamento: tarea.idDepartamento,
+    idCliente: tarea.idCliente,
+    idServicio: tarea.idServicio,
+    descripcion: tarea.descripcion,
+    explicacionBloqueo: tarea.explicacionBloqueo ?? '',
+  })
+  const [savedMsg, setSavedMsg] = useState(false)
+
+  // ── Timer real (vinculado con /fichar vía time_logs) ──────────────────
+  const [timerStatus, setTimerStatus] = useState<TimerStatus>('idle')
+  const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null)
+  const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
+  const [timerError, setTimerError] = useState<string | null>(null)
+
+  // ── Adjuntos ──────────────────────────────────────────────────────────
   const [nuevoAdjuntoNombre, setNuevoAdjuntoNombre] = useState('')
   const [nuevoAdjuntoUrl, setNuevoAdjuntoUrl] = useState('')
 
+  const set = <K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) =>
+    setDraft(d => ({ ...d, [key]: value }))
+
+  // ── Guardar ──────────────────────────────────────────────────────────
+  const guardar = () => {
+    actions.actualizarTarea(tarea.id, {
+      nombre: draft.nombre.trim() || tarea.nombre,
+      tipo: draft.tipo,
+      estado: draft.estado,
+      enlaceInfo: draft.enlaceInfo,
+      idsResponsables: draft.idsResponsables,
+      fechaLimite: draft.fechaLimite,
+      hora: draft.hora,
+      lugar: draft.lugar,
+      recurrencia: draft.recurrencia,
+      idDepartamento: draft.idDepartamento,
+      idCliente: draft.idCliente,
+      idServicio: draft.idServicio,
+      descripcion: draft.descripcion,
+      explicacionBloqueo: draft.estado === 'bloqueada' ? draft.explicacionBloqueo : null,
+    })
+    setSavedMsg(true)
+    setTimeout(() => setSavedMsg(false), 2500)
+  }
+
+  // ── Adjuntos (inmediatos, no necesitan Guardar) ───────────────────────
   const addAdjunto = () => {
     if (!nuevoAdjuntoUrl.trim()) return
     actions.addAdjuntoTarea(tarea.id, { nombre: nuevoAdjuntoNombre.trim() || 'Documento', url: nuevoAdjuntoUrl.trim() })
@@ -45,34 +99,106 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     })
   }
 
-  const cambiarEstado = (estado: EstadoTarea) => {
-    if (estado === 'bloqueada') {
-      actions.actualizarTarea(tarea.id, { estado, explicacionBloqueo: explicacion })
-    } else {
-      actions.actualizarTarea(tarea.id, { estado, explicacionBloqueo: null })
+  // ── Timer ─────────────────────────────────────────────────────────────
+  const servicioActivo = state.servicios.find(s => s.id === draft.idServicio)
+
+  const iniciarTimer = async () => {
+    setTimerError(null)
+    setTimerStatus('loading')
+    const ahora = new Date()
+    const horaInicio = ahora.toTimeString().slice(0, 5)
+    const fecha = ahora.toISOString().slice(0, 10)
+    try {
+      const res = await fetch('/api/time-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_cliente: draft.idCliente,
+          id_servicio: draft.idServicio,
+          id_departamento: draft.idDepartamento,
+          descripcion: draft.nombre.trim() || tarea.nombre,
+          fecha,
+          hora_inicio: horaInicio,
+          minutos: 0,
+          timer_abierto: true,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Error al iniciar')
+      }
+      const data = await res.json()
+      setActiveTimerId(data.id)
+      setTimerStartedAt(ahora.toISOString())
+      setTimerStatus('running')
+      actions.actualizarTarea(tarea.id, { timerActivo: true })
+    } catch (e) {
+      setTimerError(e instanceof Error ? e.message : 'Error desconocido')
+      setTimerStatus('idle')
     }
   }
+
+  const pausarTimer = async () => {
+    if (!timerStartedAt) return
+    setTimerStatus('loading')
+    setTimerError(null)
+    const ahora = new Date()
+    const minutosElapsed = Math.max(1, Math.round((ahora.getTime() - new Date(timerStartedAt).getTime()) / 60000))
+    const horaFin = ahora.toTimeString().slice(0, 5)
+    if (activeTimerId) {
+      try {
+        await fetch(`/api/time-logs?id=${activeTimerId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hora_fin: horaFin, minutos: minutosElapsed }),
+        })
+      } catch {
+        // no blocking — timer se para de todas formas
+      }
+    }
+    actions.actualizarTarea(tarea.id, {
+      timerActivo: false,
+      minutosAcumulados: tarea.minutosAcumulados + minutosElapsed,
+    })
+    setTimerStartedAt(null)
+    setActiveTimerId(null)
+    setTimerStatus('idle')
+  }
+
+  // ── Servicios filtrados por cliente ──────────────────────────────────
+  const serviciosDelCliente = state.servicios.filter(s => s.idCliente === draft.idCliente)
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-white font-semibold">{TIPO_TAREA_ICONO[tarea.tipo]} {tarea.nombre}</h3>
-            <EstadoBadge estado={tarea.estado} />
+            <span className="text-lg">{TIPO_TAREA_ICONO[draft.tipo]}</span>
+            <input
+              value={draft.nombre}
+              onChange={e => set('nombre', e.target.value)}
+              className="bg-transparent text-white font-semibold text-base focus:outline-none focus:border-b focus:border-blue-500 w-64"
+              placeholder="Nombre de la tarea..."
+            />
+            <EstadoBadge estado={draft.estado} />
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white text-xl">✕</button>
         </div>
 
+        {/* Body */}
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
+
+          {/* Tipo */}
           <div>
             <label className="block text-gray-400 text-sm mb-1.5">Tipo</label>
             <div className="flex gap-1.5 flex-wrap">
               {TIPOS.map(t => (
                 <button
                   key={t}
-                  onClick={() => actions.actualizarTarea(tarea.id, { tipo: t })}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${tarea.tipo === t ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                  onClick={() => set('tipo', t)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${draft.tipo === t ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
                 >
                   {TIPO_TAREA_ICONO[t]} {TIPO_TAREA_LABEL[t]}
                 </button>
@@ -80,121 +206,121 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
             </div>
           </div>
 
+          {/* Estado */}
           <div>
             <label className="block text-gray-400 text-sm mb-1.5">Estado</label>
             <div className="flex gap-1.5 flex-wrap">
               {ESTADOS.map(e => (
                 <button
                   key={e}
-                  onClick={() => cambiarEstado(e)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${tarea.estado === e ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                  onClick={() => set('estado', e)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${draft.estado === e ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
                 >
                   {ESTADO_TAREA_LABEL[e]}
                 </button>
               ))}
             </div>
-            {tarea.estado === 'bloqueada' && (
+            {draft.estado === 'bloqueada' && (
               <div className="mt-3">
                 <label className="block text-gray-400 text-sm mb-1">Explicación del bloqueo *</label>
-                <div className="flex gap-2">
-                  <textarea
-                    value={explicacion}
-                    onChange={e => setExplicacion(e.target.value)}
-                    rows={2}
-                    className={`${inputCls} resize-none`}
-                    placeholder="¿Por qué está bloqueada esta tarea?"
-                  />
-                  <button
-                    onClick={() => actions.notificarBloqueoTarea(tarea.id, explicacion)}
-                    className="bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-4 text-sm font-medium flex-shrink-0"
-                  >
-                    Enviar
-                  </button>
-                </div>
-                <p className="text-amber-500 text-xs mt-1">Al pulsar &quot;Enviar&quot; se notificará al responsable del proyecto (simulado).</p>
+                <textarea
+                  value={draft.explicacionBloqueo}
+                  onChange={e => set('explicacionBloqueo', e.target.value)}
+                  rows={2}
+                  className={`${inputCls} resize-none`}
+                  placeholder="¿Por qué está bloqueada esta tarea?"
+                />
               </div>
             )}
           </div>
 
+          {/* Enlace info */}
           <div>
-            <label className="block text-gray-400 text-sm mb-1">Enlace con la información para realizarla</label>
+            <label className="block text-gray-400 text-sm mb-1">Enlace con la información</label>
             <input
-              value={tarea.enlaceInfo}
-              onChange={e => actions.actualizarTarea(tarea.id, { enlaceInfo: e.target.value })}
+              value={draft.enlaceInfo}
+              onChange={e => set('enlaceInfo', e.target.value)}
               placeholder="https://..."
               className={inputCls}
             />
           </div>
 
+          {/* Responsables */}
           <div>
             <label className="block text-gray-400 text-sm mb-1.5">
-              {tarea.tipo === 'tarea' ? 'Responsables' : 'Asistentes'}
+              {draft.tipo === 'tarea' ? 'Responsables' : 'Asistentes'}
             </label>
             <ResponsablesMultiSelect
               empleados={state.empleados}
-              seleccionados={tarea.idsResponsables}
-              onChange={ids => actions.actualizarTarea(tarea.id, { idsResponsables: ids })}
+              seleccionados={draft.idsResponsables}
+              onChange={ids => set('idsResponsables', ids)}
             />
           </div>
 
-          <div className={tarea.tipo === 'tarea' ? '' : 'grid grid-cols-2 gap-4'}>
+          {/* Fecha + Hora */}
+          <div className={draft.tipo === 'tarea' ? '' : 'grid grid-cols-2 gap-4'}>
             <div>
               <label className="block text-gray-400 text-sm mb-1">Fecha límite</label>
               <input
                 type="date"
-                value={tarea.fechaLimite}
-                onChange={e => actions.actualizarTarea(tarea.id, { fechaLimite: e.target.value })}
+                value={draft.fechaLimite}
+                onChange={e => set('fechaLimite', e.target.value)}
                 className={inputCls}
               />
             </div>
-            {tarea.tipo !== 'tarea' && (
+            {draft.tipo !== 'tarea' && (
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Hora</label>
                 <input
                   type="time"
-                  value={tarea.hora ?? ''}
-                  onChange={e => actions.actualizarTarea(tarea.id, { hora: e.target.value || null })}
+                  value={draft.hora ?? ''}
+                  onChange={e => set('hora', e.target.value || null)}
                   className={inputCls}
                 />
               </div>
             )}
           </div>
 
-          {tarea.tipo !== 'tarea' && (
+          {/* Lugar (solo reunión/visita) */}
+          {draft.tipo !== 'tarea' && (
             <div>
-              <label className="block text-gray-400 text-sm mb-1">Lugar {tarea.tipo === 'visita' ? '(dirección)' : '(sala / enlace de videollamada)'}</label>
+              <label className="block text-gray-400 text-sm mb-1">
+                {draft.tipo === 'visita' ? 'Lugar (dirección)' : 'Lugar (sala / enlace de videollamada)'}
+              </label>
               <input
-                value={tarea.lugar ?? ''}
-                onChange={e => actions.actualizarTarea(tarea.id, { lugar: e.target.value || null })}
-                placeholder={tarea.tipo === 'visita' ? 'Dirección de la visita...' : 'Sala, o enlace de Meet/Zoom...'}
+                value={draft.lugar ?? ''}
+                onChange={e => set('lugar', e.target.value || null)}
+                placeholder={draft.tipo === 'visita' ? 'Dirección de la visita...' : 'Sala, o enlace de Meet/Zoom...'}
                 className={inputCls}
               />
             </div>
           )}
 
+          {/* Recurrencia */}
           <div>
             <label className="block text-gray-400 text-sm mb-1">Recurrencia</label>
             <select
-              value={tarea.recurrencia}
-              onChange={e => actions.actualizarTarea(tarea.id, { recurrencia: e.target.value as Recurrencia })}
+              value={draft.recurrencia}
+              onChange={e => set('recurrencia', e.target.value as Recurrencia)}
               className={inputCls}
             >
               {RECURRENCIAS.map(r => <option key={r} value={r}>{RECURRENCIA_LABEL[r]}</option>)}
             </select>
-            {tarea.recurrencia !== 'ninguna' && (
+            {draft.recurrencia !== 'ninguna' && (
               <p className="text-gray-600 text-xs mt-1">
-                Al marcarla como terminada se creará automáticamente la siguiente, con fecha límite{' '}
-                {formatFecha(addDays(tarea.fechaLimite, RECURRENCIA_DIAS[tarea.recurrencia]))}.
+                Al marcarla como terminada se creará la siguiente con fecha límite{' '}
+                {formatFecha(addDays(draft.fechaLimite, RECURRENCIA_DIAS[draft.recurrencia]))}.
               </p>
             )}
           </div>
 
+          {/* Departamento + Cliente */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-400 text-sm mb-1">Departamento</label>
               <select
-                value={tarea.idDepartamento ?? ''}
-                onChange={e => actions.actualizarTarea(tarea.id, { idDepartamento: e.target.value || null })}
+                value={draft.idDepartamento ?? ''}
+                onChange={e => set('idDepartamento', e.target.value || null)}
                 className={inputCls}
               >
                 <option value="">Sin departamento</option>
@@ -204,8 +330,8 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
             <div>
               <label className="block text-gray-400 text-sm mb-1">Cliente</label>
               <select
-                value={tarea.idCliente ?? ''}
-                onChange={e => actions.actualizarTarea(tarea.id, { idCliente: e.target.value || null })}
+                value={draft.idCliente ?? ''}
+                onChange={e => setDraft(d => ({ ...d, idCliente: e.target.value || null, idServicio: null }))}
                 className={inputCls}
               >
                 <option value="">Tarea interna</option>
@@ -214,17 +340,36 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
             </div>
           </div>
 
+          {/* Servicio (si hay cliente seleccionado y tiene servicios) */}
+          {draft.idCliente && serviciosDelCliente.length > 0 && (
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">Servicio</label>
+              <select
+                value={draft.idServicio ?? ''}
+                onChange={e => set('idServicio', e.target.value || null)}
+                className={inputCls}
+              >
+                <option value="">Sin servicio específico</option>
+                {serviciosDelCliente.map(s => (
+                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Descripción */}
           <div>
             <label className="block text-gray-400 text-sm mb-1">Descripción</label>
             <textarea
-              value={tarea.descripcion}
-              onChange={e => actions.actualizarTarea(tarea.id, { descripcion: e.target.value })}
+              value={draft.descripcion}
+              onChange={e => set('descripcion', e.target.value)}
               rows={3}
               className={`${inputCls} resize-none`}
               placeholder="Explica aquí lo que haga falta..."
             />
           </div>
 
+          {/* Adjuntos Drive */}
           <div>
             <label className="block text-gray-400 text-sm mb-2">Adjuntos de Google Drive</label>
             <div className="space-y-1.5 mb-2">
@@ -253,6 +398,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
             </div>
           </div>
 
+          {/* Imágenes */}
           <div>
             <label className="block text-gray-400 text-sm mb-2">Imágenes adjuntas</label>
             {tarea.imagenes.length > 0 && (
@@ -275,26 +421,56 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
               📷 Subir imagen
               <input type="file" accept="image/*" multiple className="hidden" onChange={e => handleFiles(e.target.files)} />
             </label>
-            <p className="text-gray-600 text-xs mt-1">Solo se guarda en memoria para esta demo (no se sube a ningún servidor).</p>
           </div>
 
-          <div className="bg-gray-800/60 rounded-lg px-3 py-2 space-y-2">
+          {/* Timer / Fichaje */}
+          <div className="bg-gray-800/60 rounded-lg px-4 py-3 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-gray-400 text-sm">⏱️ Tiempo registrado (vía Fichar)</span>
-              <button
-                onClick={() => actions.toggleTimerTarea(tarea.id)}
-                className={`rounded px-2 py-1 text-xs ${tarea.timerActivo ? 'bg-red-500/20 text-red-400' : 'bg-gray-700 text-gray-300'}`}
-              >
-                {tarea.timerActivo ? '⏸ Parar' : '▶ Iniciar'}
-              </button>
+              <div>
+                <span className="text-gray-300 text-sm font-medium">⏱️ Fichaje</span>
+                {timerStatus === 'running' && timerStartedAt && (
+                  <p className="text-green-400 text-xs mt-0.5">
+                    Iniciado a las {new Date(timerStartedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                    {servicioActivo && ` · ${servicioActivo.nombre}`}
+                  </p>
+                )}
+                {timerStatus === 'idle' && tarea.minutosAcumulados > 0 && (
+                  <p className="text-gray-500 text-xs mt-0.5">Acumulado: {formatMinutos(tarea.minutosAcumulados)}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {timerStatus === 'idle' && (
+                  <button
+                    onClick={iniciarTimer}
+                    className="bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/40 rounded-lg px-3 py-1.5 text-xs font-medium"
+                  >
+                    ▶ Iniciar
+                  </button>
+                )}
+                {timerStatus === 'running' && (
+                  <button
+                    onClick={pausarTimer}
+                    className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs font-medium"
+                  >
+                    ⏸ Pausar y guardar
+                  </button>
+                )}
+                {timerStatus === 'loading' && (
+                  <span className="text-gray-500 text-xs px-3 py-1.5">...</span>
+                )}
+              </div>
             </div>
+            {timerError && (
+              <p className="text-red-400 text-xs">{timerError}</p>
+            )}
+            {/* Ajuste manual de minutos */}
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 min={0}
                 value={Math.floor(tarea.minutosAcumulados / 60)}
                 onChange={e => actions.setMinutosTarea(tarea.id, (parseInt(e.target.value, 10) || 0) * 60 + (tarea.minutosAcumulados % 60))}
-                className="w-16 bg-gray-800 border border-gray-700 rounded-lg text-white px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-500"
+                className="w-14 bg-gray-800 border border-gray-700 rounded-lg text-white px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-500"
               />
               <span className="text-gray-500 text-xs">h</span>
               <input
@@ -303,13 +479,14 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
                 max={59}
                 value={tarea.minutosAcumulados % 60}
                 onChange={e => actions.setMinutosTarea(tarea.id, Math.floor(tarea.minutosAcumulados / 60) * 60 + (parseInt(e.target.value, 10) || 0))}
-                className="w-16 bg-gray-800 border border-gray-700 rounded-lg text-white px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-500"
+                className="w-14 bg-gray-800 border border-gray-700 rounded-lg text-white px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-500"
               />
               <span className="text-gray-500 text-xs">min</span>
               <span className="text-gray-500 text-xs ml-auto">Total: {formatMinutos(tarea.minutosAcumulados)}</span>
             </div>
           </div>
 
+          {/* Chat */}
           <div className="border-t border-gray-800 pt-4">
             <label className="block text-gray-400 text-sm mb-2">Chat de la tarea</label>
             <ChatMock
@@ -321,8 +498,24 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-800 flex-shrink-0">
-          <button onClick={onClose} className="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm">Cerrar</button>
+        {/* Footer: Guardar + Cerrar */}
+        <div className="px-6 py-4 border-t border-gray-800 flex-shrink-0 flex gap-3">
+          <button
+            onClick={guardar}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              savedMsg
+                ? 'bg-green-600 text-white'
+                : 'bg-blue-600 hover:bg-blue-500 text-white'
+            }`}
+          >
+            {savedMsg ? '✓ Guardado' : 'Guardar cambios'}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

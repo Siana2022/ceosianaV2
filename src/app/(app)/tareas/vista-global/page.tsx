@@ -51,6 +51,7 @@ export default function VistaGlobalPage() {
       nombre: preset.tipo === 'reunion' ? 'Nueva reunión' : preset.tipo === 'visita' ? 'Nueva visita' : 'Nueva tarea',
       tipo: preset.tipo ?? 'tarea',
       idCliente: preset.idCliente ?? null,
+      idServicio: null,
       idDepartamento: preset.idDepartamento ?? null,
       idsResponsables: preset.idsResponsables ?? [],
       fechaLimite: new Date().toISOString().slice(0, 10),

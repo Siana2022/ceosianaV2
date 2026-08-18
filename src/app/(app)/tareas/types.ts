@@ -103,6 +103,7 @@ export interface Tarea {
   nombre: string
   tipo: TipoTarea
   idCliente: string | null
+  idServicio: string | null
   idDepartamento: string | null
   idsResponsables: string[]
   fechaLimite: string
