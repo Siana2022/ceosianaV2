@@ -1,4 +1,5 @@
 import { createClient } from './supabase'
+import { isAdminPerfil } from './perfil'
 
 export async function getSessionEmail(): Promise<string | null> {
   const supabase = await createClient()
@@ -7,13 +8,5 @@ export async function getSessionEmail(): Promise<string | null> {
 }
 
 export async function isAdmin(): Promise<boolean> {
-  const email = await getSessionEmail()
-  if (!email) return false
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('alertas_admins')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle()
-  return !!data
+  return isAdminPerfil()
 }

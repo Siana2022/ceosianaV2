@@ -100,17 +100,21 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     setNuevoAdjuntoUrl('')
   }
 
-  const handleFiles = (files: FileList | null) => {
+  const handleFiles = async (files: FileList | null) => {
     if (!files) return
-    Array.from(files).forEach(file => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          actions.addImagenTarea(tarea.id, { nombre: file.name, dataUrl: reader.result })
-        }
+    for (const file of Array.from(files)) {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('tareaId', tarea.id)
+      try {
+        const res = await fetch('/api/tareas/imagenes', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Error al subir imagen')
+        actions.addImagenTarea(tarea.id, { nombre: data.nombre, url: data.url })
+      } catch (err) {
+        console.error('[imagen] Error al subir:', err)
       }
-      reader.readAsDataURL(file)
-    })
+    }
   }
 
   // ── Timer ─────────────────────────────────────────────────────────────
@@ -118,6 +122,24 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
 
   const iniciarTimer = async () => {
     setTimerError(null)
+    // Guard: if another task's timer is already running, block
+    try {
+      const existing = localStorage.getItem('ceosiana_timer_v2')
+      if (existing) {
+        const { tareaId: activeTareaId, dbId, startTs } = JSON.parse(existing)
+        if (activeTareaId === tarea.id && dbId && startTs) {
+          // Already running for this task (started from card) — just restore state
+          setActiveTimerId(dbId)
+          setTimerStartedAt(new Date(startTs).toISOString())
+          setTimerStatus('running')
+          return
+        }
+        if (activeTareaId !== tarea.id) {
+          setTimerError('Ya hay un fichaje activo en otra tarea. Páralo primero.')
+          return
+        }
+      }
+    } catch {}
     setTimerStatus('loading')
     const ahora = new Date()
     const horaInicio = ahora.toTimeString().slice(0, 5)
@@ -430,7 +452,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
                 {tarea.imagenes.map(img => (
                   <div key={img.id} className="relative group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.dataUrl} alt={img.nombre} className="w-full h-16 object-cover rounded-lg border border-gray-700" />
+                    <img src={img.url} alt={img.nombre} className="w-full h-16 object-cover rounded-lg border border-gray-700" />
                     <button
                       onClick={() => actions.eliminarImagenTarea(tarea.id, img.id)}
                       className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"

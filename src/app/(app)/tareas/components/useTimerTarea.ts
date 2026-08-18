@@ -44,6 +44,17 @@ export function useTimerTarea() {
       })
     } else {
       // ── INICIAR ─────────────────────────────────────────────────────
+      // Si ya hay un timer activo en localStorage para OTRA tarea, bloquear
+      try {
+        const existing = localStorage.getItem(TIMER_KEY)
+        if (existing) {
+          const { tareaId: activeTareaId } = JSON.parse(existing)
+          if (activeTareaId !== tarea.id) {
+            setTimerError('Ya hay un fichaje activo en otra tarea. Páralo primero.')
+            return
+          }
+        }
+      } catch {}
       setLoading(true)
       const ahora = new Date()
       try {

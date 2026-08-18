@@ -20,6 +20,7 @@ const CAMINO: Record<string, string> = {
   minutosAcumulados: 'minutos_acumulados',
   chat: 'chat',
   adjuntos: 'adjuntos',
+  imagenes: 'imagenes',
 }
 
 // snake_case row → camelCase Tarea
@@ -44,7 +45,7 @@ function rowToTarea(row: Record<string, unknown>) {
     timerActivo: false,
     chat: row.chat ?? [],
     adjuntos: row.adjuntos ?? [],
-    imagenes: [],
+    imagenes: (row.imagenes as unknown[]) ?? [],
   }
 }
 

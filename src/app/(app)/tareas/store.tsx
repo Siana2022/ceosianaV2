@@ -146,6 +146,7 @@ interface TareasProviderProps {
   initialServicios?: Servicio[]
   initialTareas?: Tarea[]
   initialProcesos?: Proceso[]
+  initialPlantillas?: Plantilla[]
 }
 
 export function TareasProvider({
@@ -156,12 +157,13 @@ export function TareasProvider({
   initialServicios,
   initialTareas,
   initialProcesos,
+  initialPlantillas,
 }: TareasProviderProps) {
   const [clientes, setClientes] = useState<Cliente[]>(initialClientes ?? MOCK_CLIENTES)
   const [empleados] = useState<Empleado[]>(initialEmpleados ?? MOCK_EMPLEADOS)
   const [departamentos] = useState<Departamento[]>(initialDepartamentos ?? MOCK_DEPARTAMENTOS)
   const [servicios, setServicios] = useState<Servicio[]>(initialServicios ?? MOCK_SERVICIOS)
-  const [plantillas, setPlantillas] = useState<Plantilla[]>(MOCK_PLANTILLAS)
+  const [plantillas, setPlantillas] = useState<Plantilla[]>(initialPlantillas ?? [])
   const [procesos, setProcesos] = useState<Proceso[]>(initialProcesos ?? [])
   const [tareas, setTareas] = useState<Tarea[]>(initialTareas ?? [])
   const [enlacesCliente, setEnlacesCliente] = useState<Record<string, Adjunto[]>>(MOCK_ENLACES_CLIENTE)
@@ -213,56 +215,66 @@ export function TareasProvider({
 
   // ── Plantillas ──────────────────────────────────────────────────────────
   const crearPlantilla = useCallback((nombre: string, descripcion: string, tipoServicio: string | null) => {
-    setPlantillas(prev => [
-      ...prev,
-      { id: nextId('pla'), nombre, descripcion, tipoServicio, activo: true, fases: [] },
-    ])
+    const id = crypto.randomUUID()
+    setPlantillas(prev => [...prev, { id, nombre, descripcion, tipoServicio, activo: true, fases: [] }])
+    dbPost('/api/plantillas', { id, nombre, descripcion, tipoServicio, activo: true, fases: [] })
   }, [])
 
   const eliminarPlantilla = useCallback((idPlantilla: string) => {
     setPlantillas(prev => prev.filter(p => p.id !== idPlantilla))
+    fetch(`/api/plantillas?id=${idPlantilla}`, { method: 'DELETE' }).catch(e => console.error('[plantillas] DELETE error', e))
   }, [])
 
   const toggleActivaPlantilla = useCallback((idPlantilla: string) => {
-    setPlantillas(prev => prev.map(p => p.id === idPlantilla ? { ...p, activo: !p.activo } : p))
+    setPlantillas(prev => prev.map(p => {
+      if (p.id !== idPlantilla) return p
+      const updated = { ...p, activo: !p.activo }
+      dbPatch(`/api/plantillas?id=${idPlantilla}`, { activo: updated.activo })
+      return updated
+    }))
   }, [])
 
   const agregarFasePlantilla = useCallback((idPlantilla: string, fase: Omit<PlantillaFase, 'id' | 'orden'>) => {
-    setPlantillas(prev => prev.map(p => {
-      if (p.id !== idPlantilla) return p
-      const orden = p.fases.length + 1
-      return { ...p, fases: [...p.fases, { ...fase, id: nextId('pf'), orden }] }
-    }))
-  }, [])
+    const plantilla = plantillas.find(p => p.id === idPlantilla)
+    if (!plantilla) return
+    const nuevaFase: PlantillaFase = { ...fase, id: crypto.randomUUID(), orden: plantilla.fases.length + 1 }
+    const nuevasFases = [...plantilla.fases, nuevaFase]
+    setPlantillas(prev => prev.map(p => p.id !== idPlantilla ? p : { ...p, fases: nuevasFases }))
+    dbPatch(`/api/plantillas?id=${idPlantilla}`, { fases: nuevasFases })
+  }, [plantillas])
 
   const actualizarFasePlantilla = useCallback((idPlantilla: string, idFase: string, cambios: Partial<PlantillaFase>) => {
-    setPlantillas(prev => prev.map(p => {
-      if (p.id !== idPlantilla) return p
-      return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, ...cambios } : f) }
-    }))
-  }, [])
+    const plantilla = plantillas.find(p => p.id === idPlantilla)
+    if (!plantilla) return
+    const nuevasFases = plantilla.fases.map(f => f.id === idFase ? { ...f, ...cambios } : f)
+    setPlantillas(prev => prev.map(p => p.id !== idPlantilla ? p : { ...p, fases: nuevasFases }))
+    dbPatch(`/api/plantillas?id=${idPlantilla}`, { fases: nuevasFases })
+  }, [plantillas])
 
   const eliminarFasePlantilla = useCallback((idPlantilla: string, idFase: string) => {
-    setPlantillas(prev => prev.map(p => {
-      if (p.id !== idPlantilla) return p
-      const restantes = p.fases.filter(f => f.id !== idFase).sort((a, b) => a.orden - b.orden)
-      return { ...p, fases: restantes.map((f, idx) => ({ ...f, orden: idx + 1 })) }
-    }))
-  }, [])
+    const plantilla = plantillas.find(p => p.id === idPlantilla)
+    if (!plantilla) return
+    const nuevasFases = plantilla.fases
+      .filter(f => f.id !== idFase)
+      .sort((a, b) => a.orden - b.orden)
+      .map((f, idx) => ({ ...f, orden: idx + 1 }))
+    setPlantillas(prev => prev.map(p => p.id !== idPlantilla ? p : { ...p, fases: nuevasFases }))
+    dbPatch(`/api/plantillas?id=${idPlantilla}`, { fases: nuevasFases })
+  }, [plantillas])
 
   const moverFasePlantilla = useCallback((idPlantilla: string, idFase: string, direccion: -1 | 1) => {
-    setPlantillas(prev => prev.map(p => {
-      if (p.id !== idPlantilla) return p
-      const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
-      const idx = ordenadas.findIndex(f => f.id === idFase)
-      const destino = idx + direccion
-      if (idx === -1 || destino < 0 || destino >= ordenadas.length) return p
-      const tmp = ordenadas[idx].orden
-      ordenadas[idx].orden = ordenadas[destino].orden
-      ordenadas[destino].orden = tmp
-      return { ...p, fases: ordenadas }
-    }))
-  }, [])
+    const plantilla = plantillas.find(p => p.id === idPlantilla)
+    if (!plantilla) return
+    const ordenadas = [...plantilla.fases].sort((a, b) => a.orden - b.orden)
+    const idx = ordenadas.findIndex(f => f.id === idFase)
+    const destino = idx + direccion
+    if (idx === -1 || destino < 0 || destino >= ordenadas.length) return
+    const tmp = ordenadas[idx].orden
+    ordenadas[idx].orden = ordenadas[destino].orden
+    ordenadas[destino].orden = tmp
+    setPlantillas(prev => prev.map(p => p.id !== idPlantilla ? p : { ...p, fases: ordenadas }))
+    dbPatch(`/api/plantillas?id=${idPlantilla}`, { fases: ordenadas })
+  }, [plantillas])
 
   // ── Procesos (kanban) ───────────────────────────────────────────────────
   const importarPlantilla = useCallback((idCliente: string, idServicio: string | null, idPlantilla: string) => {
@@ -556,7 +568,9 @@ export function TareasProvider({
   }, [pushToast])
 
   const setMinutosTarea = useCallback((idTarea: string, minutos: number) => {
-    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, minutosAcumulados: Math.max(0, minutos) } : t))
+    const validMinutos = Math.max(0, minutos)
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, minutosAcumulados: validMinutos } : t))
+    dbPatch(`/api/tareas?id=${idTarea}`, { minutosAcumulados: validMinutos })
   }, [])
 
   const addChatMensajeTarea = useCallback((idTarea: string, texto: string, mencionesIds: string[]) => {
@@ -582,12 +596,19 @@ export function TareasProvider({
   }, [tareas])
 
   const addImagenTarea = useCallback((idTarea: string, imagen: Omit<ImagenAdjunta, 'id'>) => {
-    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, imagenes: [...t.imagenes, { ...imagen, id: nextId('img') }] } : t))
-  }, [])
+    const newImg: ImagenAdjunta = { ...imagen, id: crypto.randomUUID() }
+    const tarea = tareas.find(t => t.id === idTarea)
+    const nuevasImagenes = tarea ? [...tarea.imagenes, newImg] : [newImg]
+    setTareas(prev => prev.map(t => t.id !== idTarea ? t : { ...t, imagenes: nuevasImagenes }))
+    dbPatch(`/api/tareas?id=${idTarea}`, { imagenes: nuevasImagenes })
+  }, [tareas])
 
   const eliminarImagenTarea = useCallback((idTarea: string, idImagen: string) => {
-    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, imagenes: t.imagenes.filter(i => i.id !== idImagen) } : t))
-  }, [])
+    const tarea = tareas.find(t => t.id === idTarea)
+    const nuevasImagenes = tarea ? tarea.imagenes.filter(i => i.id !== idImagen) : []
+    setTareas(prev => prev.map(t => t.id !== idTarea ? t : { ...t, imagenes: nuevasImagenes }))
+    dbPatch(`/api/tareas?id=${idTarea}`, { imagenes: nuevasImagenes })
+  }, [tareas])
 
   // ── Información general del cliente ────────────────────────────────────
   const addEnlaceCliente = useCallback((idCliente: string, adjunto: Omit<Adjunto, 'id'>) => {

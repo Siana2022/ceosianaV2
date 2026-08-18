@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/server/supabase'
 import TareasShell from './TareasShell'
-import type { Cliente, Departamento, Empleado, Proceso, Servicio, Tarea } from './types'
+import type { Cliente, Departamento, Empleado, Plantilla, Proceso, Servicio, Tarea } from './types'
 
 const COLORES_DEPTO = ['blue', 'purple', 'pink', 'amber', 'green', 'red', 'teal', 'orange']
 
@@ -15,6 +15,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     { data: rawServicios },
     { data: rawTareas },
     { data: rawProcesos },
+    { data: rawPlantillas },
   ] = await Promise.all([
     supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('empleados').select('id, nombre, email').eq('activo', true).order('nombre'),
@@ -26,6 +27,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       .order('nombre'),
     supabase.from('tareas').select('*').order('created_at', { ascending: false }),
     supabase.from('procesos').select('*').order('created_at', { ascending: true }),
+    supabase.from('plantillas').select('*').order('created_at', { ascending: true }),
   ])
 
   const clientes: Cliente[] = (rawClientes ?? []).map(c => ({ id: String(c.id), nombre: c.nombre }))
@@ -78,6 +80,15 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     fases: (r.fases as Proceso['fases']) ?? [],
   }))
 
+  const plantillas: Plantilla[] = (rawPlantillas ?? []).map(r => ({
+    id: String(r.id),
+    nombre: (r.nombre as string) ?? '',
+    descripcion: (r.descripcion as string) ?? '',
+    tipoServicio: (r.tipo_servicio as string | null) ?? null,
+    activo: (r.activo as boolean) ?? true,
+    fases: (r.fases as Plantilla['fases']) ?? [],
+  }))
+
   return (
     <TareasShell
       initialClientes={clientes}
@@ -86,6 +97,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       initialServicios={servicios}
       initialTareas={tareas}
       initialProcesos={procesos}
+      initialPlantillas={plantillas}
     >
       {children}
     </TareasShell>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { TareasProvider, useTareas } from './store'
-import type { Cliente, Departamento, Empleado, Proceso, Servicio, Tarea } from './types'
+import type { Cliente, Departamento, Empleado, Plantilla, Proceso, Servicio, Tarea } from './types'
 
 const TABS = [
   { href: '/tareas/vista-global', label: '🌐 Vista global' },
@@ -64,6 +64,7 @@ interface TareasShellProps {
   initialServicios: Servicio[]
   initialTareas: Tarea[]
   initialProcesos: Proceso[]
+  initialPlantillas: Plantilla[]
 }
 
 export default function TareasShell({
@@ -74,6 +75,7 @@ export default function TareasShell({
   initialServicios,
   initialTareas,
   initialProcesos,
+  initialPlantillas,
 }: TareasShellProps) {
   return (
     <TareasProvider
@@ -83,6 +85,7 @@ export default function TareasShell({
       initialServicios={initialServicios}
       initialTareas={initialTareas}
       initialProcesos={initialProcesos}
+      initialPlantillas={initialPlantillas}
     >
       <ShellInner>{children}</ShellInner>
     </TareasProvider>

@@ -61,7 +61,7 @@ export interface Adjunto {
 export interface ImagenAdjunta {
   id: string
   nombre: string
-  dataUrl: string
+  url: string
 }
 
 export interface ChatMensaje {
