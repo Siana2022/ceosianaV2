@@ -131,7 +131,9 @@ export async function POST(req: NextRequest) {
       fecha,
       hora_inicio: hora_inicio || null,
       hora_fin: hora_fin || null,
-      minutos: parseInt(minutos) || 0,
+      // Timer abierto: minutos=null (el check constraint permite NULL en PostgreSQL)
+      // Timer cerrado: minutos validado > 0
+      minutos: timer_abierto ? null : (parseInt(minutos) || 1),
     })
     .select()
     .single()
