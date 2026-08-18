@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   MOCK_CLIENTES,
   MOCK_DEPARTAMENTOS,
@@ -146,13 +146,35 @@ export function TareasProvider({
   const [departamentos] = useState<Departamento[]>(initialDepartamentos ?? MOCK_DEPARTAMENTOS)
   const [servicios, setServicios] = useState<Servicio[]>(initialServicios ?? MOCK_SERVICIOS)
   const [plantillas, setPlantillas] = useState<Plantilla[]>(MOCK_PLANTILLAS)
-  const [procesos, setProcesos] = useState<Proceso[]>(MOCK_PROCESOS)
-  const [tareas, setTareas] = useState<Tarea[]>(MOCK_TAREAS)
+  const [procesos, setProcesos] = useState<Proceso[]>([])
+  const [tareas, setTareas] = useState<Tarea[]>([])
+  const [hydrated, setHydrated] = useState(false)
   const [enlacesCliente, setEnlacesCliente] = useState<Record<string, Adjunto[]>>(MOCK_ENLACES_CLIENTE)
   const [slackCliente, setSlackClienteState] = useState<Record<string, string>>(MOCK_SLACK_CLIENTE)
   const [conflictosResueltos, setConflictosResueltos] = useState<Set<string>>(new Set())
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const toastTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Carga desde localStorage al montar (solo cliente)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('ceosiana-procesos-v1')
+      if (raw) {
+        const data = JSON.parse(raw) as { tareas?: Tarea[]; procesos?: Proceso[] }
+        if (Array.isArray(data.tareas)) setTareas(data.tareas)
+        if (Array.isArray(data.procesos)) setProcesos(data.procesos)
+      }
+    } catch { /* localStorage no disponible o JSON inválido */ }
+    setHydrated(true)
+  }, [])
+
+  // Persiste tareas y procesos en localStorage después de cada cambio
+  useEffect(() => {
+    if (!hydrated) return
+    try {
+      localStorage.setItem('ceosiana-procesos-v1', JSON.stringify({ tareas, procesos }))
+    } catch { /* cuota excedida u otro error */ }
+  }, [tareas, procesos, hydrated])
 
   const pushToast = useCallback((mensaje: string) => {
     const id = nextId('toast')

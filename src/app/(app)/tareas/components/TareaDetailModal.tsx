@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTareas } from '../store'
 import { ESTADO_TAREA_LABEL, RECURRENCIA_DIAS, RECURRENCIA_LABEL, TIPO_TAREA_ICONO, TIPO_TAREA_LABEL } from '../mockData'
 import { addDays, formatFecha } from '../dateUtils'
@@ -48,6 +48,24 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
   const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null)
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [timerError, setTimerError] = useState<string | null>(null)
+
+  // Ref para acceder a estado del timer en el cleanup de useEffect
+  const timerRef = useRef({ status: 'idle' as TimerStatus, startedAt: null as string | null, id: null as string | null })
+
+  // Al desmontar el modal con timer activo, finaliza el fichaje automáticamente
+  useEffect(() => {
+    return () => {
+      const { status, startedAt, id } = timerRef.current
+      if (status === 'running' && startedAt && id) {
+        const minutosElapsed = Math.max(1, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000))
+        fetch(`/api/time-logs?id=${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hora_fin: new Date().toTimeString().slice(0, 5), minutos: minutosElapsed }),
+        }).catch(() => {})
+      }
+    }
+  }, [])
 
   // ── Adjuntos ──────────────────────────────────────────────────────────
   const [nuevoAdjuntoNombre, setNuevoAdjuntoNombre] = useState('')
@@ -131,6 +149,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
       setActiveTimerId(data.id)
       setTimerStartedAt(ahora.toISOString())
       setTimerStatus('running')
+      timerRef.current = { status: 'running', startedAt: ahora.toISOString(), id: data.id }
       actions.actualizarTarea(tarea.id, { timerActivo: true })
     } catch (e) {
       setTimerError(e instanceof Error ? e.message : 'Error desconocido')
@@ -163,6 +182,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     setTimerStartedAt(null)
     setActiveTimerId(null)
     setTimerStatus('idle')
+    timerRef.current = { status: 'idle', startedAt: null, id: null }
   }
 
   // ── Servicios filtrados por cliente ──────────────────────────────────
