@@ -5,6 +5,7 @@ import { RECURRENCIA_LABEL, TIPO_TAREA_ICONO } from '../mockData'
 import { formatFecha } from '../dateUtils'
 import type { Tarea } from '../types'
 import EstadoTareaSelect from './EstadoTareaSelect'
+import { useTimerTarea } from './useTimerTarea'
 
 function formatMinutos(m: number) {
   const h = Math.floor(m / 60)
@@ -14,6 +15,7 @@ function formatMinutos(m: number) {
 
 export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: () => void }) {
   const { actions } = useTareas()
+  const { toggleTimer } = useTimerTarea()
 
   return (
     <div className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl p-4 space-y-3 transition-colors">
@@ -41,7 +43,7 @@ export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: (
 
       <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-800 pt-2">
         <button
-          onClick={e => { e.stopPropagation(); actions.toggleTimerTarea(tarea.id) }}
+          onClick={e => toggleTimer(tarea, e)}
           className={`flex items-center gap-1 rounded px-2 py-1 ${tarea.timerActivo ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'}`}
         >
           {tarea.timerActivo ? '⏸' : '▶'} {formatMinutos(tarea.minutosAcumulados)}
