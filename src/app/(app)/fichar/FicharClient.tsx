@@ -72,7 +72,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   const [error, setError] = useState('')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Restore timer
+  // Restore timer — primero desde localStorage, y si no hay, desde la BD (por si se inició desde /tareas)
   useEffect(() => {
     const saved = localStorage.getItem(TIMER_KEY)
     if (saved) {
@@ -82,8 +82,30 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? '')
         setTimerDbId(dbId ?? null)
         setElapsed(Math.floor((Date.now() - startTs) / 1000))
+        return
       } catch { localStorage.removeItem(TIMER_KEY) }
     }
+    // Sin localStorage — busca un timer abierto en la BD (iniciado desde otra página)
+    fetch(`/api/time-logs?mine=1&fecha=${todayStr()}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((logs: TimeLog[]) => {
+        const activo = logs.find(l => !l.hora_fin)
+        if (!activo || !activo.hora_inicio) return
+        const [hh, mm] = activo.hora_inicio.split(':').map(Number)
+        const base = new Date(); base.setHours(hh, mm, 0, 0)
+        const startTs = base.getTime()
+        const clienteIdDB = activo.cliente?.id ?? ''
+        const deptIdDB = activo.departamento?.id ?? ''
+        setTimerStart(startTs); setTimerRunning(true)
+        setTimerDbId(activo.id)
+        setDescripcion(activo.descripcion ?? '')
+        setClienteId(clienteIdDB); setDepartamentoId(deptIdDB)
+        setElapsed(Math.floor((Date.now() - startTs) / 1000))
+        localStorage.setItem(TIMER_KEY, JSON.stringify({
+          startTs, d: activo.descripcion, c: clienteIdDB, dep: deptIdDB, dbId: activo.id,
+        }))
+      })
+      .catch(() => {})
   }, [])
 
   // Notification when returning to page with active timer
