@@ -40,6 +40,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     idServicio: tarea.idServicio,
     descripcion: tarea.descripcion,
     explicacionBloqueo: tarea.explicacionBloqueo ?? '',
+    minutosAcumulados: tarea.minutosAcumulados,
   })
   const [savedMsg, setSavedMsg] = useState(false)
 
@@ -88,6 +89,9 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
       descripcion: draft.descripcion,
       explicacionBloqueo: draft.estado === 'bloqueada' ? draft.explicacionBloqueo : null,
     })
+    if (draft.minutosAcumulados !== tarea.minutosAcumulados) {
+      actions.setMinutosTarea(tarea.id, draft.minutosAcumulados)
+    }
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2500)
   }
@@ -514,8 +518,11 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
               <input
                 type="number"
                 min={0}
-                value={Math.floor(tarea.minutosAcumulados / 60)}
-                onChange={e => actions.setMinutosTarea(tarea.id, (parseInt(e.target.value, 10) || 0) * 60 + (tarea.minutosAcumulados % 60))}
+                value={Math.floor(draft.minutosAcumulados / 60)}
+                onChange={e => {
+                  const newMinutos = (parseInt(e.target.value, 10) || 0) * 60 + (draft.minutosAcumulados % 60)
+                  setDraft(d => ({ ...d, minutosAcumulados: newMinutos }))
+                }}
                 className="w-14 bg-gray-800 border border-gray-700 rounded-lg text-white px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-500"
               />
               <span className="text-gray-500 text-xs">h</span>
@@ -523,12 +530,15 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
                 type="number"
                 min={0}
                 max={59}
-                value={tarea.minutosAcumulados % 60}
-                onChange={e => actions.setMinutosTarea(tarea.id, Math.floor(tarea.minutosAcumulados / 60) * 60 + (parseInt(e.target.value, 10) || 0))}
+                value={draft.minutosAcumulados % 60}
+                onChange={e => {
+                  const newMinutos = Math.floor(draft.minutosAcumulados / 60) * 60 + (parseInt(e.target.value, 10) || 0)
+                  setDraft(d => ({ ...d, minutosAcumulados: newMinutos }))
+                }}
                 className="w-14 bg-gray-800 border border-gray-700 rounded-lg text-white px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-500"
               />
               <span className="text-gray-500 text-xs">min</span>
-              <span className="text-gray-500 text-xs ml-auto">Total: {formatMinutos(tarea.minutosAcumulados)}</span>
+              <span className="text-gray-500 text-xs ml-auto">Total: {formatMinutos(draft.minutosAcumulados)}</span>
             </div>
           </div>
 

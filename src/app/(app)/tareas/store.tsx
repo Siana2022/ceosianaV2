@@ -605,9 +605,14 @@ export function TareasProvider({
 
   const eliminarImagenTarea = useCallback((idTarea: string, idImagen: string) => {
     const tarea = tareas.find(t => t.id === idTarea)
+    const imagen = tarea?.imagenes.find(i => i.id === idImagen)
     const nuevasImagenes = tarea ? tarea.imagenes.filter(i => i.id !== idImagen) : []
     setTareas(prev => prev.map(t => t.id !== idTarea ? t : { ...t, imagenes: nuevasImagenes }))
     dbPatch(`/api/tareas?id=${idTarea}`, { imagenes: nuevasImagenes })
+    if (imagen?.url) {
+      fetch(`/api/tareas/imagenes?url=${encodeURIComponent(imagen.url)}`, { method: 'DELETE' })
+        .catch(e => console.error('[imagen] DELETE storage error', e))
+    }
   }, [tareas])
 
   // ── Información general del cliente ────────────────────────────────────

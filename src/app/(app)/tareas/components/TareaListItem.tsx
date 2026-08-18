@@ -7,8 +7,7 @@ import { RECURRENCIA_LABEL, TIPO_TAREA_ICONO } from '../mockData'
 import type { Tarea } from '../types'
 import EstadoTareaSelect from './EstadoTareaSelect'
 import { useTimerTarea } from './useTimerTarea'
-
-const TIMER_KEY = 'ceosiana_timer_v2'
+import { TIMER_KEY } from '../constants'
 
 function formatTiempo(minutos: number, extraSec: number) {
   const total = minutos + Math.floor(extraSec / 60)

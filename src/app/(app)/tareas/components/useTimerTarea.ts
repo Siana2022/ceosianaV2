@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { useTareas } from '../store'
 import type { Tarea } from '../types'
-
-const TIMER_KEY = 'ceosiana_timer_v2'
+import { TIMER_KEY } from '../constants'
 
 export function useTimerTarea() {
   const { actions } = useTareas()

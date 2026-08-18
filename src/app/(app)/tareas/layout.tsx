@@ -9,13 +9,13 @@ export default async function TareasLayout({ children }: { children: ReactNode }
   const supabase = await createClient()
 
   const [
-    { data: rawClientes },
-    { data: rawEmpleados },
-    { data: rawDepartamentos },
-    { data: rawServicios },
-    { data: rawTareas },
-    { data: rawProcesos },
-    { data: rawPlantillas },
+    { data: rawClientes, error: errClientes },
+    { data: rawEmpleados, error: errEmpleados },
+    { data: rawDepartamentos, error: errDepartamentos },
+    { data: rawServicios, error: errServicios },
+    { data: rawTareas, error: errTareas },
+    { data: rawProcesos, error: errProcesos },
+    { data: rawPlantillas, error: errPlantillas },
   ] = await Promise.all([
     supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('empleados').select('id, nombre, email').eq('activo', true).order('nombre'),
@@ -29,6 +29,9 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     supabase.from('procesos').select('*').order('created_at', { ascending: true }),
     supabase.from('plantillas').select('*').order('created_at', { ascending: true }),
   ])
+
+  const errs = { clientes: errClientes, empleados: errEmpleados, departamentos: errDepartamentos, servicios: errServicios, tareas: errTareas, procesos: errProcesos, plantillas: errPlantillas }
+  Object.entries(errs).forEach(([k, e]) => { if (e) console.error(`[tareas/layout] Error loading ${k}:`, e.message) })
 
   const clientes: Cliente[] = (rawClientes ?? []).map(c => ({ id: String(c.id), nombre: c.nombre }))
   const empleados: Empleado[] = (rawEmpleados ?? []).map(e => ({
