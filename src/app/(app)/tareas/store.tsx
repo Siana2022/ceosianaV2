@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   MOCK_CLIENTES,
   MOCK_DEPARTAMENTOS,
@@ -168,6 +168,17 @@ export function TareasProvider({
   const [slackCliente, setSlackClienteState] = useState<Record<string, string>>(MOCK_SLACK_CLIENTE)
   const [conflictosResueltos, setConflictosResueltos] = useState<Set<string>>(new Set())
   const [toasts, setToasts] = useState<ToastItem[]>([])
+
+  // Restaurar timerActivo desde localStorage al montar (no se persiste en DB)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ceosiana_timer_v2')
+      if (!saved) return
+      const { tareaId } = JSON.parse(saved)
+      if (!tareaId) return
+      setTareas(prev => prev.map(t => t.id === tareaId ? { ...t, timerActivo: true } : t))
+    } catch {}
+  }, [])
   const toastTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const pushToast = useCallback((mensaje: string) => {

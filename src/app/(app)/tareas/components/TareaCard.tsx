@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useTareas } from '../store'
 import { RECURRENCIA_LABEL, TIPO_TAREA_ICONO } from '../mockData'
 import { formatFecha } from '../dateUtils'
@@ -7,15 +8,38 @@ import type { Tarea } from '../types'
 import EstadoTareaSelect from './EstadoTareaSelect'
 import { useTimerTarea } from './useTimerTarea'
 
-function formatMinutos(m: number) {
-  const h = Math.floor(m / 60)
-  const min = m % 60
-  return h > 0 ? `${h}h ${min}m` : `${min}m`
+const TIMER_KEY = 'ceosiana_timer_v2'
+
+function formatTiempo(minutos: number, extraSec: number) {
+  const total = minutos + Math.floor(extraSec / 60)
+  const sec = extraSec % 60
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  if (extraSec > 0) {
+    // Timer activo: muestra h m s
+    return h > 0 ? `${h}h ${m}m ${sec}s` : `${m}m ${sec}s`
+  }
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
 export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: () => void }) {
   const { actions } = useTareas()
   const { toggleTimer, loading, timerError } = useTimerTarea()
+  const [elapsedSec, setElapsedSec] = useState(0)
+
+  useEffect(() => {
+    if (!tarea.timerActivo) { setElapsedSec(0); return }
+    try {
+      const saved = localStorage.getItem(TIMER_KEY)
+      if (!saved) return
+      const { startTs, tareaId } = JSON.parse(saved)
+      if (tareaId !== tarea.id || !startTs) return
+      const update = () => setElapsedSec(Math.floor((Date.now() - startTs) / 1000))
+      update()
+      const id = setInterval(update, 1000)
+      return () => clearInterval(id)
+    } catch {}
+  }, [tarea.timerActivo, tarea.id])
 
   return (
     <div className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl p-4 space-y-3 transition-colors">
@@ -46,9 +70,9 @@ export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: (
           <button
             onClick={e => toggleTimer(tarea, e)}
             disabled={loading}
-            className={`flex items-center gap-1 rounded px-2 py-1 transition-opacity ${loading ? 'opacity-50 cursor-wait' : ''} ${tarea.timerActivo ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'}`}
+            className={`flex items-center gap-1 rounded px-2 py-1 transition-opacity ${loading ? 'opacity-50 cursor-wait' : ''} ${tarea.timerActivo ? 'bg-red-500/20 text-red-400 font-mono' : 'bg-gray-800 text-gray-300'}`}
           >
-            {loading ? '⏳' : tarea.timerActivo ? '⏸' : '▶'} {formatMinutos(tarea.minutosAcumulados)}
+            {loading ? '⏳' : tarea.timerActivo ? '⏸' : '▶'} {formatTiempo(tarea.minutosAcumulados, tarea.timerActivo ? elapsedSec : 0)}
           </button>
           {timerError && <span className="text-red-400 text-xs leading-tight">{timerError}</span>}
         </div>
