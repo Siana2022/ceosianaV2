@@ -1,16 +1,14 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   MOCK_CLIENTES,
   MOCK_DEPARTAMENTOS,
   MOCK_EMPLEADOS,
   MOCK_ENLACES_CLIENTE,
   MOCK_PLANTILLAS,
-  MOCK_PROCESOS,
   MOCK_SERVICIOS,
   MOCK_SLACK_CLIENTE,
-  MOCK_TAREAS,
   RECURRENCIA_DIAS,
   generarFasesDesdeplantilla,
   nombrePorId,
@@ -32,9 +30,6 @@ import type {
   Servicio,
   Tarea,
 } from './types'
-
-// Store en memoria para el prototipo visual: nada de esto llega a Supabase.
-// Un futuro desarrollo real sustituiría estas funciones por llamadas a /api/*.
 
 interface TareasState {
   clientes: Cliente[]
@@ -126,12 +121,31 @@ function nextId(prefix: string) {
   return `${prefix}-${idCounter}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+// Fire-and-forget helpers para persistir cambios en la BD sin bloquear la UI.
+function dbPost(url: string, body: object) {
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch(e => console.error('[procesos] POST error', url, e))
+}
+
+function dbPatch(url: string, body: object) {
+  fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch(e => console.error('[procesos] PATCH error', url, e))
+}
+
 interface TareasProviderProps {
   children: ReactNode
   initialClientes?: Cliente[]
   initialEmpleados?: Empleado[]
   initialDepartamentos?: Departamento[]
   initialServicios?: Servicio[]
+  initialTareas?: Tarea[]
+  initialProcesos?: Proceso[]
 }
 
 export function TareasProvider({
@@ -140,41 +154,21 @@ export function TareasProvider({
   initialEmpleados,
   initialDepartamentos,
   initialServicios,
+  initialTareas,
+  initialProcesos,
 }: TareasProviderProps) {
   const [clientes, setClientes] = useState<Cliente[]>(initialClientes ?? MOCK_CLIENTES)
   const [empleados] = useState<Empleado[]>(initialEmpleados ?? MOCK_EMPLEADOS)
   const [departamentos] = useState<Departamento[]>(initialDepartamentos ?? MOCK_DEPARTAMENTOS)
   const [servicios, setServicios] = useState<Servicio[]>(initialServicios ?? MOCK_SERVICIOS)
   const [plantillas, setPlantillas] = useState<Plantilla[]>(MOCK_PLANTILLAS)
-  const [procesos, setProcesos] = useState<Proceso[]>([])
-  const [tareas, setTareas] = useState<Tarea[]>([])
-  const [hydrated, setHydrated] = useState(false)
+  const [procesos, setProcesos] = useState<Proceso[]>(initialProcesos ?? [])
+  const [tareas, setTareas] = useState<Tarea[]>(initialTareas ?? [])
   const [enlacesCliente, setEnlacesCliente] = useState<Record<string, Adjunto[]>>(MOCK_ENLACES_CLIENTE)
   const [slackCliente, setSlackClienteState] = useState<Record<string, string>>(MOCK_SLACK_CLIENTE)
   const [conflictosResueltos, setConflictosResueltos] = useState<Set<string>>(new Set())
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const toastTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-
-  // Carga desde localStorage al montar (solo cliente)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('ceosiana-procesos-v1')
-      if (raw) {
-        const data = JSON.parse(raw) as { tareas?: Tarea[]; procesos?: Proceso[] }
-        if (Array.isArray(data.tareas)) setTareas(data.tareas)
-        if (Array.isArray(data.procesos)) setProcesos(data.procesos)
-      }
-    } catch { /* localStorage no disponible o JSON inválido */ }
-    setHydrated(true)
-  }, [])
-
-  // Persiste tareas y procesos en localStorage después de cada cambio
-  useEffect(() => {
-    if (!hydrated) return
-    try {
-      localStorage.setItem('ceosiana-procesos-v1', JSON.stringify({ tareas, procesos }))
-    } catch { /* cuota excedida u otro error */ }
-  }, [tareas, procesos, hydrated])
 
   const pushToast = useCallback((mensaje: string) => {
     const id = nextId('toast')
@@ -266,7 +260,7 @@ export function TareasProvider({
     const hoy = new Date().toISOString().slice(0, 10)
     const fases = generarFasesDesdeplantilla(plantilla, hoy)
     const nuevo: Proceso = {
-      id: nextId('proc'),
+      id: crypto.randomUUID(),
       idCliente,
       idServicio,
       idPlantilla: plantilla.id,
@@ -274,11 +268,10 @@ export function TareasProvider({
       fases,
     }
     setProcesos(prev => [...prev, nuevo])
+    dbPost('/api/procesos', nuevo)
     pushToast(`Proceso "${nuevo.nombre}" importado. Primera fase asignada a ${nombresEmpleados(fases[0]?.idsResponsables ?? [])}.`)
   }, [plantillas, pushToast, nombresEmpleados])
 
-  // Añade una fase suelta a un proceso ya importado, sin depender de la plantilla original
-  // (cada proyecto real puede necesitar pasos que la plantilla no previó).
   const agregarFaseProceso = useCallback((idProceso: string, fase: {
     nombre: string
     idDepartamento: string | null
@@ -286,6 +279,7 @@ export function TareasProvider({
     fechaInicioPrevista: string
     fechaFinPrevista: string
   }) => {
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
       const orden = p.fases.length > 0 ? Math.max(...p.fases.map(f => f.orden)) + 1 : 1
@@ -306,35 +300,43 @@ export function TareasProvider({
         descripcion: '',
         chat: [],
       }
-      return { ...p, fases: [...p.fases, nueva] }
+      const nuevasFases = [...p.fases, nueva]
+      fasesDB = nuevasFases
+      return { ...p, fases: nuevasFases }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
   }, [])
 
   // Si se retrasa/adelanta la fecha fin prevista de una fase, desplaza en cadena el inicio (y fin) de las
   // fases siguientes por el mismo número de días, para mantener sus duraciones y evitar solapes.
   const actualizarFaseProceso = useCallback((idProceso: string, idFase: string, cambios: Partial<ProcesoFase>) => {
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
+      let nuevasFases: ProcesoFase[]
       if (cambios.fechaFinPrevista === undefined) {
-        return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, ...cambios } : f) }
+        nuevasFases = p.fases.map(f => f.id === idFase ? { ...f, ...cambios } : f)
+      } else {
+        const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
+        const idx = ordenadas.findIndex(f => f.id === idFase)
+        if (idx === -1) return p
+        const delta = diffDias(ordenadas[idx].fechaFinPrevista, cambios.fechaFinPrevista)
+        nuevasFases = ordenadas.map((f, i) => {
+          if (i === idx) return { ...f, ...cambios }
+          if (i > idx && delta !== 0) {
+            return { ...f, fechaInicioPrevista: addDays(f.fechaInicioPrevista, delta), fechaFinPrevista: addDays(f.fechaFinPrevista, delta) }
+          }
+          return f
+        })
       }
-      const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
-      const idx = ordenadas.findIndex(f => f.id === idFase)
-      if (idx === -1) return p
-      const delta = diffDias(ordenadas[idx].fechaFinPrevista, cambios.fechaFinPrevista)
-      const nuevasFases = ordenadas.map((f, i) => {
-        if (i === idx) return { ...f, ...cambios }
-        if (i > idx && delta !== 0) {
-          return { ...f, fechaInicioPrevista: addDays(f.fechaInicioPrevista, delta), fechaFinPrevista: addDays(f.fechaFinPrevista, delta) }
-        }
-        return f
-      })
+      fasesDB = nuevasFases
       return { ...p, fases: nuevasFases }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
   }, [])
 
-  // Solo reordena (intercambia `orden`); no toca fechas ni estado — igual que moverFasePlantilla.
   const moverFaseProceso = useCallback((idProceso: string, idFase: string, direccion: -1 | 1) => {
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
       const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
@@ -344,8 +346,10 @@ export function TareasProvider({
       const tmp = ordenadas[idx].orden
       ordenadas[idx].orden = ordenadas[destino].orden
       ordenadas[destino].orden = tmp
+      fasesDB = ordenadas
       return { ...p, fases: ordenadas }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
   }, [])
 
   const setMinutosFase = useCallback((idProceso: string, idFase: string, minutos: number) => {
@@ -359,6 +363,7 @@ export function TareasProvider({
     let siguienteResponsables: string[] | null = null
     let siguienteNombre = ''
     let clienteNombre = ''
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
       const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
@@ -375,8 +380,10 @@ export function TareasProvider({
         return f
       })
       clienteNombre = p.nombre
+      fasesDB = nuevasFases
       return { ...p, fases: nuevasFases }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
     if (siguienteResponsables) {
       pushToast(`🔔 Notificación simulada (Slack + email) a ${nombresEmpleados(siguienteResponsables)}: puede empezar "${siguienteNombre}" en ${clienteNombre}.`)
     } else {
@@ -384,12 +391,11 @@ export function TareasProvider({
     }
   }, [pushToast, nombresEmpleados])
 
-  // Deshace el avance: reactiva la fase anterior (por si hay que revisar/rehacer algo) y vuelve a
-  // bloquear la actual. Notifica al responsable de la fase anterior para que retome el trabajo.
   const volverFaseAnterior = useCallback((idProceso: string, idFase: string) => {
     let anteriorResponsables: string[] | null = null
     let anteriorNombre = ''
     let clienteNombre = ''
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
       const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
@@ -405,28 +411,35 @@ export function TareasProvider({
         return f
       })
       clienteNombre = p.nombre
+      fasesDB = nuevasFases
       return { ...p, fases: nuevasFases }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
     if (anteriorNombre) {
       pushToast(`🔔 Notificación simulada (Slack + email) a ${nombresEmpleados(anteriorResponsables ?? [])}: hay que retomar "${anteriorNombre}" en ${clienteNombre}.`)
     }
   }, [pushToast, nombresEmpleados])
 
   const addAdjuntoFase = useCallback((idProceso: string, idFase: string, adjunto: Omit<Adjunto, 'id'>) => {
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
-      return {
-        ...p,
-        fases: p.fases.map(f => f.id === idFase ? { ...f, adjuntos: [...f.adjuntos, { ...adjunto, id: nextId('adj') }] } : f),
-      }
+      const nuevasFases = p.fases.map(f => f.id === idFase ? { ...f, adjuntos: [...f.adjuntos, { ...adjunto, id: nextId('adj') }] } : f)
+      fasesDB = nuevasFases
+      return { ...p, fases: nuevasFases }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
   }, [])
 
   const eliminarAdjuntoFase = useCallback((idProceso: string, idFase: string, idAdjunto: string) => {
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
-      return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, adjuntos: f.adjuntos.filter(a => a.id !== idAdjunto) } : f) }
+      const nuevasFases = p.fases.map(f => f.id === idFase ? { ...f, adjuntos: f.adjuntos.filter(a => a.id !== idAdjunto) } : f)
+      fasesDB = nuevasFases
+      return { ...p, fases: nuevasFases }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
   }, [])
 
   const toggleTimerFase = useCallback((idProceso: string, idFase: string) => {
@@ -447,10 +460,14 @@ export function TareasProvider({
 
   const addChatMensajeFase = useCallback((idProceso: string, idFase: string, texto: string, mencionesIds: string[]) => {
     const msg: ChatMensaje = { id: nextId('chat'), autorId: 'emp-1', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
+    let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
-      return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, chat: [...f.chat, msg] } : f) }
+      const nuevasFases = p.fases.map(f => f.id === idFase ? { ...f, chat: [...f.chat, msg] } : f)
+      fasesDB = nuevasFases
+      return { ...p, fases: nuevasFases }
     }))
+    if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
     if (mencionesIds.length > 0) {
       pushToast(`🔔 Notificación Slack simulada enviada a ${mencionesIds.map(id => nombreEmpleado(id)).join(', ')}.`)
     }
@@ -458,8 +475,11 @@ export function TareasProvider({
 
   // ── Tareas sueltas ──────────────────────────────────────────────────────
   const crearTarea = useCallback((tarea: Omit<Tarea, 'id' | 'chat' | 'minutosAcumulados' | 'timerActivo'>) => {
-    const id = nextId('tar')
-    setTareas(prev => [...prev, { ...tarea, id, chat: [], minutosAcumulados: 0, timerActivo: false }])
+    const id = crypto.randomUUID()
+    const nueva: Tarea = { ...tarea, id, chat: [], minutosAcumulados: 0, timerActivo: false }
+    setTareas(prev => [...prev, nueva])
+    const { imagenes: _img, ...toPost } = nueva as Tarea & { imagenes?: unknown }
+    dbPost('/api/tareas', toPost)
     return id
   }, [])
 
@@ -468,22 +488,35 @@ export function TareasProvider({
     const seCompletaAhora = cambios.estado === 'terminado' && original?.estado !== 'terminado'
     const debeRegenerar = Boolean(seCompletaAhora && original && original.recurrencia !== 'ninguna')
 
+    const nuevaTareaRecurrente: Tarea | null = debeRegenerar && original ? {
+      ...original,
+      id: crypto.randomUUID(),
+      fechaLimite: addDays(original.fechaLimite, RECURRENCIA_DIAS[original.recurrencia]),
+      estado: 'espera',
+      explicacionBloqueo: null,
+      chat: [],
+      imagenes: [],
+      minutosAcumulados: 0,
+      timerActivo: false,
+    } : null
+
     setTareas(prev => {
       const actualizadas = prev.map(t => t.id === idTarea ? { ...t, ...cambios } : t)
-      if (!debeRegenerar || !original) return actualizadas
-      const nueva: Tarea = {
-        ...original,
-        id: nextId('tar'),
-        fechaLimite: addDays(original.fechaLimite, RECURRENCIA_DIAS[original.recurrencia]),
-        estado: 'espera',
-        explicacionBloqueo: null,
-        chat: [],
-        imagenes: [],
-        minutosAcumulados: 0,
-        timerActivo: false,
-      }
-      return [...actualizadas, nueva]
+      if (!nuevaTareaRecurrente) return actualizadas
+      return [...actualizadas, nuevaTareaRecurrente]
     })
+
+    // Persist to DB: skip timer state (ephemeral) and imagenes (base64, too large)
+    const SKIP = new Set(['timerActivo', 'imagenes'])
+    const persistibles = Object.fromEntries(Object.entries(cambios).filter(([k]) => !SKIP.has(k)))
+    if (Object.keys(persistibles).length > 0) {
+      dbPatch(`/api/tareas?id=${idTarea}`, persistibles)
+    }
+    if (nuevaTareaRecurrente) {
+      const r = nuevaTareaRecurrente as unknown as Record<string, unknown>
+      const { timerActivo: _ta, imagenes: _img, ...toPost } = r
+      dbPost('/api/tareas', toPost)
+    }
 
     if (cambios.estado === 'bloqueada') {
       pushToast(`🔔 Notificación simulada al responsable del proyecto: "${original?.nombre ?? 'Tarea'}" se ha bloqueado.`)
@@ -494,10 +527,9 @@ export function TareasProvider({
     }
   }, [tareas, pushToast])
 
-  // Guarda la explicación y dispara la notificación explícitamente (a diferencia de escribir en el
-  // textarea, que solo actualiza en local hasta que se pulsa "Enviar").
   const notificarBloqueoTarea = useCallback((idTarea: string, explicacion: string) => {
     setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, explicacionBloqueo: explicacion } : t))
+    dbPatch(`/api/tareas?id=${idTarea}`, { explicacionBloqueo: explicacion })
     const t = tareas.find(x => x.id === idTarea)
     pushToast(`🔔 Notificación simulada (Slack + email) al responsable del proyecto: "${t?.nombre ?? 'Tarea'}" está bloqueada — ${explicacion.trim() || 'sin detalle todavía'}.`)
   }, [tareas, pushToast])
@@ -519,18 +551,24 @@ export function TareasProvider({
   const addChatMensajeTarea = useCallback((idTarea: string, texto: string, mencionesIds: string[]) => {
     const msg: ChatMensaje = { id: nextId('chat'), autorId: 'emp-1', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
     setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, chat: [...t.chat, msg] } : t))
+    dbPatch(`/api/tareas?id=${idTarea}`, { chat: [...(tareas.find(t => t.id === idTarea)?.chat ?? []), msg] })
     if (mencionesIds.length > 0) {
       pushToast(`🔔 Notificación Slack simulada enviada a ${mencionesIds.map(id => nombreEmpleado(id)).join(', ')}.`)
     }
-  }, [pushToast, nombreEmpleado])
+  }, [pushToast, nombreEmpleado, tareas])
 
   const addAdjuntoTarea = useCallback((idTarea: string, adjunto: Omit<Adjunto, 'id'>) => {
-    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, adjuntos: [...t.adjuntos, { ...adjunto, id: nextId('adj') }] } : t))
-  }, [])
+    const nuevo = { ...adjunto, id: nextId('adj') }
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, adjuntos: [...t.adjuntos, nuevo] } : t))
+    const tarea = tareas.find(t => t.id === idTarea)
+    if (tarea) dbPatch(`/api/tareas?id=${idTarea}`, { adjuntos: [...tarea.adjuntos, nuevo] })
+  }, [tareas])
 
   const eliminarAdjuntoTarea = useCallback((idTarea: string, idAdjunto: string) => {
     setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, adjuntos: t.adjuntos.filter(a => a.id !== idAdjunto) } : t))
-  }, [])
+    const tarea = tareas.find(t => t.id === idTarea)
+    if (tarea) dbPatch(`/api/tareas?id=${idTarea}`, { adjuntos: tarea.adjuntos.filter(a => a.id !== idAdjunto) })
+  }, [tareas])
 
   const addImagenTarea = useCallback((idTarea: string, imagen: Omit<ImagenAdjunta, 'id'>) => {
     setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, imagenes: [...t.imagenes, { ...imagen, id: nextId('img') }] } : t))

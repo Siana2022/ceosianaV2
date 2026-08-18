@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { TareasProvider, useTareas } from './store'
-import type { Cliente, Departamento, Empleado, Servicio } from './types'
+import type { Cliente, Departamento, Empleado, Proceso, Servicio, Tarea } from './types'
 
 const TABS = [
   { href: '/tareas/vista-global', label: '🌐 Vista global' },
@@ -30,12 +30,9 @@ function ShellInner({ children }: { children: ReactNode }) {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-bold text-white">Procesos</h1>
-          <span className="bg-yellow-500/20 text-yellow-400 text-[11px] font-semibold px-2 py-0.5 rounded-full">PROTOTIPO VISUAL</span>
-        </div>
+        <h1 className="text-2xl font-bold text-white mb-1">Procesos</h1>
         <p className="text-gray-500 text-sm">
-          Clientes, equipo y departamentos reales — los procesos y tareas son en memoria y no se guardan en la base de datos.
+          Gestión de tareas, reuniones y procesos por cliente. Los datos se guardan en la base de datos.
         </p>
       </div>
 
@@ -65,6 +62,8 @@ interface TareasShellProps {
   initialEmpleados: Empleado[]
   initialDepartamentos: Departamento[]
   initialServicios: Servicio[]
+  initialTareas: Tarea[]
+  initialProcesos: Proceso[]
 }
 
 export default function TareasShell({
@@ -73,6 +72,8 @@ export default function TareasShell({
   initialEmpleados,
   initialDepartamentos,
   initialServicios,
+  initialTareas,
+  initialProcesos,
 }: TareasShellProps) {
   return (
     <TareasProvider
@@ -80,6 +81,8 @@ export default function TareasShell({
       initialEmpleados={initialEmpleados}
       initialDepartamentos={initialDepartamentos}
       initialServicios={initialServicios}
+      initialTareas={initialTareas}
+      initialProcesos={initialProcesos}
     >
       <ShellInner>{children}</ShellInner>
     </TareasProvider>
