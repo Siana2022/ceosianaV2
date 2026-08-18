@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import ClientesClient from './ClientesClient'
 
 export default async function ClientesPage({
@@ -19,7 +20,7 @@ export default async function ClientesPage({
     { data: captacion },
     { data: responsables },
     { data: sueldos },
-    { data: dedicaciones },
+    dedicaciones,
   ] = await Promise.all([
     supabase.from('clientes').select('*').order('nombre'),
     supabase.from('servicios').select('id, id_cliente, id_departamento, tipo, precio_base, activo'),
@@ -34,10 +35,7 @@ export default async function ClientesPage({
       .from('sueldos')
       .select('id_empleado, coste_total, mes')
       .eq('anio', year),
-    supabase
-      .from('empleado_dedicacion')
-      .select('id_empleado, id_departamento, mes, porcentaje')
-      .eq('anio', year),
+    getDedicacionCalculada(supabase, { anio: year }),
   ])
 
   // Month-filtered queries

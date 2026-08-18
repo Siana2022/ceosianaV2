@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import DedicacionClient from './DedicacionClient'
 
 export default async function DedicacionPage({
@@ -14,13 +15,11 @@ export default async function DedicacionPage({
   const [
     { data: empleados },
     { data: departamentos },
-    { data: dedicacion },
+    dedicacion,
   ] = await Promise.all([
     supabase.from('empleados').select('id, nombre').order('nombre'),
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
-    supabase.from('empleado_dedicacion')
-      .select('id_empleado, id_departamento, porcentaje, mes, anio')
-      .eq('anio', anio),
+    getDedicacionCalculada(supabase, { anio }),
   ])
 
   return (

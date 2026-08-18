@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { isAdmin } from '@/lib/server/isAdmin'
 
 export interface Alerta {
@@ -34,7 +35,7 @@ export async function GET() {
       { data: gastosFijos },
       { data: responsables },
       { data: sueldos },
-      { data: dedicaciones },
+      dedicaciones,
     ] = await Promise.all([
       supabase.from('clientes').select('id, nombre').eq('activo', true),
       supabase.from('servicios').select('id, id_cliente, id_departamento'),
@@ -42,7 +43,7 @@ export async function GET() {
       supabase.from('gastos_fijos').select('valor, id_cliente').eq('anio', year).not('id_cliente', 'is', null),
       supabase.from('servicio_responsables').select('id_servicio, id_empleado, mes').eq('anio', year),
       supabase.from('sueldos').select('id_empleado, coste_total, mes').eq('anio', year),
-      supabase.from('empleado_dedicacion').select('id_empleado, id_departamento, mes, porcentaje').eq('anio', year),
+      getDedicacionCalculada(supabase, { anio: year }),
     ])
 
     const servicioInfoMap = new Map<string, { id_cliente: string; id_departamento: string | null }>()
@@ -144,20 +145,22 @@ export async function GET() {
     }
   }
 
-  // ── 4. EMPLEADOS SIN DEDICACIÓN ESTE MES ────────────────────────────────
+  // ── 4. EMPLEADOS SIN FICHAR ESTE MES ────────────────────────────────────
+  // La dedicación ya no es un dato manual: se calcula a partir de lo fichado (time_logs), así que
+  // "sin dedicación" ahora significa literalmente "sin ningún fichaje este mes".
   if (activasSet.has('sin_dedicacion')) {
-    const [{ data: empleados }, { data: dedMes }] = await Promise.all([
+    const [{ data: empleados }, dedMes] = await Promise.all([
       supabase.from('empleados').select('id, nombre').eq('activo', true),
-      supabase.from('empleado_dedicacion').select('id_empleado').eq('anio', year).eq('mes', mes),
+      getDedicacionCalculada(supabase, { anio: year, mes }),
     ])
-    const conDed = new Set((dedMes ?? []).map(d => d.id_empleado))
-    const sinDed = (empleados ?? []).filter(e => !conDed.has(e.id))
-    if (sinDed.length > 0) {
+    const conFichaje = new Set(dedMes.map(d => d.id_empleado))
+    const sinFichar = (empleados ?? []).filter(e => !conFichaje.has(e.id))
+    if (sinFichar.length > 0) {
       alertas.push({
         tipo: 'sin_dedicacion',
-        label: 'Empleados sin dedicación este mes',
+        label: 'Empleados sin fichar este mes',
         severidad: 'baja',
-        items: sinDed.map(e => ({ nombre: e.nombre })),
+        items: sinFichar.map(e => ({ nombre: e.nombre })),
       })
     }
   }

@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 const menuAdmin = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/clientes', label: 'Clientes', icon: '🏢' },
+  { href: '/tareas', label: 'Procesos (demo)', icon: '🗂️' },
   { href: '/ingresos', label: 'Ingresos', icon: '💶' },
   { href: '/equipo', label: 'Equipo', icon: '👥' },
   { href: '/comercial', label: 'Comercial', icon: '🎯' },

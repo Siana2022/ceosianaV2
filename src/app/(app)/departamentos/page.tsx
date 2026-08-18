@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import DepartamentosClient from './DepartamentosClient'
 
 export interface DeptRentabilidad {
@@ -20,7 +21,7 @@ export default async function DepartamentosPage() {
   const [
     { data: departamentosRaw },
     { data: miembros },
-    { data: dedicacion },
+    dedicacion,
     { data: ingresos },
     { data: sueldos },
     { data: gastosFijos },
@@ -30,10 +31,7 @@ export default async function DepartamentosPage() {
     supabase
       .from('departamento_empleados')
       .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
-    supabase
-      .from('empleado_dedicacion')
-      .select('id_empleado, id_departamento, porcentaje, mes, anio')
-      .eq('anio', anio),
+    getDedicacionCalculada(supabase, { anio }),
     supabase
       .from('ingresos')
       .select('valor, mes, id_departamento')

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import HistoricoClient from './HistoricoClient'
 
 export default async function HistoricoPage({
@@ -39,7 +40,7 @@ export default async function HistoricoPage({
         { data: todosServicios },
         { data: allResponsables },
         { data: sueldos },
-        { data: dedicaciones },
+        dedicaciones,
       ] = await Promise.all([
         supabase.from('ingresos').select('valor, anio').eq('id_cliente', clienteId),
         supabase.from('gastos_fijos').select('valor, anio').eq('id_cliente', clienteId),
@@ -47,7 +48,7 @@ export default async function HistoricoPage({
         supabase.from('servicios').select('id, id_departamento'),
         supabase.from('servicio_responsables').select('id_servicio, id_empleado, mes, anio'),
         supabase.from('sueldos').select('id_empleado, coste_total, mes, anio'),
-        supabase.from('empleado_dedicacion').select('id_empleado, id_departamento, mes, anio, porcentaje'),
+        getDedicacionCalculada(supabase, {}),
       ])
 
       const servicioIds = (servicios ?? []).map(s => s.id)

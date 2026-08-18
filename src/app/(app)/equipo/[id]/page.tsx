@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import SueldosClient from './SueldosClient'
@@ -36,7 +37,7 @@ export default async function EmpleadoPage({
   const supabase = await createClient()
 
   // Round 1: employee + all sueldos + responsables + dedicacion + departamentos (in parallel)
-  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, { data: dedicacionRaw }, { data: departamentosRaw }, { data: allRespYear }, { data: allServiciosYear }, { data: timeLogsRaw }] = await Promise.all([
+  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, dedicacionRaw, { data: departamentosRaw }, { data: allRespYear }, { data: allServiciosYear }, { data: timeLogsRaw }] = await Promise.all([
     supabase
       .from('empleados')
       .select('id, nombre, email, activo, fecha_alta, fecha_baja')
@@ -53,11 +54,7 @@ export default async function EmpleadoPage({
       .select('id_servicio, porcentaje, mes')
       .eq('id_empleado', id)
       .eq('anio', year),
-    supabase
-      .from('empleado_dedicacion')
-      .select('id_departamento, porcentaje, mes')
-      .eq('id_empleado', id)
-      .eq('anio', year),
+    getDedicacionCalculada(supabase, { anio: year, idEmpleado: id }),
     supabase
       .from('departamentos')
       .select('id, nombre')

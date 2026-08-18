@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 
@@ -83,7 +84,7 @@ export default async function DepartamentoDetailPage({
 
   const [
     { data: dept },
-    { data: dedicaciones },
+    dedicaciones,
     { data: sueldosRaw },
     { data: ingresosRaw },
     { data: serviciosRaw },
@@ -92,11 +93,7 @@ export default async function DepartamentoDetailPage({
     { data: timeLogsRaw },
   ] = await Promise.all([
     supabase.from('departamentos').select('id, nombre, activo').eq('id', id).single(),
-    supabase
-      .from('empleado_dedicacion')
-      .select('id_empleado, porcentaje, mes, anio')
-      .eq('id_departamento', id)
-      .eq('anio', anio),
+    getDedicacionCalculada(supabase, { anio, idDepartamento: id }),
     supabase
       .from('sueldos')
       .select('id_empleado, coste_total, mes')

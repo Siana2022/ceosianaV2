@@ -1,0 +1,601 @@
+'use client'
+
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  MOCK_CLIENTES,
+  MOCK_DEPARTAMENTOS,
+  MOCK_EMPLEADOS,
+  MOCK_ENLACES_CLIENTE,
+  MOCK_PLANTILLAS,
+  MOCK_PROCESOS,
+  MOCK_SERVICIOS,
+  MOCK_SLACK_CLIENTE,
+  MOCK_TAREAS,
+  RECURRENCIA_DIAS,
+  generarFasesDesdeplantilla,
+  nombrePorId,
+} from './mockData'
+import { addDays, diffDias, formatFecha } from './dateUtils'
+import type {
+  Adjunto,
+  ChatMensaje,
+  Cliente,
+  EstadoFase,
+  EstadoTarea,
+  ImagenAdjunta,
+  Plantilla,
+  PlantillaFase,
+  Proceso,
+  ProcesoFase,
+  Servicio,
+  Tarea,
+} from './types'
+
+// Store en memoria para el prototipo visual: nada de esto llega a Supabase.
+// Un futuro desarrollo real sustituiría estas funciones por llamadas a /api/*.
+
+interface TareasState {
+  clientes: typeof MOCK_CLIENTES
+  empleados: typeof MOCK_EMPLEADOS
+  departamentos: typeof MOCK_DEPARTAMENTOS
+  servicios: typeof MOCK_SERVICIOS
+  plantillas: Plantilla[]
+  procesos: Proceso[]
+  tareas: Tarea[]
+  enlacesCliente: Record<string, Adjunto[]>
+  slackCliente: Record<string, string>
+  conflictosResueltos: Set<string>
+}
+
+interface TareasActions {
+  // Clientes
+  crearCliente: (nombre: string, tiposServicio: string[]) => string
+
+  // Plantillas
+  crearPlantilla: (nombre: string, descripcion: string, tipoServicio: string | null) => void
+  eliminarPlantilla: (idPlantilla: string) => void
+  toggleActivaPlantilla: (idPlantilla: string) => void
+  agregarFasePlantilla: (idPlantilla: string, fase: Omit<PlantillaFase, 'id' | 'orden'>) => void
+  actualizarFasePlantilla: (idPlantilla: string, idFase: string, cambios: Partial<PlantillaFase>) => void
+  eliminarFasePlantilla: (idPlantilla: string, idFase: string) => void
+  moverFasePlantilla: (idPlantilla: string, idFase: string, direccion: -1 | 1) => void
+
+  // Procesos (kanban por cliente)
+  importarPlantilla: (idCliente: string, idServicio: string | null, idPlantilla: string) => void
+  agregarFaseProceso: (idProceso: string, fase: {
+    nombre: string
+    idDepartamento: string | null
+    idsResponsables: string[]
+    fechaInicioPrevista: string
+    fechaFinPrevista: string
+  }) => void
+  actualizarFaseProceso: (idProceso: string, idFase: string, cambios: Partial<ProcesoFase>) => void
+  moverFaseProceso: (idProceso: string, idFase: string, direccion: -1 | 1) => void
+  marcarFaseTerminada: (idProceso: string, idFase: string) => void
+  volverFaseAnterior: (idProceso: string, idFase: string) => void
+  addAdjuntoFase: (idProceso: string, idFase: string, adjunto: Omit<Adjunto, 'id'>) => void
+  eliminarAdjuntoFase: (idProceso: string, idFase: string, idAdjunto: string) => void
+  toggleTimerFase: (idProceso: string, idFase: string) => void
+  setMinutosFase: (idProceso: string, idFase: string, minutos: number) => void
+  addChatMensajeFase: (idProceso: string, idFase: string, texto: string, mencionesIds: string[]) => void
+
+  // Tareas sueltas
+  crearTarea: (tarea: Omit<Tarea, 'id' | 'chat' | 'minutosAcumulados' | 'timerActivo'>) => string
+  actualizarTarea: (idTarea: string, cambios: Partial<Tarea>) => void
+  notificarBloqueoTarea: (idTarea: string, explicacion: string) => void
+  toggleTimerTarea: (idTarea: string) => void
+  setMinutosTarea: (idTarea: string, minutos: number) => void
+  addChatMensajeTarea: (idTarea: string, texto: string, mencionesIds: string[]) => void
+  addAdjuntoTarea: (idTarea: string, adjunto: Omit<Adjunto, 'id'>) => void
+  eliminarAdjuntoTarea: (idTarea: string, idAdjunto: string) => void
+  addImagenTarea: (idTarea: string, imagen: Omit<ImagenAdjunta, 'id'>) => void
+  eliminarImagenTarea: (idTarea: string, idImagen: string) => void
+
+  // Información general del cliente (enlaces manuales tipo Drive/Looker Studio)
+  addEnlaceCliente: (idCliente: string, adjunto: Omit<Adjunto, 'id'>) => void
+  eliminarEnlaceCliente: (idCliente: string, idAdjunto: string) => void
+  setSlackCliente: (idCliente: string, url: string) => void
+
+  // Conflictos de carga de trabajo en el Gantt por empleado
+  toggleConflictoResuelto: (clave: string) => void
+
+  nombreEmpleado: (id: string | null) => string
+  nombreDepartamento: (id: string | null) => string
+  nombreCliente: (id: string | null) => string
+  nombresEmpleados: (ids: string[]) => string
+}
+
+interface ToastItem {
+  id: string
+  mensaje: string
+}
+
+interface TareasContextValue {
+  state: TareasState
+  actions: TareasActions
+  toasts: ToastItem[]
+}
+
+const TareasContext = createContext<TareasContextValue | null>(null)
+
+let idCounter = 0
+function nextId(prefix: string) {
+  idCounter += 1
+  return `${prefix}-${idCounter}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+export function TareasProvider({ children }: { children: ReactNode }) {
+  const [clientes, setClientes] = useState<Cliente[]>(MOCK_CLIENTES)
+  const [servicios, setServicios] = useState<Servicio[]>(MOCK_SERVICIOS)
+  const [plantillas, setPlantillas] = useState<Plantilla[]>(MOCK_PLANTILLAS)
+  const [procesos, setProcesos] = useState<Proceso[]>(MOCK_PROCESOS)
+  const [tareas, setTareas] = useState<Tarea[]>(MOCK_TAREAS)
+  const [enlacesCliente, setEnlacesCliente] = useState<Record<string, Adjunto[]>>(MOCK_ENLACES_CLIENTE)
+  const [slackCliente, setSlackClienteState] = useState<Record<string, string>>(MOCK_SLACK_CLIENTE)
+  const [conflictosResueltos, setConflictosResueltos] = useState<Set<string>>(new Set())
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  const toastTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  const pushToast = useCallback((mensaje: string) => {
+    const id = nextId('toast')
+    setToasts(prev => [...prev, { id, mensaje }])
+    toastTimers.current[id] = setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+      delete toastTimers.current[id]
+    }, 4000)
+  }, [])
+
+  const nombreEmpleado = useCallback((id: string | null) => nombrePorId(MOCK_EMPLEADOS, id), [])
+  const nombreDepartamento = useCallback((id: string | null) => nombrePorId(MOCK_DEPARTAMENTOS, id), [])
+  const nombreCliente = useCallback((id: string | null) => nombrePorId(clientes, id), [clientes])
+  const nombresEmpleados = useCallback((ids: string[]) => (
+    ids.length === 0 ? 'Sin asignar' : ids.map(id => nombrePorId(MOCK_EMPLEADOS, id)).join(', ')
+  ), [])
+
+  // ── Clientes ─────────────────────────────────────────────────────────────
+  const crearCliente = useCallback((nombre: string, tiposServicio: string[]) => {
+    const idCliente = nextId('cli')
+    setClientes(prev => [...prev, { id: idCliente, nombre }])
+    if (tiposServicio.length > 0) {
+      setServicios(prev => [
+        ...prev,
+        ...tiposServicio.map(t => ({ id: nextId('srv'), idCliente, nombre: t, tipoServicio: t })),
+      ])
+    }
+    pushToast(`Cliente "${nombre}" creado${tiposServicio.length > 0 ? ` con ${tiposServicio.length} servicio(s) contratado(s)` : ''}.`)
+    return idCliente
+  }, [pushToast])
+
+  // ── Plantillas ──────────────────────────────────────────────────────────
+  const crearPlantilla = useCallback((nombre: string, descripcion: string, tipoServicio: string | null) => {
+    setPlantillas(prev => [
+      ...prev,
+      { id: nextId('pla'), nombre, descripcion, tipoServicio, activo: true, fases: [] },
+    ])
+  }, [])
+
+  const eliminarPlantilla = useCallback((idPlantilla: string) => {
+    setPlantillas(prev => prev.filter(p => p.id !== idPlantilla))
+  }, [])
+
+  const toggleActivaPlantilla = useCallback((idPlantilla: string) => {
+    setPlantillas(prev => prev.map(p => p.id === idPlantilla ? { ...p, activo: !p.activo } : p))
+  }, [])
+
+  const agregarFasePlantilla = useCallback((idPlantilla: string, fase: Omit<PlantillaFase, 'id' | 'orden'>) => {
+    setPlantillas(prev => prev.map(p => {
+      if (p.id !== idPlantilla) return p
+      const orden = p.fases.length + 1
+      return { ...p, fases: [...p.fases, { ...fase, id: nextId('pf'), orden }] }
+    }))
+  }, [])
+
+  const actualizarFasePlantilla = useCallback((idPlantilla: string, idFase: string, cambios: Partial<PlantillaFase>) => {
+    setPlantillas(prev => prev.map(p => {
+      if (p.id !== idPlantilla) return p
+      return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, ...cambios } : f) }
+    }))
+  }, [])
+
+  const eliminarFasePlantilla = useCallback((idPlantilla: string, idFase: string) => {
+    setPlantillas(prev => prev.map(p => {
+      if (p.id !== idPlantilla) return p
+      const restantes = p.fases.filter(f => f.id !== idFase).sort((a, b) => a.orden - b.orden)
+      return { ...p, fases: restantes.map((f, idx) => ({ ...f, orden: idx + 1 })) }
+    }))
+  }, [])
+
+  const moverFasePlantilla = useCallback((idPlantilla: string, idFase: string, direccion: -1 | 1) => {
+    setPlantillas(prev => prev.map(p => {
+      if (p.id !== idPlantilla) return p
+      const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
+      const idx = ordenadas.findIndex(f => f.id === idFase)
+      const destino = idx + direccion
+      if (idx === -1 || destino < 0 || destino >= ordenadas.length) return p
+      const tmp = ordenadas[idx].orden
+      ordenadas[idx].orden = ordenadas[destino].orden
+      ordenadas[destino].orden = tmp
+      return { ...p, fases: ordenadas }
+    }))
+  }, [])
+
+  // ── Procesos (kanban) ───────────────────────────────────────────────────
+  const importarPlantilla = useCallback((idCliente: string, idServicio: string | null, idPlantilla: string) => {
+    const plantilla = plantillas.find(p => p.id === idPlantilla)
+    if (!plantilla) return
+    const hoy = new Date().toISOString().slice(0, 10)
+    const fases = generarFasesDesdeplantilla(plantilla, hoy)
+    const nuevo: Proceso = {
+      id: nextId('proc'),
+      idCliente,
+      idServicio,
+      idPlantilla: plantilla.id,
+      nombre: plantilla.nombre.replace(/^Plantilla /, ''),
+      fases,
+    }
+    setProcesos(prev => [...prev, nuevo])
+    pushToast(`Proceso "${nuevo.nombre}" importado. Primera fase asignada a ${nombresEmpleados(fases[0]?.idsResponsables ?? [])}.`)
+  }, [plantillas, pushToast, nombresEmpleados])
+
+  // Añade una fase suelta a un proceso ya importado, sin depender de la plantilla original
+  // (cada proyecto real puede necesitar pasos que la plantilla no previó).
+  const agregarFaseProceso = useCallback((idProceso: string, fase: {
+    nombre: string
+    idDepartamento: string | null
+    idsResponsables: string[]
+    fechaInicioPrevista: string
+    fechaFinPrevista: string
+  }) => {
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      const orden = p.fases.length > 0 ? Math.max(...p.fases.map(f => f.orden)) + 1 : 1
+      const estado: EstadoFase = p.fases.length === 0 ? 'proceso' : 'espera'
+      const nueva: ProcesoFase = {
+        id: nextId('procfase'),
+        nombre: fase.nombre,
+        orden,
+        idDepartamento: fase.idDepartamento,
+        idsResponsables: fase.idsResponsables,
+        fechaInicioPrevista: fase.fechaInicioPrevista,
+        fechaFinPrevista: fase.fechaFinPrevista,
+        estado,
+        fechaCompletado: null,
+        adjuntos: [],
+        minutosAcumulados: 0,
+        timerActivo: false,
+        descripcion: '',
+        chat: [],
+      }
+      return { ...p, fases: [...p.fases, nueva] }
+    }))
+  }, [])
+
+  // Si se retrasa/adelanta la fecha fin prevista de una fase, desplaza en cadena el inicio (y fin) de las
+  // fases siguientes por el mismo número de días, para mantener sus duraciones y evitar solapes.
+  const actualizarFaseProceso = useCallback((idProceso: string, idFase: string, cambios: Partial<ProcesoFase>) => {
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      if (cambios.fechaFinPrevista === undefined) {
+        return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, ...cambios } : f) }
+      }
+      const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
+      const idx = ordenadas.findIndex(f => f.id === idFase)
+      if (idx === -1) return p
+      const delta = diffDias(ordenadas[idx].fechaFinPrevista, cambios.fechaFinPrevista)
+      const nuevasFases = ordenadas.map((f, i) => {
+        if (i === idx) return { ...f, ...cambios }
+        if (i > idx && delta !== 0) {
+          return { ...f, fechaInicioPrevista: addDays(f.fechaInicioPrevista, delta), fechaFinPrevista: addDays(f.fechaFinPrevista, delta) }
+        }
+        return f
+      })
+      return { ...p, fases: nuevasFases }
+    }))
+  }, [])
+
+  // Solo reordena (intercambia `orden`); no toca fechas ni estado — igual que moverFasePlantilla.
+  const moverFaseProceso = useCallback((idProceso: string, idFase: string, direccion: -1 | 1) => {
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
+      const idx = ordenadas.findIndex(f => f.id === idFase)
+      const destino = idx + direccion
+      if (idx === -1 || destino < 0 || destino >= ordenadas.length) return p
+      const tmp = ordenadas[idx].orden
+      ordenadas[idx].orden = ordenadas[destino].orden
+      ordenadas[destino].orden = tmp
+      return { ...p, fases: ordenadas }
+    }))
+  }, [])
+
+  const setMinutosFase = useCallback((idProceso: string, idFase: string, minutos: number) => {
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, minutosAcumulados: Math.max(0, minutos) } : f) }
+    }))
+  }, [])
+
+  const marcarFaseTerminada = useCallback((idProceso: string, idFase: string) => {
+    let siguienteResponsables: string[] | null = null
+    let siguienteNombre = ''
+    let clienteNombre = ''
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
+      const idx = ordenadas.findIndex(f => f.id === idFase)
+      if (idx === -1) return p
+      const hoy = new Date().toISOString().slice(0, 10)
+      const nuevasFases = ordenadas.map((f, i) => {
+        if (i === idx) return { ...f, estado: 'terminado' as EstadoFase, fechaCompletado: hoy }
+        if (i === idx + 1 && f.estado === 'espera') {
+          siguienteResponsables = f.idsResponsables
+          siguienteNombre = f.nombre
+          return { ...f, estado: 'proceso' as EstadoFase }
+        }
+        return f
+      })
+      clienteNombre = p.nombre
+      return { ...p, fases: nuevasFases }
+    }))
+    if (siguienteResponsables) {
+      pushToast(`🔔 Notificación simulada (Slack + email) a ${nombresEmpleados(siguienteResponsables)}: puede empezar "${siguienteNombre}" en ${clienteNombre}.`)
+    } else {
+      pushToast(`Fase completada. Era la última fase de "${clienteNombre}".`)
+    }
+  }, [pushToast, nombresEmpleados])
+
+  // Deshace el avance: reactiva la fase anterior (por si hay que revisar/rehacer algo) y vuelve a
+  // bloquear la actual. Notifica al responsable de la fase anterior para que retome el trabajo.
+  const volverFaseAnterior = useCallback((idProceso: string, idFase: string) => {
+    let anteriorResponsables: string[] | null = null
+    let anteriorNombre = ''
+    let clienteNombre = ''
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
+      const idx = ordenadas.findIndex(f => f.id === idFase)
+      if (idx <= 0) return p
+      const nuevasFases = ordenadas.map((f, i) => {
+        if (i === idx) return { ...f, estado: 'espera' as EstadoFase, fechaCompletado: null }
+        if (i === idx - 1) {
+          anteriorResponsables = f.idsResponsables
+          anteriorNombre = f.nombre
+          return { ...f, estado: 'proceso' as EstadoFase, fechaCompletado: null }
+        }
+        return f
+      })
+      clienteNombre = p.nombre
+      return { ...p, fases: nuevasFases }
+    }))
+    if (anteriorNombre) {
+      pushToast(`🔔 Notificación simulada (Slack + email) a ${nombresEmpleados(anteriorResponsables ?? [])}: hay que retomar "${anteriorNombre}" en ${clienteNombre}.`)
+    }
+  }, [pushToast, nombresEmpleados])
+
+  const addAdjuntoFase = useCallback((idProceso: string, idFase: string, adjunto: Omit<Adjunto, 'id'>) => {
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      return {
+        ...p,
+        fases: p.fases.map(f => f.id === idFase ? { ...f, adjuntos: [...f.adjuntos, { ...adjunto, id: nextId('adj') }] } : f),
+      }
+    }))
+  }, [])
+
+  const eliminarAdjuntoFase = useCallback((idProceso: string, idFase: string, idAdjunto: string) => {
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, adjuntos: f.adjuntos.filter(a => a.id !== idAdjunto) } : f) }
+    }))
+  }, [])
+
+  const toggleTimerFase = useCallback((idProceso: string, idFase: string) => {
+    let activado = false
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      return {
+        ...p,
+        fases: p.fases.map(f => {
+          if (f.id !== idFase) return f
+          activado = !f.timerActivo
+          return { ...f, timerActivo: !f.timerActivo, minutosAcumulados: f.timerActivo ? f.minutosAcumulados + 1 : f.minutosAcumulados }
+        }),
+      }
+    }))
+    pushToast(activado ? '⏱️ Fichaje iniciado para esta tarjeta (simulado, se vincularía con /fichar).' : '⏱️ Fichaje pausado.')
+  }, [pushToast])
+
+  const addChatMensajeFase = useCallback((idProceso: string, idFase: string, texto: string, mencionesIds: string[]) => {
+    const msg: ChatMensaje = { id: nextId('chat'), autorId: 'emp-1', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
+    setProcesos(prev => prev.map(p => {
+      if (p.id !== idProceso) return p
+      return { ...p, fases: p.fases.map(f => f.id === idFase ? { ...f, chat: [...f.chat, msg] } : f) }
+    }))
+    if (mencionesIds.length > 0) {
+      pushToast(`🔔 Notificación Slack simulada enviada a ${mencionesIds.map(id => nombreEmpleado(id)).join(', ')}.`)
+    }
+  }, [pushToast, nombreEmpleado])
+
+  // ── Tareas sueltas ──────────────────────────────────────────────────────
+  const crearTarea = useCallback((tarea: Omit<Tarea, 'id' | 'chat' | 'minutosAcumulados' | 'timerActivo'>) => {
+    const id = nextId('tar')
+    setTareas(prev => [...prev, { ...tarea, id, chat: [], minutosAcumulados: 0, timerActivo: false }])
+    return id
+  }, [])
+
+  const actualizarTarea = useCallback((idTarea: string, cambios: Partial<Tarea>) => {
+    const original = tareas.find(t => t.id === idTarea)
+    const seCompletaAhora = cambios.estado === 'terminado' && original?.estado !== 'terminado'
+    const debeRegenerar = Boolean(seCompletaAhora && original && original.recurrencia !== 'ninguna')
+
+    setTareas(prev => {
+      const actualizadas = prev.map(t => t.id === idTarea ? { ...t, ...cambios } : t)
+      if (!debeRegenerar || !original) return actualizadas
+      const nueva: Tarea = {
+        ...original,
+        id: nextId('tar'),
+        fechaLimite: addDays(original.fechaLimite, RECURRENCIA_DIAS[original.recurrencia]),
+        estado: 'espera',
+        explicacionBloqueo: null,
+        chat: [],
+        imagenes: [],
+        minutosAcumulados: 0,
+        timerActivo: false,
+      }
+      return [...actualizadas, nueva]
+    })
+
+    if (cambios.estado === 'bloqueada') {
+      pushToast(`🔔 Notificación simulada al responsable del proyecto: "${original?.nombre ?? 'Tarea'}" se ha bloqueado.`)
+    }
+    if (debeRegenerar && original) {
+      const proxima = addDays(original.fechaLimite, RECURRENCIA_DIAS[original.recurrencia])
+      pushToast(`🔁 Tarea recurrente: se generó una nueva "${original.nombre}" con fecha límite ${formatFecha(proxima)}.`)
+    }
+  }, [tareas, pushToast])
+
+  // Guarda la explicación y dispara la notificación explícitamente (a diferencia de escribir en el
+  // textarea, que solo actualiza en local hasta que se pulsa "Enviar").
+  const notificarBloqueoTarea = useCallback((idTarea: string, explicacion: string) => {
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, explicacionBloqueo: explicacion } : t))
+    const t = tareas.find(x => x.id === idTarea)
+    pushToast(`🔔 Notificación simulada (Slack + email) al responsable del proyecto: "${t?.nombre ?? 'Tarea'}" está bloqueada — ${explicacion.trim() || 'sin detalle todavía'}.`)
+  }, [tareas, pushToast])
+
+  const toggleTimerTarea = useCallback((idTarea: string) => {
+    let activado = false
+    setTareas(prev => prev.map(t => {
+      if (t.id !== idTarea) return t
+      activado = !t.timerActivo
+      return { ...t, timerActivo: !t.timerActivo, minutosAcumulados: t.timerActivo ? t.minutosAcumulados + 1 : t.minutosAcumulados }
+    }))
+    pushToast(activado ? '⏱️ Fichaje iniciado para esta tarea (simulado, se vincularía con /fichar).' : '⏱️ Fichaje pausado.')
+  }, [pushToast])
+
+  const setMinutosTarea = useCallback((idTarea: string, minutos: number) => {
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, minutosAcumulados: Math.max(0, minutos) } : t))
+  }, [])
+
+  const addChatMensajeTarea = useCallback((idTarea: string, texto: string, mencionesIds: string[]) => {
+    const msg: ChatMensaje = { id: nextId('chat'), autorId: 'emp-1', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, chat: [...t.chat, msg] } : t))
+    if (mencionesIds.length > 0) {
+      pushToast(`🔔 Notificación Slack simulada enviada a ${mencionesIds.map(id => nombreEmpleado(id)).join(', ')}.`)
+    }
+  }, [pushToast, nombreEmpleado])
+
+  const addAdjuntoTarea = useCallback((idTarea: string, adjunto: Omit<Adjunto, 'id'>) => {
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, adjuntos: [...t.adjuntos, { ...adjunto, id: nextId('adj') }] } : t))
+  }, [])
+
+  const eliminarAdjuntoTarea = useCallback((idTarea: string, idAdjunto: string) => {
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, adjuntos: t.adjuntos.filter(a => a.id !== idAdjunto) } : t))
+  }, [])
+
+  const addImagenTarea = useCallback((idTarea: string, imagen: Omit<ImagenAdjunta, 'id'>) => {
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, imagenes: [...t.imagenes, { ...imagen, id: nextId('img') }] } : t))
+  }, [])
+
+  const eliminarImagenTarea = useCallback((idTarea: string, idImagen: string) => {
+    setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, imagenes: t.imagenes.filter(i => i.id !== idImagen) } : t))
+  }, [])
+
+  // ── Información general del cliente ────────────────────────────────────
+  const addEnlaceCliente = useCallback((idCliente: string, adjunto: Omit<Adjunto, 'id'>) => {
+    setEnlacesCliente(prev => ({ ...prev, [idCliente]: [...(prev[idCliente] ?? []), { ...adjunto, id: nextId('encl') }] }))
+  }, [])
+
+  const eliminarEnlaceCliente = useCallback((idCliente: string, idAdjunto: string) => {
+    setEnlacesCliente(prev => ({ ...prev, [idCliente]: (prev[idCliente] ?? []).filter(a => a.id !== idAdjunto) }))
+  }, [])
+
+  const setSlackCliente = useCallback((idCliente: string, url: string) => {
+    setSlackClienteState(prev => ({ ...prev, [idCliente]: url }))
+  }, [])
+
+  // ── Conflictos de carga de trabajo (Gantt por empleado) ────────────────
+  const toggleConflictoResuelto = useCallback((clave: string) => {
+    setConflictosResueltos(prev => {
+      const next = new Set(prev)
+      if (next.has(clave)) {
+        next.delete(clave)
+      } else {
+        next.add(clave)
+        pushToast('✅ Conflicto marcado como resuelto.')
+      }
+      return next
+    })
+  }, [pushToast])
+
+  const value = useMemo<TareasContextValue>(() => ({
+    state: {
+      clientes,
+      empleados: MOCK_EMPLEADOS,
+      departamentos: MOCK_DEPARTAMENTOS,
+      servicios,
+      plantillas,
+      procesos,
+      tareas,
+      enlacesCliente,
+      slackCliente,
+      conflictosResueltos,
+    },
+    actions: {
+      crearCliente,
+      crearPlantilla,
+      eliminarPlantilla,
+      toggleActivaPlantilla,
+      agregarFasePlantilla,
+      actualizarFasePlantilla,
+      eliminarFasePlantilla,
+      moverFasePlantilla,
+      importarPlantilla,
+      agregarFaseProceso,
+      actualizarFaseProceso,
+      moverFaseProceso,
+      marcarFaseTerminada,
+      volverFaseAnterior,
+      addAdjuntoFase,
+      eliminarAdjuntoFase,
+      toggleTimerFase,
+      setMinutosFase,
+      addChatMensajeFase,
+      crearTarea,
+      actualizarTarea,
+      notificarBloqueoTarea,
+      toggleTimerTarea,
+      setMinutosTarea,
+      addChatMensajeTarea,
+      addAdjuntoTarea,
+      eliminarAdjuntoTarea,
+      addImagenTarea,
+      eliminarImagenTarea,
+      addEnlaceCliente,
+      eliminarEnlaceCliente,
+      setSlackCliente,
+      toggleConflictoResuelto,
+      nombreEmpleado,
+      nombreDepartamento,
+      nombreCliente,
+      nombresEmpleados,
+    },
+    toasts,
+  }), [
+    clientes, servicios, plantillas, procesos, tareas, toasts, enlacesCliente, slackCliente, conflictosResueltos,
+    crearCliente,
+    crearPlantilla, eliminarPlantilla, toggleActivaPlantilla, agregarFasePlantilla, actualizarFasePlantilla, eliminarFasePlantilla, moverFasePlantilla,
+    importarPlantilla, agregarFaseProceso, actualizarFaseProceso, moverFaseProceso, marcarFaseTerminada, volverFaseAnterior, addAdjuntoFase, eliminarAdjuntoFase, toggleTimerFase, setMinutosFase, addChatMensajeFase,
+    crearTarea, actualizarTarea, notificarBloqueoTarea, toggleTimerTarea, setMinutosTarea, addChatMensajeTarea, addAdjuntoTarea, eliminarAdjuntoTarea, addImagenTarea, eliminarImagenTarea,
+    addEnlaceCliente, eliminarEnlaceCliente, setSlackCliente, toggleConflictoResuelto, nombreEmpleado, nombreDepartamento, nombreCliente, nombresEmpleados,
+  ])
+
+  return <TareasContext.Provider value={value}>{children}</TareasContext.Provider>
+}
+
+export function useTareas() {
+  const ctx = useContext(TareasContext)
+  if (!ctx) throw new Error('useTareas debe usarse dentro de <TareasProvider>')
+  return ctx
+}
+
+export type { EstadoFase, EstadoTarea }

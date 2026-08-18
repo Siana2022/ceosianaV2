@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { notFound } from 'next/navigation'
 import ClienteDetailClient from './ClienteDetailClient'
 
@@ -106,12 +107,12 @@ export default async function ClienteDetailPage({
   // Fetch additional data needed for correct coste_personal formula:
   // ALL servicio_responsables for the year (all clients) — to compute num_services per (employee, dept, month)
   // ALL servicios with id_departamento — to map each service to its department
-  // empleado_dedicacion — to get dedication % per (employee, dept, month)
+  // dedicación calculada a partir del fichaje — % dedicación por (empleado, dept, mes)
   // sueldos — for all employees
   const [
     { data: allResponsablesRaw },
     { data: todosServicios },
-    { data: dedicaciones },
+    dedicaciones,
     { data: sueldosData },
   ] = await Promise.all([
     supabase
@@ -121,10 +122,7 @@ export default async function ClienteDetailPage({
     supabase
       .from('servicios')
       .select('id, id_departamento'),
-    supabase
-      .from('empleado_dedicacion')
-      .select('id_empleado, id_departamento, mes, anio, porcentaje')
-      .eq('anio', year),
+    getDedicacionCalculada(supabase, { anio: year }),
     supabase
       .from('sueldos')
       .select('id_empleado, coste_total, mes')

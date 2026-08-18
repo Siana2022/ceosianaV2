@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { getPerfil } from '@/lib/server/perfil'
 import { redirect } from 'next/navigation'
 import RendimientoClient from './RendimientoClient'
@@ -34,7 +35,7 @@ export default async function RendimientoPage({
 
   const [
     { data: sueldosRaw },
-    { data: dedicacionRaw },
+    dedicacionRaw,
     { data: responsablesRaw },
     { data: serviciosRaw },
     { data: ingresosRaw },
@@ -42,7 +43,7 @@ export default async function RendimientoPage({
     { data: empleadosRaw },
   ] = await Promise.all([
     supabase.from('sueldos').select('id_empleado, coste_total, mes').eq('anio', anio),
-    supabase.from('empleado_dedicacion').select('id_empleado, id_departamento, porcentaje, mes').eq('anio', anio),
+    getDedicacionCalculada(supabase, { anio }),
     supabase.from('servicio_responsables').select('id_servicio, id_empleado, porcentaje, mes').eq('anio', anio),
     supabase.from('servicios').select('id, nombre, notas, id_departamento, cliente:id_cliente(id, nombre), departamento:id_departamento(id, nombre)'),
     supabase.from('ingresos').select('id_servicio, valor, mes').eq('anio', anio),
@@ -75,8 +76,8 @@ export default async function RendimientoPage({
   }
 
   // servicio info
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const servicioMap = new Map<string, { nombre: string; clienteId: string; clienteNombre: string; deptNombre: string }>(
+  const servicioMap = new Map<string, { nombre: string; clienteId: string; clienteNombre: string; deptNombre: string; deptId: string }>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (serviciosRaw ?? []).map((s: any) => {
       const cliente = Array.isArray(s.cliente) ? s.cliente[0] : s.cliente
       const dept = Array.isArray(s.departamento) ? s.departamento[0] : s.departamento
@@ -85,37 +86,25 @@ export default async function RendimientoPage({
         clienteId: cliente?.id ?? '',
         clienteNombre: cliente?.nombre ?? '—',
         deptNombre: dept?.nombre ?? '—',
+        deptId: s.id_departamento ?? '',
       }]
     })
   )
 
-  // numServicios per empId_deptId_mes (for cost split)
+  // numServicios per empId_deptId_mes (for cost split) — misma clave (id de departamento) que dedicMap
   const numServMap = new Map<string, number>()
   for (const r of responsablesRaw ?? []) {
     const s = servicioMap.get(r.id_servicio)
     if (!s) continue
-    const key = `${r.id_empleado}_${s.deptNombre}_${r.mes}`
+    const key = `${r.id_empleado}_${s.deptId}_${r.mes}`
     numServMap.set(key, (numServMap.get(key) ?? 0) + 1)
   }
 
-  // dedicacion per empId_deptNombre_mes
+  // dedicación (calculada a partir del fichaje) por empId_deptId_mes
   const dedicMap = new Map<string, number>()
-  for (const d of dedicacionRaw ?? []) {
-    // We need deptNombre — find it from servicios
-    const deptNombre = (() => {
-      // find any servicio in this dept
-      for (const [, sv] of servicioMap) {
-        if (sv.deptNombre) return sv.deptNombre
-      }
-      return d.id_departamento
-    })()
-    // Actually use id_departamento as key since we have it
+  for (const d of dedicacionRaw) {
     dedicMap.set(`${d.id_empleado}_${d.id_departamento}_${d.mes}`, Number(d.porcentaje))
   }
-
-  // dept id from servicio
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const servicioDeptId = new Map<string, string>((serviciosRaw ?? []).map((s: any) => [s.id, s.id_departamento]))
 
   // Build rows — one per (empId, servicioId, mes)
   const rowsMap = new Map<string, RendimientoRow>()
@@ -124,11 +113,10 @@ export default async function RendimientoPage({
     const sInfo = servicioMap.get(r.id_servicio)
     if (!sInfo) continue
     const empNombre = empNameMap.get(r.id_empleado) ?? r.id_empleado
-    const deptId = servicioDeptId.get(r.id_servicio) ?? ''
 
     const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
-    const dedicacion = dedicMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 0
-    const numServ = numServMap.get(`${r.id_empleado}_${sInfo.deptNombre}_${r.mes}`) ?? 1
+    const dedicacion = dedicMap.get(`${r.id_empleado}_${sInfo.deptId}_${r.mes}`) ?? 0
+    const numServ = numServMap.get(`${r.id_empleado}_${sInfo.deptId}_${r.mes}`) ?? 1
     const costeAsignado = sueldo * dedicacion / 100 / numServ
 
     const ingresoValor = ingresosMap.get(`${r.id_servicio}_${r.mes}`) ?? 0

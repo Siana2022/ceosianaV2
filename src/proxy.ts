@@ -8,6 +8,7 @@ export async function proxy(req: NextRequest) {
   // Only protect (app) routes
   if (!pathname.startsWith('/dashboard') &&
       !pathname.startsWith('/clientes') &&
+      !pathname.startsWith('/tareas') &&
       !pathname.startsWith('/ingresos') &&
       !pathname.startsWith('/equipo') &&
       !pathname.startsWith('/comercial') &&
