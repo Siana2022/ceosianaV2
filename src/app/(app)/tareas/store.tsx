@@ -20,6 +20,8 @@ import type {
   Adjunto,
   ChatMensaje,
   Cliente,
+  Departamento,
+  Empleado,
   EstadoFase,
   EstadoTarea,
   ImagenAdjunta,
@@ -35,10 +37,10 @@ import type {
 // Un futuro desarrollo real sustituiría estas funciones por llamadas a /api/*.
 
 interface TareasState {
-  clientes: typeof MOCK_CLIENTES
-  empleados: typeof MOCK_EMPLEADOS
-  departamentos: typeof MOCK_DEPARTAMENTOS
-  servicios: typeof MOCK_SERVICIOS
+  clientes: Cliente[]
+  empleados: Empleado[]
+  departamentos: Departamento[]
+  servicios: Servicio[]
   plantillas: Plantilla[]
   procesos: Proceso[]
   tareas: Tarea[]
@@ -124,9 +126,25 @@ function nextId(prefix: string) {
   return `${prefix}-${idCounter}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-export function TareasProvider({ children }: { children: ReactNode }) {
-  const [clientes, setClientes] = useState<Cliente[]>(MOCK_CLIENTES)
-  const [servicios, setServicios] = useState<Servicio[]>(MOCK_SERVICIOS)
+interface TareasProviderProps {
+  children: ReactNode
+  initialClientes?: Cliente[]
+  initialEmpleados?: Empleado[]
+  initialDepartamentos?: Departamento[]
+  initialServicios?: Servicio[]
+}
+
+export function TareasProvider({
+  children,
+  initialClientes,
+  initialEmpleados,
+  initialDepartamentos,
+  initialServicios,
+}: TareasProviderProps) {
+  const [clientes, setClientes] = useState<Cliente[]>(initialClientes ?? MOCK_CLIENTES)
+  const [empleados] = useState<Empleado[]>(initialEmpleados ?? MOCK_EMPLEADOS)
+  const [departamentos] = useState<Departamento[]>(initialDepartamentos ?? MOCK_DEPARTAMENTOS)
+  const [servicios, setServicios] = useState<Servicio[]>(initialServicios ?? MOCK_SERVICIOS)
   const [plantillas, setPlantillas] = useState<Plantilla[]>(MOCK_PLANTILLAS)
   const [procesos, setProcesos] = useState<Proceso[]>(MOCK_PROCESOS)
   const [tareas, setTareas] = useState<Tarea[]>(MOCK_TAREAS)
@@ -145,12 +163,12 @@ export function TareasProvider({ children }: { children: ReactNode }) {
     }, 4000)
   }, [])
 
-  const nombreEmpleado = useCallback((id: string | null) => nombrePorId(MOCK_EMPLEADOS, id), [])
-  const nombreDepartamento = useCallback((id: string | null) => nombrePorId(MOCK_DEPARTAMENTOS, id), [])
+  const nombreEmpleado = useCallback((id: string | null) => nombrePorId(empleados, id), [empleados])
+  const nombreDepartamento = useCallback((id: string | null) => nombrePorId(departamentos, id), [departamentos])
   const nombreCliente = useCallback((id: string | null) => nombrePorId(clientes, id), [clientes])
   const nombresEmpleados = useCallback((ids: string[]) => (
-    ids.length === 0 ? 'Sin asignar' : ids.map(id => nombrePorId(MOCK_EMPLEADOS, id)).join(', ')
-  ), [])
+    ids.length === 0 ? 'Sin asignar' : ids.map(id => nombrePorId(empleados, id)).join(', ')
+  ), [empleados])
 
   // ── Clientes ─────────────────────────────────────────────────────────────
   const crearCliente = useCallback((nombre: string, tiposServicio: string[]) => {
@@ -530,8 +548,8 @@ export function TareasProvider({ children }: { children: ReactNode }) {
   const value = useMemo<TareasContextValue>(() => ({
     state: {
       clientes,
-      empleados: MOCK_EMPLEADOS,
-      departamentos: MOCK_DEPARTAMENTOS,
+      empleados,
+      departamentos,
       servicios,
       plantillas,
       procesos,
@@ -581,7 +599,7 @@ export function TareasProvider({ children }: { children: ReactNode }) {
     },
     toasts,
   }), [
-    clientes, servicios, plantillas, procesos, tareas, toasts, enlacesCliente, slackCliente, conflictosResueltos,
+    clientes, empleados, departamentos, servicios, plantillas, procesos, tareas, toasts, enlacesCliente, slackCliente, conflictosResueltos,
     crearCliente,
     crearPlantilla, eliminarPlantilla, toggleActivaPlantilla, agregarFasePlantilla, actualizarFasePlantilla, eliminarFasePlantilla, moverFasePlantilla,
     importarPlantilla, agregarFaseProceso, actualizarFaseProceso, moverFaseProceso, marcarFaseTerminada, volverFaseAnterior, addAdjuntoFase, eliminarAdjuntoFase, toggleTimerFase, setMinutosFase, addChatMensajeFase,
