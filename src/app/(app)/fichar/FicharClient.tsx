@@ -148,7 +148,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       const res = await fetch('/api/time-logs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          descripcion, fecha: todayStr(), hora_inicio: hi, hora_fin: null, minutos: 0,
+          descripcion, fecha: todayStr(), hora_inicio: hi, hora_fin: null, minutos: 1,
           id_cliente: clienteId && clienteId !== '__otros__' ? clienteId : null,
           id_departamento: departamentoId && departamentoId !== '__otros__' ? departamentoId : null,
           timer_abierto: true,

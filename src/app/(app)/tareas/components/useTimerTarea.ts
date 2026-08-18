@@ -1,17 +1,19 @@
 'use client'
 
+import { useState } from 'react'
 import { useTareas } from '../store'
 import type { Tarea } from '../types'
 
 const TIMER_KEY = 'ceosiana_timer_v2'
 
-// Hook compartido para iniciar/parar el timer real de una tarea.
-// Escribe en el mismo localStorage que /fichar para que ambas vistas estén sincronizadas.
 export function useTimerTarea() {
   const { actions } = useTareas()
+  const [loading, setLoading] = useState(false)
+  const [timerError, setTimerError] = useState<string | null>(null)
 
   const toggleTimer = async (tarea: Tarea, e?: React.MouseEvent) => {
     e?.stopPropagation()
+    setTimerError(null)
 
     if (tarea.timerActivo) {
       // ── PARAR ──────────────────────────────────────────────────────
@@ -33,7 +35,7 @@ export function useTimerTarea() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ hora_fin: ahora.toTimeString().slice(0, 5), minutos: minutosElapsed }),
-        }).catch(e => console.error('[timer] PATCH error', e))
+        }).catch(err => console.error('[timer] PATCH error', err))
       }
       localStorage.removeItem(TIMER_KEY)
       actions.actualizarTarea(tarea.id, {
@@ -42,6 +44,7 @@ export function useTimerTarea() {
       })
     } else {
       // ── INICIAR ─────────────────────────────────────────────────────
+      setLoading(true)
       const ahora = new Date()
       try {
         const res = await fetch('/api/time-logs', {
@@ -54,7 +57,7 @@ export function useTimerTarea() {
             descripcion: tarea.nombre,
             fecha: ahora.toISOString().slice(0, 10),
             hora_inicio: ahora.toTimeString().slice(0, 5),
-            minutos: 0,
+            minutos: 1,
             timer_abierto: true,
           }),
         })
@@ -70,10 +73,14 @@ export function useTimerTarea() {
         }))
         actions.actualizarTarea(tarea.id, { timerActivo: true })
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Error al fichar'
+        setTimerError(msg)
         console.error('[timer] Error al iniciar:', err)
+      } finally {
+        setLoading(false)
       }
     }
   }
 
-  return { toggleTimer }
+  return { toggleTimer, loading, timerError }
 }

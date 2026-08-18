@@ -15,7 +15,7 @@ function formatMinutos(m: number) {
 
 export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbrir: () => void }) {
   const { actions } = useTareas()
-  const { toggleTimer } = useTimerTarea()
+  const { toggleTimer, loading, timerError } = useTimerTarea()
 
   return (
     <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-lg px-3 py-2 transition-colors">
@@ -27,12 +27,17 @@ export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbri
       <span className="text-gray-500 text-xs w-24 truncate hidden md:inline flex-shrink-0">👤 {actions.nombresEmpleados(tarea.idsResponsables)}</span>
       <span className="text-gray-500 text-xs w-24 truncate hidden lg:inline flex-shrink-0">🗂️ {actions.nombreDepartamento(tarea.idDepartamento)}</span>
       <span className="text-gray-500 text-xs w-20 flex-shrink-0">📅 {formatFecha(tarea.fechaLimite)}{tarea.hora && ` ${tarea.hora}`}</span>
-      <button
-        onClick={e => toggleTimer(tarea, e)}
-        className={`flex items-center gap-1 rounded px-2 py-1 text-xs flex-shrink-0 ${tarea.timerActivo ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'}`}
-      >
-        {tarea.timerActivo ? '⏸' : '▶'} {formatMinutos(tarea.minutosAcumulados)}
-      </button>
+      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        <button
+          onClick={e => toggleTimer(tarea, e)}
+          disabled={loading}
+          title={timerError ?? undefined}
+          className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-opacity ${loading ? 'opacity-50 cursor-wait' : ''} ${timerError ? 'ring-1 ring-red-500' : ''} ${tarea.timerActivo ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'}`}
+        >
+          {loading ? '⏳' : tarea.timerActivo ? '⏸' : '▶'} {formatMinutos(tarea.minutosAcumulados)}
+        </button>
+        {timerError && <span className="text-red-400 text-xs leading-tight max-w-32 truncate">{timerError}</span>}
+      </div>
       <EstadoTareaSelect tarea={tarea} onRequiereExplicacion={onAbrir} />
     </div>
   )

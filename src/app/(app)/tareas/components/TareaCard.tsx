@@ -15,7 +15,7 @@ function formatMinutos(m: number) {
 
 export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: () => void }) {
   const { actions } = useTareas()
-  const { toggleTimer } = useTimerTarea()
+  const { toggleTimer, loading, timerError } = useTimerTarea()
 
   return (
     <div className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl p-4 space-y-3 transition-colors">
@@ -42,12 +42,16 @@ export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: (
       )}
 
       <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-800 pt-2">
-        <button
-          onClick={e => toggleTimer(tarea, e)}
-          className={`flex items-center gap-1 rounded px-2 py-1 ${tarea.timerActivo ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'}`}
-        >
-          {tarea.timerActivo ? '⏸' : '▶'} {formatMinutos(tarea.minutosAcumulados)}
-        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={e => toggleTimer(tarea, e)}
+            disabled={loading}
+            className={`flex items-center gap-1 rounded px-2 py-1 transition-opacity ${loading ? 'opacity-50 cursor-wait' : ''} ${tarea.timerActivo ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'}`}
+          >
+            {loading ? '⏳' : tarea.timerActivo ? '⏸' : '▶'} {formatMinutos(tarea.minutosAcumulados)}
+          </button>
+          {timerError && <span className="text-red-400 text-xs leading-tight">{timerError}</span>}
+        </div>
         <span title="Adjuntos">📎 {tarea.adjuntos.length}</span>
         <span title="Mensajes">💬 {tarea.chat.length}</span>
       </div>

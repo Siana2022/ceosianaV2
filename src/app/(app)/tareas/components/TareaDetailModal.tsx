@@ -133,7 +133,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
           descripcion: draft.nombre.trim() || tarea.nombre,
           fecha,
           hora_inicio: horaInicio,
-          minutos: 0,
+          minutos: 1,
           timer_abierto: true,
         }),
       })
