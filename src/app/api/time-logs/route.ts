@@ -22,8 +22,8 @@ async function resolveEmpleadoId(supabase: Awaited<ReturnType<typeof createClien
     // Valid session but no employee record → deny admin access
     return { id: session.user.id, rol: 'empleado' as const }
   }
-  // No profile row → treat as admin (existing users)
-  return { id: emp.id, rol: perfil?.rol ?? 'admin' }
+  // No profile row → treat as empleado (safe default)
+  return { id: emp.id, rol: perfil?.rol ?? 'empleado' }
 }
 
 export async function GET(req: NextRequest) {
@@ -158,17 +158,14 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json()
   const { descripcion, id_cliente, id_departamento, id_servicio, minutos, hora_fin, hora_inicio } = body
-  const updatePayload: Record<string, unknown> = {
-    descripcion,
-    id_cliente: id_cliente || null,
-    id_departamento: id_departamento || null,
-    id_servicio: id_servicio !== undefined ? (id_servicio || null) : undefined,
-  }
+  const updatePayload: Record<string, unknown> = {}
+  if (descripcion !== undefined) updatePayload.descripcion = descripcion
+  if (id_cliente !== undefined) updatePayload.id_cliente = id_cliente || null
+  if (id_departamento !== undefined) updatePayload.id_departamento = id_departamento || null
+  if (id_servicio !== undefined) updatePayload.id_servicio = id_servicio || null
   if (minutos !== undefined) updatePayload.minutos = parseInt(minutos)
   if (hora_fin !== undefined) updatePayload.hora_fin = hora_fin || null
   if (hora_inicio !== undefined) updatePayload.hora_inicio = hora_inicio || null
-  // Remove undefined keys
-  Object.keys(updatePayload).forEach(k => updatePayload[k] === undefined && delete updatePayload[k])
   const { data, error } = await supabase.from('time_logs')
     .update(updatePayload)
     .eq('id', id).select().single()

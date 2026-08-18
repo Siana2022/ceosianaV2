@@ -46,7 +46,9 @@ export default async function TareasLayout({ children }: { children: ReactNode }
   }))
   const servicios: Servicio[] = (rawServicios ?? []).map(s => ({
     id: String(s.id),
-    idCliente: String((s as { id_cliente: unknown }).id_cliente),
+    idCliente: (s as { id_cliente: unknown }).id_cliente != null
+      ? String((s as { id_cliente: unknown }).id_cliente)
+      : '',
     nombre: s.nombre,
     tipoServicio: ((s.tipo_servicio as unknown as { nombre: string } | null)?.nombre) ?? '',
   }))

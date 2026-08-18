@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
   try {
     const { createClient } = await import('@/lib/server/supabase')
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const formData = await req.formData()
     const file = formData.get('file') as File | null
@@ -35,8 +35,8 @@ export async function DELETE(req: NextRequest) {
   try {
     const { createClient: createAuth } = await import('@/lib/server/supabase')
     const supabase = await createAuth()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const url = new URL(req.url).searchParams.get('url')
     if (!url) return NextResponse.json({ error: 'url requerida' }, { status: 400 })

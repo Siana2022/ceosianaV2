@@ -207,7 +207,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     }
     actions.actualizarTarea(tarea.id, {
       timerActivo: false,
-      minutosAcumulados: tarea.minutosAcumulados + minutosElapsed,
+      minutosAcumulados: draft.minutosAcumulados + minutosElapsed,
     })
     localStorage.removeItem('ceosiana_timer_v2')
     setTimerStartedAt(null)
