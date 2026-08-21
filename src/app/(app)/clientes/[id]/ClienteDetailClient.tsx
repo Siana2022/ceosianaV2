@@ -1353,23 +1353,28 @@ export default function ClienteDetailClient({
         }
         // Aggregate data based on selected month
         // Build hours per service (and per responsable) from timeLogsCliente filtered by date range
-        // Build dept→services map: only assign when exactly 1 service maps to that dept
-        const deptToServices = new Map<string, string[]>()
+        // For logs without id_servicio: resolve via dept+month (which service had billing that month)
+        const deptMonthToServices = new Map<string, Map<number, string[]>>()
         for (const s of rentabilidadServicios) {
           if (!s.idDepartamento) continue
-          const arr = deptToServices.get(s.idDepartamento) ?? []
-          arr.push(s.id)
-          deptToServices.set(s.idDepartamento, arr)
+          let monthMap = deptMonthToServices.get(s.idDepartamento)
+          if (!monthMap) { monthMap = new Map(); deptMonthToServices.set(s.idDepartamento, monthMap) }
+          for (const m of s.meses) {
+            if (m.facturado <= 0) continue
+            const arr = monthMap.get(m.mes) ?? []
+            arr.push(s.id)
+            monthMap.set(m.mes, arr)
+          }
         }
 
         const horasPorServicio = new Map<string, number>()
         const horasPorServicioResponsable = new Map<string, Map<string, number>>()
         const logsFiltered = timeLogsCliente.filter(t => t.fecha >= horasDesde && t.fecha <= horasHasta)
         for (const t of logsFiltered) {
-          // If no service, try to resolve via department (only when dept maps to exactly 1 service)
           let svcId = t.id_servicio
           if (!svcId && t.id_departamento) {
-            const candidates = deptToServices.get(t.id_departamento)
+            const mes = new Date(t.fecha).getMonth() + 1
+            const candidates = deptMonthToServices.get(t.id_departamento)?.get(mes)
             if (candidates?.length === 1) svcId = candidates[0]
           }
           const key = svcId ?? '__sin__'
