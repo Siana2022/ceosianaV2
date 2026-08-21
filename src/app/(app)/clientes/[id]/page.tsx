@@ -218,7 +218,12 @@ export default async function ClienteDetailPage({
       responsables: [...(mesRespMap.get(mes) ?? new Map()).values()],
     }))
 
-    return { id: s.id, nombre: depNombre, meses }
+    return {
+      id: s.id,
+      nombre: depNombre,
+      idDepartamento: (s as { id_departamento?: string | null }).id_departamento ?? null,
+      meses,
+    }
   })
 
   // Build empleadosPorDepartamento map

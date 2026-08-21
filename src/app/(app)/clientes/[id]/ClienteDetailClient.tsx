@@ -93,6 +93,7 @@ interface RentabilidadServicioMes {
 interface RentabilidadServicio {
   id: string
   nombre: string
+  idDepartamento: string | null
   meses: RentabilidadServicioMes[]
 }
 
@@ -1352,15 +1353,30 @@ export default function ClienteDetailClient({
         }
         // Aggregate data based on selected month
         // Build hours per service (and per responsable) from timeLogsCliente filtered by date range
+        // Build dept→services map: only assign when exactly 1 service maps to that dept
+        const deptToServices = new Map<string, string[]>()
+        for (const s of rentabilidadServicios) {
+          if (!s.idDepartamento) continue
+          const arr = deptToServices.get(s.idDepartamento) ?? []
+          arr.push(s.id)
+          deptToServices.set(s.idDepartamento, arr)
+        }
+
         const horasPorServicio = new Map<string, number>()
         const horasPorServicioResponsable = new Map<string, Map<string, number>>()
         const logsFiltered = timeLogsCliente.filter(t => t.fecha >= horasDesde && t.fecha <= horasHasta)
         for (const t of logsFiltered) {
-          const svcId = t.id_servicio ?? '__sin__'
-          horasPorServicio.set(svcId, (horasPorServicio.get(svcId) ?? 0) + Number(t.minutos))
-          if (!horasPorServicioResponsable.has(svcId)) horasPorServicioResponsable.set(svcId, new Map())
+          // If no service, try to resolve via department (only when dept maps to exactly 1 service)
+          let svcId = t.id_servicio
+          if (!svcId && t.id_departamento) {
+            const candidates = deptToServices.get(t.id_departamento)
+            if (candidates?.length === 1) svcId = candidates[0]
+          }
+          const key = svcId ?? '__sin__'
+          horasPorServicio.set(key, (horasPorServicio.get(key) ?? 0) + Number(t.minutos))
+          if (!horasPorServicioResponsable.has(key)) horasPorServicioResponsable.set(key, new Map())
           const respNombre = t.empleado?.nombre ?? t.id_empleado
-          const rm = horasPorServicioResponsable.get(svcId)!
+          const rm = horasPorServicioResponsable.get(key)!
           rm.set(respNombre, (rm.get(respNombre) ?? 0) + Number(t.minutos))
         }
 

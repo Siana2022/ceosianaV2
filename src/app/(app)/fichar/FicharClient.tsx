@@ -184,6 +184,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
           else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
         }
         if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
+        if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
+          setError('Por favor selecciona un servicio')
+          return
+        }
         const res = await fetch(`/api/time-logs?id=${savedDbId}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
@@ -230,6 +234,11 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (departamentoId === '__otros__') {
         finalDeptId = null
         if (departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
+      }
+
+      if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
+        setError('Por favor selecciona un servicio')
+        return
       }
 
       const res = await fetch('/api/time-logs', {
