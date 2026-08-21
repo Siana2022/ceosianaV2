@@ -51,8 +51,10 @@ export async function proxy(req: NextRequest) {
     .eq('id', session.user.id)
     .maybeSingle()
 
-  // Employees can only access /fichar
-  if (perfil?.rol === 'empleado' && !pathname.startsWith('/fichar')) {
+  // Empleados solo pueden acceder a /fichar y /tareas (procesos)
+  const esEmpleado = perfil?.rol !== 'admin'
+  const rutaPermitida = pathname.startsWith('/fichar') || pathname.startsWith('/tareas')
+  if (esEmpleado && !rutaPermitida) {
     return NextResponse.redirect(new URL('/fichar', req.url))
   }
 

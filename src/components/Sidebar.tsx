@@ -25,6 +25,7 @@ const menuAdmin = [
 
 const menuEmpleado = [
   { href: '/fichar', label: 'Fichar', icon: '🕐' },
+  { href: '/tareas', label: 'Procesos', icon: '🗂️' },
 ]
 
 interface Props {

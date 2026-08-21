@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const perfil = await getPerfil()
-  const rol = perfil?.rol ?? 'admin' // default to admin if no profile (existing users)
+  const rol = perfil?.rol ?? 'empleado'
 
   return (
     <div className="flex min-h-screen bg-gray-950">
