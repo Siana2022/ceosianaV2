@@ -181,11 +181,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
       }
       if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
-      if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
-        setError('Por favor selecciona un servicio')
-        return  // State NOT cleared yet → timer keeps running, user can select service and retry
-      }
-      // Validation passed: now clear state + localStorage and persist
+      // Now clear state + localStorage and persist
       setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
       localStorage.removeItem(TIMER_KEY)
       setSaving(true)
