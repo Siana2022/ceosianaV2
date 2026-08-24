@@ -77,9 +77,9 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     const saved = localStorage.getItem(TIMER_KEY)
     if (saved) {
       try {
-        const { startTs, d, c, dep, dbId } = JSON.parse(saved)
+        const { startTs, d, c, dep, srv, dbId } = JSON.parse(saved)
         setTimerStart(startTs); setTimerRunning(true)
-        setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? '')
+        setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? ''); setProyectoOtrosId(srv ?? '')
         setTimerDbId(dbId ?? null)
         setElapsed(Math.floor((Date.now() - startTs) / 1000))
         return
@@ -96,13 +96,14 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         const startTs = base.getTime()
         const clienteIdDB = activo.cliente?.id ?? ''
         const deptIdDB = activo.departamento?.id ?? ''
+        const srvIdDB = activo.servicio?.id ?? ''
         setTimerStart(startTs); setTimerRunning(true)
         setTimerDbId(activo.id)
         setDescripcion(activo.descripcion ?? '')
-        setClienteId(clienteIdDB); setDepartamentoId(deptIdDB)
+        setClienteId(clienteIdDB); setDepartamentoId(deptIdDB); setProyectoOtrosId(srvIdDB)
         setElapsed(Math.floor((Date.now() - startTs) / 1000))
         localStorage.setItem(TIMER_KEY, JSON.stringify({
-          startTs, d: activo.descripcion, c: clienteIdDB, dep: deptIdDB, dbId: activo.id,
+          startTs, d: activo.descripcion, c: clienteIdDB, dep: deptIdDB, srv: srvIdDB, dbId: activo.id,
         }))
       })
       .catch(() => {})
@@ -158,7 +159,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     } catch { /* non-critical */ }
 
     setTimerStart(now); setTimerRunning(true); setElapsed(0); setTimerDbId(dbId)
-    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, dbId }))
+    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, srv: proyectoOtrosId, dbId }))
   }
 
   async function stopTimer() {
