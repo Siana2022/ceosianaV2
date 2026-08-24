@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { exchangeCode } from '@/lib/google/calendar'
 import { NextRequest, NextResponse } from 'next/server'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
+const APP_URL = process.env.APP_URL!
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
