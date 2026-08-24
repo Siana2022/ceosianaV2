@@ -53,6 +53,13 @@ export default async function FicharPage() {
     empleados = data ?? []
   }
 
+  // Fetch active tareas for linking fichajes
+  const { data: tareas } = await supabase
+    .from('tareas')
+    .select('id, nombre, id_cliente, id_departamento, estado, minutos_acumulados')
+    .in('estado', ['espera', 'en_curso', 'bloqueado'])
+    .order('nombre')
+
   return (
     <FicharClient
       perfil={perfil}
@@ -62,6 +69,7 @@ export default async function FicharPage() {
       departamentos={departamentos ?? []}
       clientes={clientes ?? []}
       empleados={empleados}
+      tareas={(tareas ?? []).map(t => ({ id: String(t.id), nombre: t.nombre as string, idCliente: t.id_cliente ? String(t.id_cliente) : null, idDepartamento: t.id_departamento ? String(t.id_departamento) : null, minutosAcumulados: (t.minutos_acumulados as number) ?? 0 }))}
     />
   )
 }

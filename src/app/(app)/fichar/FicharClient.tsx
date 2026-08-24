@@ -11,6 +11,7 @@ interface Servicio {
 interface Departamento { id: string; nombre: string }
 interface Cliente { id: string; nombre: string }
 interface Empleado { id: string; nombre: string }
+interface TareaFichar { id: string; nombre: string; idCliente: string | null; idDepartamento: string | null; minutosAcumulados: number }
 interface TimeLog {
   id: string; id_empleado: string; descripcion: string; fecha: string
   hora_inicio: string | null; hora_fin: string | null; minutos: number
@@ -23,6 +24,7 @@ interface Props {
   perfil: Perfil; empleadoNombre: string
   servicios: Servicio[]; departamentos: Departamento[]
   clientes: Cliente[]; empleados: Empleado[]
+  tareas: TareaFichar[]
 }
 
 const TIMER_KEY = 'ceosiana_timer_v2'
@@ -50,9 +52,9 @@ function getDepartamentoNombre(s: Servicio): string {
 }
 
 // ─── TIMER TAB ────────────────────────────────────────────────────────────────
-function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes, onSaved }: {
+function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes, tareas, onSaved }: {
   perfil: Perfil; empleadoNombre: string; servicios: Servicio[]
-  departamentos: Departamento[]; clientes: Cliente[]; onSaved: () => void
+  departamentos: Departamento[]; clientes: Cliente[]; tareas: TareaFichar[]; onSaved: () => void
 }) {
   const [modo, setModo] = useState<'timer' | 'manual'>('timer')
   const [descripcion, setDescripcion] = useState('')
@@ -64,6 +66,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   const [fecha, setFecha] = useState(todayStr())
   const [manualHoras, setManualHoras] = useState('')
   const [manualMin, setManualMin] = useState('30')
+  const [tareaId, setTareaId] = useState('')           // tarea seleccionada de procesos
   const [timerRunning, setTimerRunning] = useState(false)
   const [timerStart, setTimerStart] = useState<number | null>(null)
   const [timerDbId, setTimerDbId] = useState<string | null>(null)
@@ -77,9 +80,9 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     const saved = localStorage.getItem(TIMER_KEY)
     if (saved) {
       try {
-        const { startTs, d, c, dep, srv, dbId } = JSON.parse(saved)
+        const { startTs, d, c, dep, srv, tid, dbId } = JSON.parse(saved)
         setTimerStart(startTs); setTimerRunning(true)
-        setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? ''); setProyectoOtrosId(srv ?? '')
+        setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? ''); setProyectoOtrosId(srv ?? ''); setTareaId(tid ?? '')
         setTimerDbId(dbId ?? null)
         setElapsed(Math.floor((Date.now() - startTs) / 1000))
         return
@@ -159,7 +162,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     } catch { /* non-critical */ }
 
     setTimerStart(now); setTimerRunning(true); setElapsed(0); setTimerDbId(dbId)
-    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, srv: proyectoOtrosId, dbId }))
+    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, srv: proyectoOtrosId, tid: tareaId, dbId }))
   }
 
   async function stopTimer() {
@@ -182,16 +185,34 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       }
       if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
       // Now clear state + localStorage and persist
+      const savedTareaId = tareaId
       setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
       localStorage.removeItem(TIMER_KEY)
       setSaving(true)
       try {
+        // Resolve or auto-create tarea
+        let finalTareaId: string | null = savedTareaId && savedTareaId !== '__nueva__' ? savedTareaId : null
+        if (savedTareaId === '__nueva__' && finalDesc.trim()) {
+          const nuevaRes = await fetch('/api/tareas', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea', fechaLimite: todayStr(), minutosAcumulados: minutos }),
+          })
+          if (nuevaRes.ok) { const nueva = await nuevaRes.json(); finalTareaId = nueva.id ?? null }
+        }
+        // Sumar minutos a la tarea existente (incremento sobre valor conocido)
+        if (finalTareaId && savedTareaId !== '__nueva__') {
+          const tareaActual = tareas.find(t => t.id === finalTareaId)
+          await fetch(`/api/tareas?id=${finalTareaId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ minutosAcumulados: (tareaActual?.minutosAcumulados ?? 0) + minutos }),
+          })
+        }
         const res = await fetch(`/api/time-logs?id=${savedDbId}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error al guardar'); return }
-        setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros('')
+        setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros(''); setTareaId('')
         onSaved()
       } finally { setSaving(false) }
     } else {
@@ -384,6 +405,19 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                 )}
               </div>
             </div>
+
+          {/* Tarea de procesos */}
+          {clienteId && clienteId !== '__otros__' && (() => { const ts = tareas.filter(t => t.idCliente === clienteId); return ts.length > 0 ? (
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tarea de Procesos</label>
+              <select value={tareaId} onChange={e => { setTareaId(e.target.value); if (e.target.value && e.target.value !== '__nueva__') setDescripcion(tareas.find(t => t.id === e.target.value)?.nombre ?? descripcion) }}
+                className="w-full bg-gray-800 border border-purple-600 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-400">
+                <option value="">— Sin tarea vinculada —</option>
+                {ts.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                <option value="__nueva__">✨ Crear nueva tarea en Procesos</option>
+              </select>
+            </div>
+          ) : null })()}
 
           {/* Timer action */}
           {modo === 'timer' && (
@@ -1207,7 +1241,7 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
 }
 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
-export default function FicharClient({ perfil, empleadoNombre, servicios, departamentos, clientes, empleados }: Props) {
+export default function FicharClient({ perfil, empleadoNombre, servicios, departamentos, clientes, empleados, tareas }: Props) {
   const [tab, setTab] = useState<'fichar' | 'analisis'>('fichar')
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -1241,7 +1275,7 @@ export default function FicharClient({ perfil, empleadoNombre, servicios, depart
 
       {tab === 'fichar' && (
         <TabFichar key={refreshKey} perfil={perfil} empleadoNombre={empleadoNombre}
-          servicios={servicios} departamentos={departamentos} clientes={clientes}
+          servicios={servicios} departamentos={departamentos} clientes={clientes} tareas={tareas}
           onSaved={() => setRefreshKey(k => k + 1)} />
       )}
       {tab === 'analisis' && perfil.rol === 'admin' && (
