@@ -169,26 +169,27 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     const hi = `${pad(new Date(timerStart).getHours())}:${pad(new Date(timerStart).getMinutes())}`
     const hf = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`
     const savedDbId = timerDbId
-    setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
-    localStorage.removeItem(TIMER_KEY)
 
     if (savedDbId) {
-      // Update the open record instead of creating a new one
+      // Resolve final values BEFORE clearing state
+      let finalDesc = descripcion
+      let finalClienteId: string | null = clienteId && clienteId !== '__otros__' ? clienteId : null
+      let finalDeptId: string | null = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
+      let finalServicioId: string | null = null
+      if (clienteTieneProyectos()) {
+        if (proyectoOtrosId && proyectoOtrosId !== '__manual__') finalServicioId = proyectoOtrosId
+        else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
+      }
+      if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
+      if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
+        setError('Por favor selecciona un servicio')
+        return  // State NOT cleared yet → timer keeps running, user can select service and retry
+      }
+      // Validation passed: now clear state + localStorage and persist
+      setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
+      localStorage.removeItem(TIMER_KEY)
       setSaving(true)
       try {
-        let finalDesc = descripcion
-        let finalClienteId: string | null = clienteId && clienteId !== '__otros__' ? clienteId : null
-        let finalDeptId: string | null = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
-        let finalServicioId: string | null = null
-        if (clienteTieneProyectos()) {
-          if (proyectoOtrosId && proyectoOtrosId !== '__manual__') finalServicioId = proyectoOtrosId
-          else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
-        }
-        if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
-        if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
-          setError('Por favor selecciona un servicio')
-          return
-        }
         const res = await fetch(`/api/time-logs?id=${savedDbId}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
@@ -198,6 +199,8 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         onSaved()
       } finally { setSaving(false) }
     } else {
+      setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
+      localStorage.removeItem(TIMER_KEY)
       await save({ minutos, hora_inicio: hi, hora_fin: hf, fecha: todayStr() })
     }
   }
