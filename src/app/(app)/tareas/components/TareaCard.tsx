@@ -75,7 +75,15 @@ export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: (
           </button>
           {timerError && <span className="text-red-400 text-xs leading-tight">{timerError}</span>}
         </div>
-        <span title="Adjuntos">📎 {tarea.adjuntos.length + tarea.imagenes.length}</span>
+        {(() => {
+          const total = tarea.adjuntos.length + tarea.imagenes.length
+          if (total === 0) return <span title="Adjuntos">📎 0</span>
+          if (total === 1) {
+            const url = tarea.imagenes[0]?.url ?? tarea.adjuntos[0]?.url
+            return <a href={url} target="_blank" rel="noreferrer" title="Ver adjunto" className="flex items-center gap-0.5 text-blue-400 hover:text-blue-300">📎 {total}</a>
+          }
+          return <button onClick={onAbrir} title="Ver adjuntos" className="flex items-center gap-0.5 text-blue-400 hover:text-blue-300">📎 {total}</button>
+        })()}
         <span title="Mensajes">💬 {tarea.chat.length}</span>
       </div>
 
