@@ -41,6 +41,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     descripcion: tarea.descripcion,
     explicacionBloqueo: tarea.explicacionBloqueo ?? '',
     minutosAcumulados: tarea.minutosAcumulados,
+    syncCalendar: tarea.syncCalendar,
   })
   const [savedMsg, setSavedMsg] = useState(false)
 
@@ -88,6 +89,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
       idServicio: draft.idServicio,
       descripcion: draft.descripcion,
       explicacionBloqueo: draft.estado === 'bloqueada' ? draft.explicacionBloqueo : null,
+      syncCalendar: draft.syncCalendar,
     })
     if (draft.minutosAcumulados !== tarea.minutosAcumulados) {
       actions.setMinutosTarea(tarea.id, draft.minutosAcumulados)
@@ -362,6 +364,21 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
                 {formatFecha(addDays(draft.fechaLimite, RECURRENCIA_DIAS[draft.recurrencia]))}.
               </p>
             )}
+          </div>
+
+          {/* Google Calendar sync */}
+          <div className="flex items-center justify-between bg-gray-800/60 rounded-lg px-4 py-3">
+            <div>
+              <span className="text-gray-300 text-sm font-medium">📅 Sincronizar con Google Calendar</span>
+              <p className="text-gray-500 text-xs mt-0.5">Añade esta tarea al calendario de los responsables</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => set('syncCalendar', !draft.syncCalendar)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${draft.syncCalendar ? 'bg-blue-600' : 'bg-gray-700'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${draft.syncCalendar ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
 
           {/* Departamento + Cliente */}

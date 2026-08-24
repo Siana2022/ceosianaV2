@@ -114,6 +114,7 @@ export interface Tarea {
   enlaceInfo: string
   descripcion: string
   recurrencia: Recurrencia
+  syncCalendar: boolean
   minutosAcumulados: number
   timerActivo: boolean
   chat: ChatMensaje[]

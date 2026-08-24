@@ -74,6 +74,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     chat: (r.chat as Tarea['chat']) ?? [],
     adjuntos: (r.adjuntos as Tarea['adjuntos']) ?? [],
     imagenes: (r.imagenes as Tarea['imagenes']) ?? [],
+    syncCalendar: (r.sync_calendar as boolean) ?? false,
   }))
 
   const procesos: Proceso[] = (rawProcesos ?? []).map(r => ({

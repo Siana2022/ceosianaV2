@@ -19,6 +19,7 @@ const CAMINO: Record<string, string> = {
   descripcion: 'descripcion',
   recurrencia: 'recurrencia',
   minutosAcumulados: 'minutos_acumulados',
+  syncCalendar: 'sync_calendar',
   chat: 'chat',
   adjuntos: 'adjuntos',
   imagenes: 'imagenes',
@@ -43,6 +44,7 @@ function rowToTarea(row: Record<string, unknown>) {
     descripcion: row.descripcion ?? '',
     recurrencia: row.recurrencia ?? 'ninguna',
     minutosAcumulados: row.minutos_acumulados ?? 0,
+    syncCalendar: row.sync_calendar ?? false,
     timerActivo: false,
     chat: row.chat ?? [],
     adjuntos: row.adjuntos ?? [],
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const tarea = rowToTarea(data as Record<string, unknown>)
     // Sync to Google Calendar for all responsables (fire-and-forget)
-    if (tarea.fechaLimite && (tarea.idsResponsables as string[]).length > 0) {
+    if (tarea.syncCalendar && tarea.fechaLimite && (tarea.idsResponsables as string[]).length > 0) {
       syncTareaToAllResponsables(tarea.id as string, tarea.idsResponsables as string[], {
         summary: tarea.nombre as string,
         description: tarea.descripcion as string,
@@ -106,16 +108,21 @@ export async function PATCH(req: NextRequest) {
     if (Object.keys(row).length === 0) return NextResponse.json({ ok: true })
     const { error } = await supabase.from('tareas').update(row).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    // Sync calendar if date or name changed
-    if (body.fechaLimite || body.nombre || body.hora) {
-      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion').eq('id', id).maybeSingle()
-      if (tarea && tarea.fecha_limite && (tarea.ids_responsables as string[])?.length > 0) {
-        syncTareaToAllResponsables(id, tarea.ids_responsables as string[], {
-          summary: tarea.nombre as string,
-          description: (tarea.descripcion as string) ?? '',
-          date: tarea.fecha_limite as string,
-          time: tarea.hora as string | null,
-        })
+    // Sync calendar if relevant fields changed
+    if (body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined) {
+      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar').eq('id', id).maybeSingle()
+      if (tarea && (tarea.ids_responsables as string[])?.length > 0) {
+        if (tarea.sync_calendar && tarea.fecha_limite) {
+          syncTareaToAllResponsables(id, tarea.ids_responsables as string[], {
+            summary: tarea.nombre as string,
+            description: (tarea.descripcion as string) ?? '',
+            date: tarea.fecha_limite as string,
+            time: tarea.hora as string | null,
+          })
+        } else if (body.syncCalendar === false) {
+          // Toggle turned off → delete calendar events
+          syncTareaToAllResponsables(id, tarea.ids_responsables as string[], null)
+        }
       }
     }
     return NextResponse.json({ ok: true })

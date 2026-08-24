@@ -193,6 +193,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [chatEjemplo('emp-1', '@Marcos Ruiz recuerda incluir el comparativo con el mes anterior', ['emp-2'])],
     adjuntos: [adjunto('Plantilla del informe', 'https://drive.google.com/drive/folders/plantilla-informe')],
     imagenes: [],
+    syncCalendar: false,
   },
   {
     id: 'tar-2',
@@ -215,6 +216,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [],
     adjuntos: [],
     imagenes: [],
+    syncCalendar: false,
   },
   {
     id: 'tar-3',
@@ -237,6 +239,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [],
     adjuntos: [],
     imagenes: [],
+    syncCalendar: false,
   },
   {
     id: 'tar-4',
@@ -259,6 +262,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [],
     adjuntos: [],
     imagenes: [],
+    syncCalendar: false,
   },
   {
     id: 'tar-5',
@@ -281,6 +285,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [],
     adjuntos: [],
     imagenes: [],
+    syncCalendar: false,
   },
   {
     id: 'tar-6',
@@ -303,6 +308,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [],
     adjuntos: [],
     imagenes: [],
+    syncCalendar: false,
   },
   {
     id: 'tar-7',
@@ -325,6 +331,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [],
     adjuntos: [],
     imagenes: [],
+    syncCalendar: false,
   },
   {
     id: 'tar-8',
@@ -347,6 +354,7 @@ export const MOCK_TAREAS: Tarea[] = [
     chat: [],
     adjuntos: [],
     imagenes: [],
+    syncCalendar: false,
   },
 ]
 

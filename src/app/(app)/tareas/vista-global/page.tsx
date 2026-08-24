@@ -64,6 +64,7 @@ export default function VistaGlobalPage() {
       recurrencia: 'ninguna',
       adjuntos: [],
       imagenes: [],
+      syncCalendar: false,
     })
     setTareaAbiertaId(id)
   }
