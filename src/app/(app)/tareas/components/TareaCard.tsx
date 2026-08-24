@@ -75,7 +75,7 @@ export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: (
           </button>
           {timerError && <span className="text-red-400 text-xs leading-tight">{timerError}</span>}
         </div>
-        <span title="Adjuntos">📎 {tarea.adjuntos.length}</span>
+        <span title="Adjuntos">📎 {tarea.adjuntos.length + tarea.imagenes.length}</span>
         <span title="Mensajes">💬 {tarea.chat.length}</span>
       </div>
 
