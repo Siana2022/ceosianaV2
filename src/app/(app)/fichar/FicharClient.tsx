@@ -321,6 +321,17 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                     {activeCliente && <span className="text-gray-300">{activeCliente}</span>}
                     {activeDept && <span className="text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">{activeDept}</span>}
                   </div>
+                  {clienteId && clienteId !== '__otros__' && (
+                    <div className="mt-3 pt-3 border-t border-gray-800">
+                      <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1.5">Vincular a Procesos:</p>
+                      <select value={tareaId} onChange={e => setTareaId(e.target.value)}
+                        className="w-full bg-gray-800 border border-purple-700 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500">
+                        <option value="">— Sin tarea —</option>
+                        {tareas.filter(t => t.idCliente === clienteId).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                        <option value="__nueva__">✨ Crear nueva tarea</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <button onClick={stopTimer} disabled={saving}
                   className="mt-4 w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold text-sm transition-colors disabled:opacity-50">
@@ -406,18 +417,18 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
               </div>
             </div>
 
-          {/* Tarea de procesos */}
-          {clienteId && clienteId !== '__otros__' && (() => { const ts = tareas.filter(t => t.idCliente === clienteId); return ts.length > 0 ? (
+          {/* Tarea de procesos — siempre visible cuando hay cliente */}
+          {clienteId && clienteId !== '__otros__' && (
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tarea de Procesos</label>
               <select value={tareaId} onChange={e => { setTareaId(e.target.value); if (e.target.value && e.target.value !== '__nueva__') setDescripcion(tareas.find(t => t.id === e.target.value)?.nombre ?? descripcion) }}
                 className="w-full bg-gray-800 border border-purple-600 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-400">
                 <option value="">— Sin tarea vinculada —</option>
-                {ts.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                <option value="__nueva__">✨ Crear nueva tarea en Procesos</option>
+                {tareas.filter(t => t.idCliente === clienteId).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                <option value="__nueva__">✨ Crear nueva tarea en Procesos al guardar</option>
               </select>
             </div>
-          ) : null })()}
+          )}
 
           {/* Timer action */}
           {modo === 'timer' && (
