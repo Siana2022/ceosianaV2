@@ -456,10 +456,11 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
                 {tarea.imagenes.map(img => (
                   <div key={img.id} className="relative group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.url} alt={img.nombre} className="w-full h-16 object-cover rounded-lg border border-gray-700" />
+                    <img src={img.url} alt={img.nombre} onClick={() => window.open(img.url, '_blank')}
+                      className="w-full h-16 object-cover rounded-lg border border-gray-700 cursor-pointer hover:opacity-80 transition-opacity" title={img.nombre} />
                     <button
                       onClick={() => actions.eliminarImagenTarea(tarea.id, img.id)}
-                      className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
+                      className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       ×
                     </button>
