@@ -21,11 +21,13 @@ const menuAdmin = [
   { href: '/fichar', label: 'Fichar', icon: '🕐' },
   { href: '/informes', label: 'Informes', icon: '📋' },
   { href: '/rendimiento', label: 'Rendimiento', icon: '⚡' },
+  { href: '/perfil', label: 'Mi perfil', icon: '👤' },
 ]
 
 const menuEmpleado = [
   { href: '/fichar', label: 'Fichar', icon: '🕐' },
   { href: '/tareas', label: 'Procesos', icon: '🗂️' },
+  { href: '/perfil', label: 'Mi perfil', icon: '👤' },
 ]
 
 interface Props {
