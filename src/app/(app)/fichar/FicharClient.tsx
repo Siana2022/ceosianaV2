@@ -176,7 +176,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       let finalClienteId: string | null = clienteId && clienteId !== '__otros__' ? clienteId : null
       let finalDeptId: string | null = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
       let finalServicioId: string | null = null
-      if (clienteTieneProyectos()) {
+      if (serviciosDelCliente().length > 0) {
         if (proyectoOtrosId && proyectoOtrosId !== '__manual__') finalServicioId = proyectoOtrosId
         else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
       }
@@ -220,14 +220,11 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       let finalDeptId: string | null = departamentoId || null
       let finalServicioId: string | null = null
 
-      const esOtrosCliente = clienteTieneProyectos()
-
       if (clienteId === '__otros__') {
         finalClienteId = null
       }
 
-      // Si es Otros: usar proyecto seleccionado o texto manual
-      if (esOtrosCliente) {
+      if (serviciosDelCliente().length > 0) {
         if (proyectoOtrosId && proyectoOtrosId !== '__manual__') {
           finalServicioId = proyectoOtrosId
         } else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) {
@@ -356,7 +353,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   <option value="__otros__">— Otros... —</option>
                 </select>
-                {clienteTieneProyectos() && (
+                {serviciosDelCliente().length > 0 && (
                   <div className="mt-1.5 space-y-1.5">
                     <select value={proyectoOtrosId} onChange={e => setProyectoOtrosId(e.target.value)}
                       className="w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400">
