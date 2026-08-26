@@ -5,6 +5,8 @@ function token() {
 }
 
 async function resolveChannelId(tok: string, nombre: string): Promise<string> {
+  // If it already looks like a Slack ID (C/D/G prefix), use it directly
+  if (/^[CDG][A-Z0-9]{6,}$/.test(nombre)) return nombre
   // Strip leading # if present
   const name = nombre.startsWith('#') ? nombre.slice(1) : nombre
   // Try conversations.list to resolve name → ID (needed for private channels)
