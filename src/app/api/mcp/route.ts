@@ -161,9 +161,10 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<st
   }
 
   if (name === 'get_clientes') {
-    const { data } = await admin.from('clientes').select('nombre, sector, slack_canal').order('nombre')
-    if (!data?.length) return 'No hay clientes.'
-    const lines = data.map(c => `• ${c.nombre}${c.sector ? ` (${c.sector})` : ''}${c.slack_canal ? ` — Slack: #${c.slack_canal}` : ''}`)
+    const { data, error } = await admin.from('clientes').select('nombre, slack_canal').order('nombre')
+    if (error) return `Error al consultar clientes: ${error.message}`
+    if (!data?.length) return 'No hay clientes registrados.'
+    const lines = data.map(c => `• ${c.nombre}${c.slack_canal ? ` — Slack: #${c.slack_canal}` : ''}`)
     return `Clientes (${data.length}):\n${lines.join('\n')}`
   }
 
