@@ -409,6 +409,17 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<st
     return `Equipo — ${MESES[mesActual - 1]} ${anioActual}:\n${lines.join('\n')}`
   }
 
+  if (name === '_debug') {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'MISSING'
+    const hasKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    try {
+      const { data, error, count } = await admin.from('clientes').select('id', { count: 'exact', head: true })
+      return `URL: ${url}\nHas service key: ${hasKey}\nClientes count: ${count ?? 0}\nError: ${error?.message ?? 'none'}\nData: ${JSON.stringify(data)}`
+    } catch (e) {
+      return `URL: ${url}\nHas service key: ${hasKey}\nAdmin client error: ${String(e)}`
+    }
+  }
+
   return `Tool "${name}" not implemented`
 }
 
