@@ -110,12 +110,20 @@ export async function POST(req: NextRequest) {
   const userId = event.user as string
   const channel = event.channel as string
 
+  // Check if the message contains an email directly (e.g. "@CEOSIANA juanjo@siana.com")
+  const text = (event.text as string) ?? ''
+  const emailMatch = text.match(/[\w.+-]+@[\w.-]+\.\w+/)
+  const emailFromMessage = emailMatch ? emailMatch[0] : null
+
   // Respond immediately — Slack requires response within 3s
   waitUntil((async () => {
     try {
-      const email = await slackEmailDeUsuario(userId)
+      let email = emailFromMessage
       if (!email) {
-        await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana. Asegúrate de que tu email de Slack coincide con el registrado.`)
+        email = await slackEmailDeUsuario(userId)
+      }
+      if (!email) {
+        await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana.\nPuedes especificar tu email directamente: \`@CEOSIANA juanjo@sianadigital.com\``)
         return
       }
       const tareas = await tareasDeEmpleado(email)
