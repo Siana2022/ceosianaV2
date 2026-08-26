@@ -35,6 +35,21 @@ export async function syncTareaToCalendar(tareaId: string, userId: string, input
   }
 }
 
-export async function syncTareaToAllResponsables(tareaId: string, responsableIds: string[], input: CalendarEventInput | null) {
-  await Promise.allSettled(responsableIds.map(uid => syncTareaToCalendar(tareaId, uid, input)))
+export async function syncTareaToAllResponsables(tareaId: string, empleadoIds: string[], input: CalendarEventInput | null) {
+  if (!empleadoIds.length) return
+  const admin = createAdminClient()
+
+  // empleadoIds are from the `empleados` table — map to Supabase auth user IDs via email
+  const { data: empleados } = await admin
+    .from('empleados')
+    .select('email')
+    .in('id', empleadoIds)
+
+  const emails = new Set((empleados ?? []).map((e: { email: string }) => e.email).filter(Boolean))
+  if (!emails.size) return
+
+  const { data: { users } } = await admin.auth.admin.listUsers({ perPage: 500 })
+  const authIds = users.filter(u => u.email && emails.has(u.email)).map(u => u.id)
+
+  await Promise.allSettled(authIds.map(uid => syncTareaToCalendar(tareaId, uid, input)))
 }
