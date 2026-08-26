@@ -40,6 +40,23 @@ export async function sendSlackMessage(canal: string, text: string): Promise<voi
   }
 }
 
+export async function emailsToMenciones(emails: string[]): Promise<string> {
+  const tok = token()
+  if (!tok || !emails.length) return emails.join(', ')
+  const menciones = await Promise.all(emails.map(async email => {
+    try {
+      const res = await fetch(`${SLACK_API}/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      })
+      const data = await res.json()
+      return data.ok ? `<@${data.user.id}>` : email
+    } catch {
+      return email
+    }
+  }))
+  return menciones.join(', ')
+}
+
 export async function sendSlackDM(email: string, text: string): Promise<void> {
   const tok = token()
   if (!tok || !email) return

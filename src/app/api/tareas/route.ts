@@ -2,7 +2,7 @@ import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { syncTareaToAllResponsables } from '@/lib/google/syncTarea'
-import { sendSlackMessage } from '@/lib/slack'
+import { sendSlackMessage, emailsToMenciones } from '@/lib/slack'
 
 // camelCase (JS) → snake_case (DB)
 const CAMINO: Record<string, string> = {
@@ -69,11 +69,12 @@ async function slackCanalDeCliente(idCliente: string | null | undefined): Promis
   return (data as Record<string, string | null> | null)?.slack_canal ?? null
 }
 
-async function nombreResponsables(ids: string[]): Promise<string> {
+async function mencionesResponsables(ids: string[]): Promise<string> {
   if (!ids.length) return ''
   const admin = createAdminClient()
-  const { data } = await admin.from('empleados').select('nombre').in('id', ids)
-  return (data ?? []).map((e: { nombre: string }) => e.nombre).join(', ')
+  const { data } = await admin.from('empleados').select('email').in('id', ids)
+  const emails = (data ?? []).map((e: { email: string }) => e.email).filter(Boolean)
+  return emailsToMenciones(emails)
 }
 
 export async function GET() {
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
     if (responsableIds.length > 0 && tarea.idCliente) {
       const canal = await slackCanalDeCliente(tarea.idCliente as string)
       if (canal) {
-        const responsablesStr = await nombreResponsables(responsableIds)
+        const responsablesStr = await mencionesResponsables(responsableIds)
         const fecha = tarea.fechaLimite ? new Date(tarea.fechaLimite as string).toLocaleDateString('es-ES') : '—'
         await sendSlackMessage(canal, `📋 *Nueva tarea asignada*\n*${tarea.nombre}*\n👤 ${responsablesStr}\n📅 Fecha límite: ${fecha}`)
       }
@@ -165,7 +166,7 @@ export async function PATCH(req: NextRequest) {
           // Nueva tarea asignada: responsables added where there were none before
           const respIds = (tarea.ids_responsables as string[]) ?? []
           if (newResponsables && newResponsables.length > 0 && oldResponsables.length === 0) {
-            const responsablesStr = await nombreResponsables(respIds)
+            const responsablesStr = await mencionesResponsables(respIds)
             const fecha = tarea.fecha_limite ? new Date(tarea.fecha_limite as string).toLocaleDateString('es-ES') : '—'
             await sendSlackMessage(canal, `📋 *Nueva tarea asignada*\n*${tarea.nombre}*\n👤 ${responsablesStr}\n📅 Fecha límite: ${fecha}`)
           }
