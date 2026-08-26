@@ -3,12 +3,24 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { sendSlackMessage } from '@/lib/slack'
 
 // GET /api/slack/test-mention?email=juanjo@sianadigital.com&canal=activage
+// GET /api/slack/test-mention?slack_user_id=U012ABC&canal=activage  (debug user lookup)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const email = searchParams.get('email') ?? ''
   const canal = searchParams.get('canal') ?? ''
+  const slackUserId = searchParams.get('slack_user_id') ?? ''
   const base = new URL(req.url).origin
   const log: Record<string, unknown> = { email, canal, base }
+
+  // Debug: resolve Slack user ID → email
+  if (slackUserId) {
+    const tok = process.env.SLACK_BOT_TOKEN ?? ''
+    const res = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
+      headers: { Authorization: `Bearer ${tok}` },
+    })
+    const data = await res.json()
+    return NextResponse.json({ ok: data.ok, user_id: slackUserId, email: data.user?.profile?.email, profile: data.user?.profile, error: data.error })
+  }
 
   if (!email || !canal) {
     return NextResponse.json({ error: 'Faltan parámetros: email y canal', log })
