@@ -131,10 +131,17 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json() as Record<string, unknown>
     const row = bodyToDbRow(body)
     if (Object.keys(row).length === 0) return NextResponse.json({ ok: true })
+    // Fetch BEFORE update to detect responsable changes (for Slack "nueva tarea asignada")
+    const newResponsables = body.idsResponsables as string[] | undefined
+    let oldResponsables: string[] = []
+    if (newResponsables && newResponsables.length > 0) {
+      const { data: prev } = await supabase.from('tareas').select('ids_responsables').eq('id', id).maybeSingle()
+      oldResponsables = (prev?.ids_responsables as string[]) ?? []
+    }
     const { error } = await supabase.from('tareas').update(row).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     // Fetch tarea for calendar sync and Slack notifications when needed
-    const needsTareaFetch = body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined || body.estado === 'bloqueada' || body.estado === 'terminado'
+    const needsTareaFetch = body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined || body.estado === 'bloqueada' || body.estado === 'terminado' || (newResponsables && newResponsables.length > 0)
     if (needsTareaFetch) {
       const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente').eq('id', id).maybeSingle()
       if (tarea) {
@@ -153,9 +160,17 @@ export async function PATCH(req: NextRequest) {
           }
         }
         // Slack notifications
-        if (body.estado === 'bloqueada' || body.estado === 'terminado') {
-          const canal = await slackCanalDeCliente(tarea.id_cliente as string | null)
-          if (canal) {
+        const canal = await slackCanalDeCliente(tarea.id_cliente as string | null)
+        if (canal) {
+          // Nueva tarea asignada: responsables added where there were none before
+          const respIds = (tarea.ids_responsables as string[]) ?? []
+          if (newResponsables && newResponsables.length > 0 && oldResponsables.length === 0) {
+            const responsablesStr = await nombreResponsables(respIds)
+            const fecha = tarea.fecha_limite ? new Date(tarea.fecha_limite as string).toLocaleDateString('es-ES') : '—'
+            await sendSlackMessage(canal, `📋 *Nueva tarea asignada*\n*${tarea.nombre}*\n👤 ${responsablesStr}\n📅 Fecha límite: ${fecha}`)
+          }
+          // Estado changes
+          if (body.estado === 'bloqueada' || body.estado === 'terminado') {
             const msg = body.estado === 'terminado'
               ? `✅ *Tarea completada*\n*${tarea.nombre}*`
               : `🔴 *Tarea bloqueada*\n*${tarea.nombre}*${body.explicacionBloqueo ? `\n> ${body.explicacionBloqueo}` : ''}`
