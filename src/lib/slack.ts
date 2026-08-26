@@ -31,7 +31,7 @@ export async function sendSlackMessage(canal: string, text: string): Promise<voi
     const res = await fetch(`${SLACK_API}/chat.postMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-      body: JSON.stringify({ channel, text }),
+      body: JSON.stringify({ channel, text, unfurl_links: false, unfurl_media: false }),
     })
     const data = await res.json()
     if (!data.ok) console.error('[slack] chat.postMessage error:', data.error, 'channel:', channel)
@@ -84,7 +84,7 @@ export async function sendSlackDM(email: string, text: string): Promise<void> {
     await fetch(`${SLACK_API}/chat.postMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-      body: JSON.stringify({ channel, text }),
+      body: JSON.stringify({ channel, text, unfurl_links: false, unfurl_media: false }),
     })
   } catch (e) {
     console.error('[slack] DM error:', e)
