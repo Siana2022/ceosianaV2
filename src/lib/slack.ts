@@ -4,18 +4,37 @@ function token() {
   return process.env.SLACK_BOT_TOKEN ?? ''
 }
 
+async function resolveChannelId(tok: string, nombre: string): Promise<string> {
+  // Strip leading # if present
+  const name = nombre.startsWith('#') ? nombre.slice(1) : nombre
+  // Try conversations.list to resolve name → ID (needed for private channels)
+  try {
+    const res = await fetch(`${SLACK_API}/conversations.list?types=public_channel,private_channel&limit=200&exclude_archived=true`, {
+      headers: { Authorization: `Bearer ${tok}` },
+    })
+    const data = await res.json()
+    if (data.ok) {
+      const found = (data.channels as Array<{ id: string; name: string }>)?.find(c => c.name === name)
+      if (found) return found.id
+    }
+  } catch {
+    // fall through to name-based
+  }
+  return nombre.startsWith('#') ? nombre : `#${nombre}`
+}
+
 export async function sendSlackMessage(canal: string, text: string): Promise<void> {
   const tok = token()
   if (!tok || !canal) return
-  const channel = canal.startsWith('#') ? canal : `#${canal}`
   try {
+    const channel = await resolveChannelId(tok, canal)
     const res = await fetch(`${SLACK_API}/chat.postMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
       body: JSON.stringify({ channel, text }),
     })
     const data = await res.json()
-    if (!data.ok) console.error('[slack] chat.postMessage error:', data.error)
+    if (!data.ok) console.error('[slack] chat.postMessage error:', data.error, 'channel:', channel)
   } catch (e) {
     console.error('[slack] fetch error:', e)
   }
