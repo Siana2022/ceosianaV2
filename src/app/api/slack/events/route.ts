@@ -105,26 +105,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // Process mention asynchronously (fire-and-forget to stay under 3s)
-  ;(async () => {
-    try {
-      const base = new URL(req.url).origin
-      const userId = event.user as string
-      const channel = event.channel as string
+  try {
+    const base = new URL(req.url).origin
+    const userId = event.user as string
+    const channel = event.channel as string
 
-      const email = await slackEmailDeUsuario(userId)
-      if (!email) {
-        await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana. Asegúrate de que tu email de Slack coincide con el registrado.`)
-        return
-      }
-
-      const tareas = await tareasDeEmpleado(email)
-      const msg = formatTareas(tareas, base)
-      await sendSlackMessage(channel, msg)
-    } catch (e) {
-      console.error('[slack/events]', e)
+    const email = await slackEmailDeUsuario(userId)
+    if (!email) {
+      await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana. Asegúrate de que tu email de Slack coincide con el registrado.`)
+      return NextResponse.json({ ok: true })
     }
-  })()
+
+    const tareas = await tareasDeEmpleado(email)
+    const msg = formatTareas(tareas, base)
+    await sendSlackMessage(channel, msg)
+  } catch (e) {
+    console.error('[slack/events]', e)
+  }
 
   return NextResponse.json({ ok: true })
 }
