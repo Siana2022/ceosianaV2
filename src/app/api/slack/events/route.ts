@@ -115,15 +115,23 @@ export async function POST(req: NextRequest) {
   const emailMatch = text.match(/[\w.+-]+@[\w.-]+\.\w+/)
   const emailFromMessage = emailMatch ? emailMatch[0] : null
 
-  // Respond immediately — Slack requires response within 3s
+  if (emailFromMessage) {
+    // Fast path: email in message — process synchronously (fast enough for Slack's 3s limit)
+    try {
+      const tareas = await tareasDeEmpleado(emailFromMessage)
+      await sendSlackMessage(channel, formatTareas(tareas, base))
+    } catch (e) {
+      console.error('[slack/events]', e)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  // Slow path: resolve Slack user ID → email — use waitUntil to respond within 3s
   waitUntil((async () => {
     try {
-      let email = emailFromMessage
+      const email = await slackEmailDeUsuario(userId)
       if (!email) {
-        email = await slackEmailDeUsuario(userId)
-      }
-      if (!email) {
-        await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana.\nPuedes especificar tu email directamente: \`@CEOSIANA juanjo@sianadigital.com\``)
+        await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana.\nEspecifica tu email: \`@CEOSIANA juanjo@sianadigital.com\``)
         return
       }
       const tareas = await tareasDeEmpleado(email)
