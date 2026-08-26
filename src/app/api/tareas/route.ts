@@ -67,17 +67,33 @@ function appUrl(req: NextRequest): string {
   return `${u.protocol}//${u.host}`
 }
 
-function slackMsgNuevaTarea(nombre: string, descripcion: string | null, menciones: string, fecha: string, tareaId: string, base: string): string {
+function slackMsgNuevaTarea(opts: {
+  nombre: string; descripcion: string | null; menciones: string; fecha: string
+  tareaId: string; base: string; cliente: string | null; departamento: string | null
+}): string {
+  const { nombre, descripcion, menciones, fecha, tareaId, base, cliente, departamento } = opts
+  const partes = [nombre, cliente ? cliente.toUpperCase() : null, departamento].filter(Boolean)
+  const titulo = partes.join(' — ')
   const desc = descripcion?.trim() ? `\n_${descripcion.trim()}_` : ''
   const link = `<${base}/tareas/vista-global?tarea=${tareaId}|Ver tarea →>`
-  return `📋 *Nueva tarea asignada*\n*${nombre}*${desc}\n👤 ${menciones}\n📅 Fecha límite: ${fecha}\n🔗 ${link}`
+  return `*${titulo}*${desc}\n👤 ${menciones}\n📅 ${fecha}\n🔗 ${link}\n---`
 }
 
-async function slackCanalDeCliente(idCliente: string | null | undefined): Promise<string | null> {
-  if (!idCliente) return null
+interface ClienteInfo { canal: string | null; nombre: string | null }
+
+async function infoCliente(idCliente: string | null | undefined): Promise<ClienteInfo> {
+  if (!idCliente) return { canal: null, nombre: null }
   const admin = createAdminClient()
-  const { data } = await admin.from('clientes').select('slack_canal').eq('id', idCliente).maybeSingle()
-  return (data as Record<string, string | null> | null)?.slack_canal ?? null
+  const { data } = await admin.from('clientes').select('slack_canal, nombre').eq('id', idCliente).maybeSingle()
+  const row = data as Record<string, string | null> | null
+  return { canal: row?.slack_canal ?? null, nombre: row?.nombre ?? null }
+}
+
+async function nombreDepartamento(idDep: string | null | undefined): Promise<string | null> {
+  if (!idDep) return null
+  const admin = createAdminClient()
+  const { data } = await admin.from('departamentos').select('nombre').eq('id', idDep).maybeSingle()
+  return (data as Record<string, string | null> | null)?.nombre ?? null
 }
 
 async function mencionesResponsables(ids: string[]): Promise<string> {
@@ -123,11 +139,18 @@ export async function POST(req: NextRequest) {
     // Slack: nueva tarea asignada
     const responsableIds = tarea.idsResponsables as string[]
     if (responsableIds.length > 0 && tarea.idCliente) {
-      const canal = await slackCanalDeCliente(tarea.idCliente as string)
-      if (canal) {
-        const responsablesStr = await mencionesResponsables(responsableIds)
+      const [clienteInfo, depNombre] = await Promise.all([
+        infoCliente(tarea.idCliente as string),
+        nombreDepartamento(tarea.idDepartamento as string | null),
+      ])
+      if (clienteInfo.canal) {
+        const menciones = await mencionesResponsables(responsableIds)
         const fecha = tarea.fechaLimite ? new Date(tarea.fechaLimite as string).toLocaleDateString('es-ES') : '—'
-        await sendSlackMessage(canal, slackMsgNuevaTarea(tarea.nombre as string, tarea.descripcion as string, responsablesStr, fecha, tarea.id as string, base))
+        await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
+          nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
+          menciones, fecha, tareaId: tarea.id as string, base,
+          cliente: clienteInfo.nombre, departamento: depNombre,
+        }))
       }
     }
     return NextResponse.json(tarea)
@@ -157,7 +180,7 @@ export async function PATCH(req: NextRequest) {
     // Fetch tarea for calendar sync and Slack notifications when needed
     const needsTareaFetch = body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined || body.estado === 'bloqueada' || body.estado === 'terminado' || (newResponsables && newResponsables.length > 0)
     if (needsTareaFetch) {
-      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente').eq('id', id).maybeSingle()
+      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente, id_departamento').eq('id', id).maybeSingle()
       if (tarea) {
         // Calendar sync
         const respIds = (tarea.ids_responsables as string[]) ?? []
@@ -174,21 +197,28 @@ export async function PATCH(req: NextRequest) {
           }
         }
         // Slack notifications
-        const canal = await slackCanalDeCliente(tarea.id_cliente as string | null)
-        if (canal) {
+        const [clienteInfo, depNombre] = await Promise.all([
+          infoCliente(tarea.id_cliente as string | null),
+          nombreDepartamento(tarea.id_departamento as string | null),
+        ])
+        if (clienteInfo.canal) {
           // Nueva tarea asignada: responsables added where there were none before
-          const respIds = (tarea.ids_responsables as string[]) ?? []
           if (newResponsables && newResponsables.length > 0 && oldResponsables.length === 0) {
-            const responsablesStr = await mencionesResponsables(respIds)
+            const menciones = await mencionesResponsables(respIds)
             const fecha = tarea.fecha_limite ? new Date(tarea.fecha_limite as string).toLocaleDateString('es-ES') : '—'
-            await sendSlackMessage(canal, slackMsgNuevaTarea(tarea.nombre as string, tarea.descripcion as string, responsablesStr, fecha, id, base))
+            await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
+              nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
+              menciones, fecha, tareaId: id, base,
+              cliente: clienteInfo.nombre, departamento: depNombre,
+            }))
           }
           // Estado changes
           if (body.estado === 'bloqueada' || body.estado === 'terminado') {
+            const link = `<${base}/tareas/vista-global?tarea=${id}|Ver tarea →>`
             const msg = body.estado === 'terminado'
-              ? `✅ *Tarea completada*\n*${tarea.nombre}*`
-              : `🔴 *Tarea bloqueada*\n*${tarea.nombre}*${body.explicacionBloqueo ? `\n> ${body.explicacionBloqueo}` : ''}`
-            await sendSlackMessage(canal, msg)
+              ? `✅ *Tarea completada*\n*${tarea.nombre}*\n🔗 ${link}\n---`
+              : `🔴 *Tarea bloqueada*\n*${tarea.nombre}*${body.explicacionBloqueo ? `\n> ${body.explicacionBloqueo}` : ''}\n🔗 ${link}\n---`
+            await sendSlackMessage(clienteInfo.canal, msg)
           }
         }
       }
