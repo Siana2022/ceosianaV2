@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { sendSlackMessage } from '@/lib/slack'
 import crypto from 'crypto'
@@ -105,23 +106,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  try {
-    const base = new URL(req.url).origin
-    const userId = event.user as string
-    const channel = event.channel as string
+  const base = new URL(req.url).origin
+  const userId = event.user as string
+  const channel = event.channel as string
 
-    const email = await slackEmailDeUsuario(userId)
-    if (!email) {
-      await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana. Asegúrate de que tu email de Slack coincide con el registrado.`)
-      return NextResponse.json({ ok: true })
+  // Respond immediately — Slack requires response within 3s
+  waitUntil((async () => {
+    try {
+      const email = await slackEmailDeUsuario(userId)
+      if (!email) {
+        await sendSlackMessage(channel, `❌ No encuentro tu usuario en Ceosiana. Asegúrate de que tu email de Slack coincide con el registrado.`)
+        return
+      }
+      const tareas = await tareasDeEmpleado(email)
+      await sendSlackMessage(channel, formatTareas(tareas, base))
+    } catch (e) {
+      console.error('[slack/events]', e)
     }
-
-    const tareas = await tareasDeEmpleado(email)
-    const msg = formatTareas(tareas, base)
-    await sendSlackMessage(channel, msg)
-  } catch (e) {
-    console.error('[slack/events]', e)
-  }
+  })())
 
   return NextResponse.json({ ok: true })
 }
