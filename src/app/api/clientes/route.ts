@@ -36,11 +36,11 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const supabase = await createClient()
   const body = await request.json()
-  const { id, nombre, activo, notas, fecha_alta } = body
+  const { id, nombre, activo, notas, fecha_alta, slack_canal } = body
 
   const { data, error } = await supabase
     .from('clientes')
-    .update({ nombre, activo, notas, fecha_alta: fecha_alta ?? undefined })
+    .update({ nombre, activo, notas, fecha_alta: fecha_alta ?? undefined, slack_canal: slack_canal ?? null })
     .eq('id', id)
     .select()
     .single()

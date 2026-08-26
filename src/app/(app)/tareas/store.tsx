@@ -579,9 +579,20 @@ export function TareasProvider({
     setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, chat: [...t.chat, msg] } : t))
     dbPatch(`/api/tareas?id=${idTarea}`, { chat: [...(tareas.find(t => t.id === idTarea)?.chat ?? []), msg] })
     if (mencionesIds.length > 0) {
-      pushToast(`🔔 Notificación Slack simulada enviada a ${mencionesIds.map(id => nombreEmpleado(id)).join(', ')}.`)
+      const tarea = tareas.find(t => t.id === idTarea)
+      if (tarea?.idCliente) {
+        const menciones = mencionesIds.map(id => nombreEmpleado(id)).join(', ')
+        fetch('/api/slack/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idCliente: tarea.idCliente,
+            text: `💬 *Mención en tarea*\n*${tarea.nombre}*\n👤 @${menciones}: "${texto}"`,
+          }),
+        }).catch(console.error)
+      }
     }
-  }, [pushToast, nombreEmpleado, tareas])
+  }, [nombreEmpleado, tareas])
 
   const addAdjuntoTarea = useCallback((idTarea: string, adjunto: Omit<Adjunto, 'id'>) => {
     const nuevo = { ...adjunto, id: nextId('adj') }

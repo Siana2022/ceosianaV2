@@ -54,6 +54,7 @@ interface Cliente {
   activo: boolean
   fecha_alta: string | null
   notas: string | null
+  slack_canal: string | null
 }
 
 interface Gasto {
@@ -485,6 +486,7 @@ export default function ClienteDetailClient({
     nombre: cliente.nombre,
     fecha_alta: cliente.fecha_alta ?? '',
     notas: cliente.notas ?? '',
+    slack_canal: cliente.slack_canal ?? '',
   })
 
   const [showServicioModal, setShowServicioModal] = useState(false)
@@ -515,7 +517,7 @@ export default function ClienteDetailClient({
       const res = await fetch('/api/clientes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: cliente.id, nombre: clienteForm.nombre, fecha_alta: clienteForm.fecha_alta, notas: clienteForm.notas }),
+        body: JSON.stringify({ id: cliente.id, nombre: clienteForm.nombre, fecha_alta: clienteForm.fecha_alta, notas: clienteForm.notas, slack_canal: clienteForm.slack_canal }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
       setShowEditCliente(false)
@@ -1789,6 +1791,11 @@ export default function ClienteDetailClient({
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Notas</label>
                   <textarea value={clienteForm.notas} onChange={e => setClienteForm(f => ({ ...f, notas: e.target.value }))} rows={3} className={`${inputCls} resize-none`} />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Canal de Slack</label>
+                  <input type="text" placeholder="nombre-del-canal" value={clienteForm.slack_canal} onChange={e => setClienteForm(f => ({ ...f, slack_canal: e.target.value }))} className={inputCls} />
+                  <p className="text-gray-600 text-xs mt-1">Sin el # delante. Ej: cliente-acme</p>
                 </div>
               </div>
               <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
