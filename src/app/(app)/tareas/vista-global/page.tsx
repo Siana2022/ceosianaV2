@@ -36,6 +36,7 @@ export default function VistaGlobalPage() {
   const [idEmpleado, setIdEmpleado] = useState(state.empleados[0]?.id ?? '')
   const [idDepartamento, setIdDepartamento] = useState(state.departamentos[0]?.id ?? '')
   const [tareaAbiertaId, setTareaAbiertaId] = useState<string | null>(null)
+  const [tareaEsNueva, setTareaEsNueva] = useState(false)
   const [mostrarImportar, setMostrarImportar] = useState(false)
   const [mostrarCrearCliente, setMostrarCrearCliente] = useState(false)
 
@@ -67,6 +68,7 @@ export default function VistaGlobalPage() {
       syncCalendar: false,
     })
     setTareaAbiertaId(id)
+    setTareaEsNueva(true)
   }
 
   const visualizacionToggle = (
@@ -317,7 +319,13 @@ export default function VistaGlobalPage() {
           onCreado={idNuevoCliente => { setIdCliente(idNuevoCliente); setMostrarCrearCliente(false) }}
         />
       )}
-      {tareaAbierta && <TareaDetailModal tarea={tareaAbierta} onClose={() => setTareaAbiertaId(null)} />}
+      {tareaAbierta && (
+        <TareaDetailModal
+          tarea={tareaAbierta}
+          isNew={tareaEsNueva}
+          onClose={() => { setTareaAbiertaId(null); setTareaEsNueva(false) }}
+        />
+      )}
     </div>
   )
 }

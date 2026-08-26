@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTareas } from '../store'
 import { ESTADO_TAREA_LABEL, RECURRENCIA_DIAS, RECURRENCIA_LABEL, TIPO_TAREA_ICONO, TIPO_TAREA_LABEL } from '../mockData'
 import { addDays, formatFecha } from '../dateUtils'
@@ -21,8 +21,10 @@ function formatMinutos(m: number) {
 
 type TimerStatus = 'idle' | 'loading' | 'running'
 
-export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onClose: () => void }) {
+export default function TareaDetailModal({ tarea, onClose, isNew = false }: { tarea: Tarea; onClose: () => void; isNew?: boolean }) {
   const { state, actions } = useTareas()
+
+  const savedRef = useRef(false)
 
   // ── Local draft state (se persiste al pulsar Guardar) ──────────────────
   const [draft, setDraft] = useState({
@@ -44,6 +46,13 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     syncCalendar: tarea.syncCalendar,
   })
   const [savedMsg, setSavedMsg] = useState(false)
+
+  const cerrar = () => {
+    if (isNew && !savedRef.current) {
+      actions.eliminarTarea(tarea.id)
+    }
+    onClose()
+  }
 
   // ── Timer real (vinculado con /fichar vía time_logs + localStorage) ────
   const [timerStatus, setTimerStatus] = useState<TimerStatus>('idle')
@@ -94,6 +103,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
     if (draft.minutosAcumulados !== tarea.minutosAcumulados) {
       actions.setMinutosTarea(tarea.id, draft.minutosAcumulados)
     }
+    savedRef.current = true
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2500)
   }
@@ -236,7 +246,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
             />
             <EstadoBadge estado={draft.estado} />
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white text-xl">✕</button>
+          <button onClick={cerrar} className="text-gray-500 hover:text-white text-xl">✕</button>
         </div>
 
         {/* Body */}
@@ -585,7 +595,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
             {savedMsg ? '✓ Guardado' : 'Guardar cambios'}
           </button>
           <button
-            onClick={onClose}
+            onClick={cerrar}
             className="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
           >
             Cerrar
