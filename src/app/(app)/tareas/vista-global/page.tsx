@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useTareas } from '../store'
 import type { TipoTarea } from '../types'
 import TareaDetailModal from '../components/TareaDetailModal'
@@ -27,6 +28,7 @@ type Metrica = 'horas' | 'tareas'
 
 export default function VistaGlobalPage() {
   const { state, actions } = useTareas()
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState<Tab>('cliente')
   const [visualizacion, setVisualizacion] = useState<Visualizacion>('kanban')
   const [vistaTareas, setVistaTareas] = useState<VistaTareas>('tarjeta')
@@ -36,6 +38,12 @@ export default function VistaGlobalPage() {
   const [idEmpleado, setIdEmpleado] = useState(state.empleados[0]?.id ?? '')
   const [idDepartamento, setIdDepartamento] = useState(state.departamentos[0]?.id ?? '')
   const [tareaAbiertaId, setTareaAbiertaId] = useState<string | null>(null)
+
+  // Auto-open task from ?tarea=ID (used by Slack notification links)
+  useEffect(() => {
+    const tareaId = searchParams.get('tarea')
+    if (tareaId) setTareaAbiertaId(tareaId)
+  }, [searchParams])
   const [tareaEsNueva, setTareaEsNueva] = useState(false)
   const [mostrarImportar, setMostrarImportar] = useState(false)
   const [mostrarCrearCliente, setMostrarCrearCliente] = useState(false)
