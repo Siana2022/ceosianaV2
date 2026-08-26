@@ -163,27 +163,26 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<st
 
   if (name === 'get_rentabilidad') {
     const anio = args.anio as number
-    const { data: facturas } = await admin
-      .from('facturas')
-      .select('id_cliente, importe, clientes(nombre)')
-      .gte('fecha', `${anio}-01-01`)
-      .lte('fecha', `${anio}-12-31`)
+    const { data: ingresos } = await admin
+      .from('ingresos')
+      .select('id_cliente, valor, clientes(nombre)')
+      .eq('anio', anio)
 
-    if (!facturas?.length) return `No hay facturas en ${anio}`
+    if (!ingresos?.length) return `No hay ingresos registrados en ${anio}`
 
     const porCliente: Record<string, number> = {}
-    type FactRow = { id_cliente: string; importe: number; clientes: { nombre: string } | null }
-    for (const f of facturas as unknown as FactRow[]) {
-      const nombre = f.clientes?.nombre ?? f.id_cliente
-      porCliente[nombre] = (porCliente[nombre] ?? 0) + (f.importe ?? 0)
+    type IngRow = { id_cliente: string; valor: number; clientes: { nombre: string } | null }
+    for (const r of ingresos as unknown as IngRow[]) {
+      const nombre = r.clientes?.nombre ?? r.id_cliente
+      porCliente[nombre] = (porCliente[nombre] ?? 0) + (r.valor ?? 0)
     }
 
     const total = Object.values(porCliente).reduce((a, b) => a + b, 0)
     const sorted = Object.entries(porCliente).sort((a, b) => b[1] - a[1])
-    const lines = sorted.map(([nombre, importe]) =>
-      `• ${nombre}: ${importe.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`
+    const lines = sorted.map(([nombre, valor]) =>
+      `• ${nombre}: ${valor.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`
     )
-    return `Facturación ${anio}:\n${lines.join('\n')}\n\nTotal: ${total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`
+    return `Ingresos ${anio}:\n${lines.join('\n')}\n\nTotal: ${total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`
   }
 
   return `Tool "${name}" not implemented`
