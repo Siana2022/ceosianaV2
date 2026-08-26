@@ -87,6 +87,7 @@ interface TareasActions {
   eliminarAdjuntoTarea: (idTarea: string, idAdjunto: string) => void
   addImagenTarea: (idTarea: string, imagen: Omit<ImagenAdjunta, 'id'>) => void
   eliminarImagenTarea: (idTarea: string, idImagen: string) => void
+  eliminarTarea: (idTarea: string) => void
 
   // Información general del cliente (enlaces manuales tipo Drive/Looker Studio)
   addEnlaceCliente: (idCliente: string, adjunto: Omit<Adjunto, 'id'>) => void
@@ -603,6 +604,11 @@ export function TareasProvider({
     dbPatch(`/api/tareas?id=${idTarea}`, { imagenes: nuevasImagenes })
   }, [tareas])
 
+  const eliminarTarea = useCallback((idTarea: string) => {
+    setTareas(prev => prev.filter(t => t.id !== idTarea))
+    fetch(`/api/tareas?id=${idTarea}`, { method: 'DELETE' }).catch(console.error)
+  }, [])
+
   const eliminarImagenTarea = useCallback((idTarea: string, idImagen: string) => {
     const tarea = tareas.find(t => t.id === idTarea)
     const imagen = tarea?.imagenes.find(i => i.id === idImagen)
@@ -693,6 +699,7 @@ export function TareasProvider({
       nombreDepartamento,
       nombreCliente,
       nombresEmpleados,
+      eliminarTarea,
     },
     toasts,
   }), [
@@ -700,7 +707,7 @@ export function TareasProvider({
     crearCliente,
     crearPlantilla, eliminarPlantilla, toggleActivaPlantilla, agregarFasePlantilla, actualizarFasePlantilla, eliminarFasePlantilla, moverFasePlantilla,
     importarPlantilla, agregarFaseProceso, actualizarFaseProceso, moverFaseProceso, marcarFaseTerminada, volverFaseAnterior, addAdjuntoFase, eliminarAdjuntoFase, toggleTimerFase, setMinutosFase, addChatMensajeFase,
-    crearTarea, actualizarTarea, notificarBloqueoTarea, toggleTimerTarea, setMinutosTarea, addChatMensajeTarea, addAdjuntoTarea, eliminarAdjuntoTarea, addImagenTarea, eliminarImagenTarea,
+    crearTarea, actualizarTarea, notificarBloqueoTarea, toggleTimerTarea, setMinutosTarea, addChatMensajeTarea, addAdjuntoTarea, eliminarAdjuntoTarea, addImagenTarea, eliminarImagenTarea, eliminarTarea,
     addEnlaceCliente, eliminarEnlaceCliente, setSlackCliente, toggleConflictoResuelto, nombreEmpleado, nombreDepartamento, nombreCliente, nombresEmpleados,
   ])
 

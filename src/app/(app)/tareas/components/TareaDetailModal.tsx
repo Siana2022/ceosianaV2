@@ -572,7 +572,7 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
           </div>
         </div>
 
-        {/* Footer: Guardar + Cerrar */}
+        {/* Footer: Guardar + Cerrar + Eliminar */}
         <div className="px-6 py-4 border-t border-gray-800 flex-shrink-0 flex gap-3">
           <button
             onClick={guardar}
@@ -589,6 +589,17 @@ export default function TareaDetailModal({ tarea, onClose }: { tarea: Tarea; onC
             className="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
           >
             Cerrar
+          </button>
+          <button
+            onClick={() => {
+              if (!confirm('¿Eliminar esta tarea? Esta acción no se puede deshacer.')) return
+              actions.eliminarTarea(tarea.id)
+              onClose()
+            }}
+            className="px-3 py-2 bg-red-900/40 hover:bg-red-800/60 text-red-400 hover:text-red-300 rounded-lg text-sm"
+            title="Eliminar tarea"
+          >
+            🗑
           </button>
         </div>
       </div>
