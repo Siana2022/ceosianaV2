@@ -5,8 +5,9 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 function checkAuth(req: NextRequest): boolean {
   const key = process.env.CEOSIANA_MCP_KEY
   if (!key) return true // no key configured = open (dev only)
-  const auth = req.headers.get('authorization') ?? ''
-  return auth === `Bearer ${key}`
+  const authHeader = req.headers.get('authorization') ?? ''
+  const queryKey = new URL(req.url).searchParams.get('key') ?? ''
+  return authHeader === `Bearer ${key}` || queryKey === key
 }
 
 // ── CORS headers ──────────────────────────────────────────────────────────────
