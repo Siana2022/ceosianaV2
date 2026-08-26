@@ -14,9 +14,12 @@ export interface DeptRentabilidad {
   num_proyectos: number
 }
 
-export default async function DepartamentosPage() {
+export default async function DepartamentosPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const supabase = await createClient()
-  const anio = new Date().getFullYear()
+  const sp = await searchParams
+  const anio = Number(sp.anio) || new Date().getFullYear()
+  const mesDesde = Math.min(12, Math.max(1, Number(sp.mesDesde) || 1))
+  const mesHasta = Math.min(12, Math.max(mesDesde, Number(sp.mesHasta) || 12))
 
   const [
     { data: departamentosRaw },
@@ -36,11 +39,15 @@ export default async function DepartamentosPage() {
       .from('ingresos')
       .select('valor, mes, id_departamento')
       .eq('anio', anio)
+      .gte('mes', mesDesde)
+      .lte('mes', mesHasta)
       .not('id_departamento', 'is', null),
     supabase
       .from('sueldos')
       .select('id_empleado, coste_total, mes')
-      .eq('anio', anio),
+      .eq('anio', anio)
+      .gte('mes', mesDesde)
+      .lte('mes', mesHasta),
     supabase
       .from('gastos_fijos')
       .select('valor, id_departamento, tipo')
@@ -53,7 +60,7 @@ export default async function DepartamentosPage() {
       .not('id_departamento', 'is', null),
   ])
 
-  // Build dedicacion maps
+  // Build dedicacion maps (filter to selected mes range)
   const dedicacionMap = new Map<string, number>()
   const dedicacionCurrentMap = new Map<string, number>()
   const currentMes = new Date().getMonth() + 1
@@ -63,6 +70,8 @@ export default async function DepartamentosPage() {
       dedicacionCurrentMap.set(`${d.id_empleado}_${d.id_departamento}`, d.porcentaje)
     }
   }
+  // Filter dedicacion to selected mes range
+  const dedicacionFiltrada = (dedicacion ?? []).filter(d => d.mes >= mesDesde && d.mes <= mesHasta)
 
   // sueldo map: `${id_empleado}_${mes}` → coste_total
   const sueldoMap = new Map<string, number>()
@@ -99,17 +108,19 @@ export default async function DepartamentosPage() {
       .filter(r => r.id_departamento === dept.id)
       .reduce((s, r) => s + Number(r.valor), 0)
 
-    // Calculate coste personal from empleado_dedicacion directly (consistent with detail page)
+    // Calculate coste personal using filtered dedicacion
     let costePersonal = 0
-    const deptDedicacion = (dedicacion ?? []).filter(d => d.id_departamento === dept.id)
+    const deptDedicacion = dedicacionFiltrada.filter(d => d.id_departamento === dept.id)
     for (const d of deptDedicacion) {
       const sueldo = sueldoMap.get(`${d.id_empleado}_${d.mes}`) ?? 0
       costePersonal += sueldo * d.porcentaje / 100
     }
 
+    // Gastos fijos son anuales: prorratear por meses seleccionados
+    const numMeses = mesHasta - mesDesde + 1
     const gastosPropios = (gastosFijos ?? [])
       .filter(g => g.id_departamento === dept.id)
-      .reduce((s, g) => s + Number(g.valor), 0)
+      .reduce((s, g) => s + Number(g.valor) * numMeses / 12, 0)
 
     const costTotal = costePersonal + gastosPropios
     const resultado = ingresosDept - costTotal
@@ -134,6 +145,8 @@ export default async function DepartamentosPage() {
       departamentos={departamentos}
       rentabilidad={rentabilidad}
       anio={anio}
+      mesDesde={mesDesde}
+      mesHasta={mesHasta}
     />
   )
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
 
 interface Perfil {
   email: string
@@ -17,6 +18,26 @@ export default function PerfilPage() {
   const [slack, setSlack] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+
+  // Password change
+  const [pwd, setPwd] = useState('')
+  const [pwd2, setPwd2] = useState('')
+  const [pwdSaving, setPwdSaving] = useState(false)
+  const [pwdMsg, setPwdMsg] = useState('')
+
+  async function changePassword() {
+    if (pwd.length < 6) { setPwdMsg('La contraseña debe tener al menos 6 caracteres'); return }
+    if (pwd !== pwd2) { setPwdMsg('Las contraseñas no coinciden'); return }
+    setPwdSaving(true)
+    setPwdMsg('')
+    const supabase = createClient()
+    const { error } = await supabase.auth.updateUser({ password: pwd })
+    setPwdSaving(false)
+    if (error) { setPwdMsg(`❌ ${error.message}`); return }
+    setPwd(''); setPwd2('')
+    setPwdMsg('✅ Contraseña actualizada')
+    setTimeout(() => setPwdMsg(''), 3000)
+  }
 
   const load = useCallback(async () => {
     const res = await fetch('/api/perfil')
@@ -80,6 +101,44 @@ export default function PerfilPage() {
               Guardar
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Cambiar contraseña */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+        <h2 className="text-white font-semibold flex items-center gap-2">
+          <span className="text-lg">🔒</span> Cambiar contraseña
+        </h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-gray-400 uppercase tracking-wider mb-1.5">Nueva contraseña</label>
+            <input
+              type="password"
+              value={pwd}
+              onChange={e => setPwd(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 uppercase tracking-wider mb-1.5">Confirmar contraseña</label>
+            <input
+              type="password"
+              value={pwd2}
+              onChange={e => setPwd2(e.target.value)}
+              placeholder="Repite la contraseña"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              onKeyDown={e => e.key === 'Enter' && changePassword()}
+            />
+          </div>
+          {pwdMsg && <p className="text-sm">{pwdMsg}</p>}
+          <button
+            onClick={changePassword}
+            disabled={pwdSaving || !pwd || !pwd2}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 w-full"
+          >
+            {pwdSaving ? 'Guardando...' : 'Actualizar contraseña'}
+          </button>
         </div>
       </div>
 

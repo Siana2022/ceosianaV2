@@ -21,16 +21,35 @@ interface DeptRentabilidad {
   num_proyectos: number
 }
 
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
 export default function DepartamentosClient({
   departamentos,
   rentabilidad,
   anio,
+  mesDesde,
+  mesHasta,
 }: {
   departamentos: Departamento[]
   rentabilidad: DeptRentabilidad[]
   anio: number
+  mesDesde: number
+  mesHasta: number
 }) {
   const router = useRouter()
+
+  const navigate = (params: Record<string, string | number>) => {
+    const sp = new URLSearchParams({ anio: String(anio), mesDesde: String(mesDesde), mesHasta: String(mesHasta), ...Object.fromEntries(Object.entries(params).map(([k,v]) => [k, String(v)])) })
+    router.push(`/departamentos?${sp}`)
+  }
+
+  const esAnioCompleto = mesDesde === 1 && mesHasta === 12
+  const esMesConcrete = mesDesde === mesHasta
+  const periodoLabel = esAnioCompleto
+    ? String(anio)
+    : esMesConcrete
+    ? `${MESES[mesDesde - 1]} ${anio}`
+    : `${MESES[mesDesde - 1]}–${MESES[mesHasta - 1]} ${anio}`
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Departamento | null>(null)
   const [nombre, setNombre] = useState('')
@@ -111,9 +130,44 @@ export default function DepartamentosClient({
       {/* Rentabilidad por departamento */}
       {rentabilidad.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-800">
-            <h3 className="text-white font-semibold">Rentabilidad por departamento — {anio}</h3>
-            <p className="text-gray-500 text-xs mt-0.5">Ingresos, costes de personal y gastos propios del año</p>
+          <div className="px-6 py-4 border-b border-gray-800 flex flex-wrap items-end gap-4">
+            <div>
+              <h3 className="text-white font-semibold">Rentabilidad por departamento — {periodoLabel}</h3>
+              <p className="text-gray-500 text-xs mt-0.5">Ingresos, costes de personal y gastos propios del periodo</p>
+            </div>
+            {/* Filtro de periodo */}
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              <select
+                value={anio}
+                onChange={e => navigate({ anio: e.target.value })}
+                className="bg-gray-800 border border-gray-700 text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none"
+              >
+                {[2023,2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <div className="flex items-center gap-1">
+                <span className="text-gray-500 text-xs">De</span>
+                <select
+                  value={mesDesde}
+                  onChange={e => navigate({ mesDesde: e.target.value, mesHasta: Math.max(Number(e.target.value), mesHasta) })}
+                  className="bg-gray-800 border border-gray-700 text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none"
+                >
+                  {MESES.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                </select>
+                <span className="text-gray-500 text-xs">a</span>
+                <select
+                  value={mesHasta}
+                  onChange={e => navigate({ mesHasta: e.target.value, mesDesde: Math.min(mesDesde, Number(e.target.value)) })}
+                  className="bg-gray-800 border border-gray-700 text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none"
+                >
+                  {MESES.map((m, i) => <option key={i+1} value={i+1} disabled={i+1 < mesDesde}>{m}</option>)}
+                </select>
+              </div>
+              {!esAnioCompleto && (
+                <button onClick={() => navigate({ mesDesde: 1, mesHasta: 12 })} className="text-gray-500 hover:text-white text-xs underline">
+                  Año completo
+                </button>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
