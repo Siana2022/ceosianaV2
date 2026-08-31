@@ -388,7 +388,9 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                       <option value="">— Selecciona proyecto —</option>
                       {serviciosDelCliente().map(s => (
                         <option key={s.id} value={s.id}>
-                          {s.notas ?? s.nombre ?? s.id}
+                          {(['Google Ads', 'Meta Ads', 'Web'].some(n => s.nombre?.includes(n)) && s.notas)
+                            ? `${s.nombre} (${s.notas})`
+                            : s.nombre ?? s.id}
                         </option>
                       ))}
                       <option value="__manual__">✏️ Manual (escribir)</option>
