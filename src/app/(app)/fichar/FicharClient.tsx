@@ -282,17 +282,18 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   }
 
   // Proyectos del cliente seleccionado
-  function serviciosDelCliente(): Servicio[] {
-    if (clienteId === '__otros__') return servicios
+  function serviciosDelCliente(): (Servicio & { _label: string })[] {
+    if (clienteId === '__otros__') return servicios.map(s => ({ ...s, _label: s.nombre ?? s.id }))
     const nombre = clientes.find(c => c.id === clienteId)?.nombre ?? ''
     const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === nombre.toLowerCase())
-    // Deduplicar por nombre — mostrar solo el primero de cada nombre
-    const vistos = new Set<string>()
-    return todos.filter(s => {
+    // Contar cuántos servicios comparten el mismo nombre
+    const conteo: Record<string, number> = {}
+    todos.forEach(s => { const n = s.nombre ?? s.id; conteo[n] = (conteo[n] ?? 0) + 1 })
+    // Si hay duplicados, añadir la nota para distinguirlos; si no, mostrar solo el nombre
+    return todos.map(s => {
       const n = s.nombre ?? s.id
-      if (vistos.has(n)) return false
-      vistos.add(n)
-      return true
+      const label = conteo[n] > 1 && s.notas ? `${n} (${s.notas})` : n
+      return { ...s, _label: label }
     })
   }
 
@@ -396,7 +397,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                       <option value="">— Selecciona proyecto —</option>
                       {serviciosDelCliente().map(s => (
                         <option key={s.id} value={s.id}>
-                          {s.nombre ?? s.id}
+                          {s._label}
                         </option>
                       ))}
                       <option value="__manual__">✏️ Manual (escribir)</option>
