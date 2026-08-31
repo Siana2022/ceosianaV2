@@ -396,7 +396,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   <option value="__otros__">— Otros... —</option>
                 </select>
-                {serviciosDelCliente().length > 0 && (
+                {serviciosDelCliente().length > 0 && activeCliente.toLowerCase().includes('way') && (
                   <div className="mt-1.5 space-y-1.5">
                     <select value={proyectoOtrosId} onChange={e => setProyectoOtrosId(e.target.value)}
                       className="w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400">
