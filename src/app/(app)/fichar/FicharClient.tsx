@@ -285,7 +285,15 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   function serviciosDelCliente(): Servicio[] {
     if (clienteId === '__otros__') return servicios
     const nombre = clientes.find(c => c.id === clienteId)?.nombre ?? ''
-    return servicios.filter(s => getClienteNombre(s).toLowerCase() === nombre.toLowerCase())
+    const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === nombre.toLowerCase())
+    // Deduplicar por nombre — mostrar solo el primero de cada nombre
+    const vistos = new Set<string>()
+    return todos.filter(s => {
+      const n = s.nombre ?? s.id
+      if (vistos.has(n)) return false
+      vistos.add(n)
+      return true
+    })
   }
 
   const activeCliente = clientes.find(c => c.id === clienteId)?.nombre ?? ''
@@ -388,9 +396,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                       <option value="">— Selecciona proyecto —</option>
                       {serviciosDelCliente().map(s => (
                         <option key={s.id} value={s.id}>
-                          {(['Google Ads', 'Meta Ads', 'Web'].some(n => s.nombre?.includes(n)) && s.notas)
-                            ? `${s.nombre} (${s.notas})`
-                            : s.nombre ?? s.id}
+                          {s.nombre ?? s.id}
                         </option>
                       ))}
                       <option value="__manual__">✏️ Manual (escribir)</option>
