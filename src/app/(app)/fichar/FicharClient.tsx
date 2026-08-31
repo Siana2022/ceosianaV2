@@ -286,10 +286,16 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     if (clienteId === '__otros__') return servicios.map(s => ({ ...s, _label: s.nombre ?? s.id }))
     const nombre = clientes.find(c => c.id === clienteId)?.nombre ?? ''
     const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === nombre.toLowerCase())
-    // Contar cuántos servicios comparten el mismo nombre
+    // Verde Esmeralda: deduplicar mostrando solo uno por nombre
+    if (nombre.toLowerCase().includes('verde esmeralda')) {
+      const vistos = new Set<string>()
+      return todos
+        .filter(s => { const n = s.nombre ?? s.id; if (vistos.has(n)) return false; vistos.add(n); return true })
+        .map(s => ({ ...s, _label: s.nombre ?? s.id }))
+    }
+    // Resto de clientes: si hay duplicados de nombre, añadir nota para distinguir
     const conteo: Record<string, number> = {}
     todos.forEach(s => { const n = s.nombre ?? s.id; conteo[n] = (conteo[n] ?? 0) + 1 })
-    // Si hay duplicados, añadir la nota para distinguirlos; si no, mostrar solo el nombre
     return todos.map(s => {
       const n = s.nombre ?? s.id
       const label = conteo[n] > 1 && s.notas ? `${n} (${s.notas})` : n
