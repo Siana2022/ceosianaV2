@@ -180,8 +180,16 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       let finalDeptId: string | null = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
       let finalServicioId: string | null = null
       if (serviciosDelCliente().length > 0) {
-        if (proyectoOtrosId && proyectoOtrosId !== '__manual__') finalServicioId = proyectoOtrosId
-        else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
+        if (proyectoOtrosId && proyectoOtrosId !== '__manual__') {
+          finalServicioId = proyectoOtrosId
+        } else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) {
+          finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
+        } else if (!activeCliente.toLowerCase().includes('way')) {
+          // Auto-seleccionar servicio por departamento para clientes sin dropdown
+          const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === activeCliente.toLowerCase())
+          const porDepto = todos.find(s => s.id_departamento === departamentoId) ?? todos[0]
+          if (porDepto) finalServicioId = porDepto.id
+        }
       }
       if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
       // Now clear state + localStorage and persist
@@ -255,8 +263,14 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       }
 
       if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
-        setError('Por favor selecciona un servicio')
-        return
+        if (activeCliente.toLowerCase().includes('way')) {
+          setError('Por favor selecciona un servicio')
+          return
+        }
+        // Para otros clientes: auto-seleccionar el servicio que coincida con el departamento
+        const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === activeCliente.toLowerCase())
+        const porDepto = todos.find(s => s.id_departamento === departamentoId) ?? todos[0]
+        if (porDepto) finalServicioId = porDepto.id
       }
 
       const res = await fetch('/api/time-logs', {
