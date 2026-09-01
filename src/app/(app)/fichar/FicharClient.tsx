@@ -187,7 +187,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         } else if (!activeCliente.toLowerCase().includes('way')) {
           // Auto-seleccionar servicio por departamento para clientes sin dropdown
           const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === activeCliente.toLowerCase())
-          const porDepto = todos.find(s => s.id_departamento === departamentoId) ?? todos[0]
+          const porDepto = todos.find(s => (!Array.isArray(s.departamento) ? s.departamento?.id : s.departamento[0]?.id) === departamentoId) ?? todos[0]
           if (porDepto) finalServicioId = porDepto.id
         }
       }
@@ -269,7 +269,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         }
         // Para otros clientes: auto-seleccionar el servicio que coincida con el departamento
         const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === activeCliente.toLowerCase())
-        const porDepto = todos.find(s => s.id_departamento === departamentoId) ?? todos[0]
+        const porDepto = todos.find(s => (!Array.isArray(s.departamento) ? s.departamento?.id : s.departamento[0]?.id) === departamentoId) ?? todos[0]
         if (porDepto) finalServicioId = porDepto.id
       }
 
