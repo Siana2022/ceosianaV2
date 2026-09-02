@@ -1415,8 +1415,11 @@ export default function ClienteDetailClient({
 
         const horasPorServicio = new Map<string, number>()
         const horasPorServicioResponsable = new Map<string, Map<string, number>>()
-        const logsFiltered = timeLogsCliente.filter(t => t.fecha >= horasDesde && t.fecha <= horasHasta)
-        for (const t of logsFiltered) {
+        // Filtrar por el mes seleccionado en rentabilidad (no por el rango de horas fichadas)
+        const logsForRent = rentMes === null
+          ? timeLogsCliente
+          : timeLogsCliente.filter(t => new Date(t.fecha).getMonth() + 1 === rentMes)
+        for (const t of logsForRent) {
           let svcId = t.id_servicio
           if (!svcId && t.id_departamento) {
             const mes = new Date(t.fecha).getMonth() + 1
