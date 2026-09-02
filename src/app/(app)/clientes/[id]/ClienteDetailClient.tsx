@@ -1227,28 +1227,55 @@ export default function ClienteDetailClient({
         }
         const personRows = Array.from(byPerson.values()).sort((a, b) => b.minutos - a.minutos)
 
-        // By department
-        const byDept = new Map<string, { nombre: string; minutos: number }>()
-        for (const t of logs) {
-          const nombre = t.departamento?.nombre ?? 'Sin departamento'
-          const key = t.departamento?.id ?? '__none__'
-          const e = byDept.get(key)
-          if (e) e.minutos += Number(t.minutos)
-          else byDept.set(key, { nombre, minutos: Number(t.minutos) })
+        // Build dept→service resolution map (same logic as rentabilidad)
+        const deptMonthToSvcH = new Map<string, Map<number, string[]>>()
+        for (const s of rentabilidadServicios) {
+          if (!s.idDepartamento) continue
+          let mm = deptMonthToSvcH.get(s.idDepartamento)
+          if (!mm) { mm = new Map(); deptMonthToSvcH.set(s.idDepartamento, mm) }
+          for (const m of s.meses) {
+            const arr = mm.get(m.mes) ?? []; if (!arr.includes(s.id)) arr.push(s.id); mm.set(m.mes, arr)
+          }
         }
-        const deptRows = Array.from(byDept.values()).sort((a, b) => b.minutos - a.minutos)
+        const svcNombreMap = new Map<string, string>()
+        for (const s of rentabilidadServicios) svcNombreMap.set(s.id, s.nombre)
+        const resolveSvc = (t: typeof logs[0]): string | null => {
+          if (t.id_servicio) return t.id_servicio
+          if (t.id_departamento) {
+            const mes = new Date(t.fecha).getMonth() + 1
+            const cands = deptMonthToSvcH.get(t.id_departamento)?.get(mes)
+            if (cands?.length === 1) return cands[0]
+          }
+          return null
+        }
 
-        // By project (for clients with services like Way/Otros)
-        const byProject = new Map<string, { nombre: string; minutos: number }>()
+        // By service
+        const byServicio = new Map<string, { nombre: string; minutos: number }>()
         for (const t of logs) {
-          if (!t.id_servicio) continue
-          const nombre = t.servicio?.notas ?? t.servicio?.nombre ?? t.id_servicio
-          const e = byProject.get(t.id_servicio)
-          if (e) e.minutos += Number(t.minutos)
-          else byProject.set(t.id_servicio, { nombre, minutos: Number(t.minutos) })
+          const svcId = resolveSvc(t)
+          const key = svcId ?? '__sin__'
+          const nombre = svcId ? (svcNombreMap.get(svcId) ?? svcId) : 'Sin servicio'
+          const e = byServicio.get(key); if (e) e.minutos += Number(t.minutos)
+          else byServicio.set(key, { nombre, minutos: Number(t.minutos) })
         }
-        const projectRows = Array.from(byProject.values()).sort((a, b) => b.minutos - a.minutos)
-        const hasProjects = projectRows.length > 0
+        const servicioRows = Array.from(byServicio.values()).sort((a, b) => b.minutos - a.minutos)
+
+        // By persona/servicio
+        const byPersonaSvc = new Map<string, { nombre: string; totalMin: number; servicios: Map<string, { nombre: string; minutos: number }> }>()
+        for (const t of logs) {
+          const empId = t.id_empleado
+          const empNombre = t.empleado?.nombre ?? empId
+          if (!byPersonaSvc.has(empId)) byPersonaSvc.set(empId, { nombre: empNombre, totalMin: 0, servicios: new Map() })
+          const emp = byPersonaSvc.get(empId)!
+          emp.totalMin += Number(t.minutos)
+          const svcId = resolveSvc(t)
+          const svcKey = svcId ?? '__sin__'
+          const svcNombre = svcId ? (svcNombreMap.get(svcId) ?? svcId) : 'Sin servicio'
+          const svc = emp.servicios.get(svcKey)
+          if (svc) svc.minutos += Number(t.minutos)
+          else emp.servicios.set(svcKey, { nombre: svcNombre, minutos: Number(t.minutos) })
+        }
+        const personaSvcRows = Array.from(byPersonaSvc.values()).sort((a, b) => b.totalMin - a.totalMin)
 
         return (
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -1282,7 +1309,7 @@ export default function ClienteDetailClient({
                 <p className="text-gray-500 text-sm">Sin registros de tiempo en este periodo</p>
               </div>
             ) : (
-              <div className={`grid ${hasProjects ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2'} divide-y lg:divide-y-0 lg:divide-x divide-gray-800`}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-800">
 
                 {/* Por persona */}
                 <div className="p-5">
@@ -1340,17 +1367,17 @@ export default function ClienteDetailClient({
                   </div>
                 </div>
 
-                {/* Por departamento */}
+                {/* Por servicio */}
                 <div className="p-5">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por departamento</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por servicio</p>
                   <div className="space-y-2">
-                    {deptRows.map(d => {
-                      const pct = totalMin > 0 ? (d.minutos / totalMin) * 100 : 0
+                    {servicioRows.map(s => {
+                      const pct = totalMin > 0 ? (s.minutos / totalMin) * 100 : 0
                       return (
-                        <div key={d.nombre}>
+                        <div key={s.nombre}>
                           <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-gray-300 font-medium">{d.nombre}</span>
-                            <span className="text-blue-400 font-mono font-bold">{fmtMin(d.minutos)}</span>
+                            <span className="text-gray-300 font-medium">{s.nombre}</span>
+                            <span className="text-blue-400 font-mono font-bold">{fmtMin(s.minutos)}</span>
                           </div>
                           <div className="h-1.5 w-full rounded-full bg-gray-700">
                             <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${pct}%` }} />
@@ -1362,29 +1389,33 @@ export default function ClienteDetailClient({
                   </div>
                 </div>
 
-                {/* Por proyecto — solo si hay servicios vinculados (Way, Otros, etc.) */}
-                {hasProjects && (
-                  <div className="p-5">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por proyecto</p>
-                    <div className="space-y-2">
-                      {projectRows.map(p => {
-                        const pct = totalMin > 0 ? (p.minutos / totalMin) * 100 : 0
-                        return (
-                          <div key={p.nombre}>
-                            <div className="flex items-center justify-between text-xs mb-1">
-                              <span className="text-gray-300 font-medium truncate max-w-[160px]" title={p.nombre}>{p.nombre}</span>
-                              <span className="text-blue-400 font-mono font-bold ml-2">{fmtMin(p.minutos)}</span>
-                            </div>
-                            <div className="h-1.5 w-full rounded-full bg-gray-700">
-                              <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
-                            </div>
-                            <p className="text-gray-600 text-[10px] mt-0.5 text-right">{pct.toFixed(1)}%</p>
-                          </div>
-                        )
-                      })}
-                    </div>
+                {/* Por persona/servicio */}
+                <div className="p-5">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Por persona/servicio</p>
+                  <div className="space-y-3">
+                    {personaSvcRows.map(emp => (
+                      <div key={emp.nombre}>
+                        <p className="text-xs font-semibold text-gray-300 mb-1.5">{emp.nombre} <span className="text-gray-500 font-normal">· {fmtMin(emp.totalMin)}</span></p>
+                        <div className="space-y-1 pl-3 border-l border-gray-700">
+                          {Array.from(emp.servicios.values()).sort((a, b) => b.minutos - a.minutos).map(svc => {
+                            const pct = emp.totalMin > 0 ? (svc.minutos / emp.totalMin) * 100 : 0
+                            return (
+                              <div key={svc.nombre}>
+                                <div className="flex items-center justify-between text-xs mb-0.5">
+                                  <span className="text-gray-400">{svc.nombre}</span>
+                                  <span className="text-green-400 font-mono font-bold">{fmtMin(svc.minutos)} <span className="text-gray-600">({pct.toFixed(0)}%)</span></span>
+                                </div>
+                                <div className="h-1 w-full rounded-full bg-gray-700">
+                                  <div className="h-full rounded-full bg-green-500/70 transition-all" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
             )}
           </div>
