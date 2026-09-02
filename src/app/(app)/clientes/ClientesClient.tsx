@@ -26,6 +26,8 @@ interface Cliente {
   coste_personal: number
   resultado: number
   margen_pct: number
+  horas_dedicadas: number
+  coste_por_hora: number | null
 }
 
 interface Props {
@@ -231,6 +233,8 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                 <th className="text-right px-4 py-3">Coste Personal</th>
                 <th className="text-right px-4 py-3">Resultado</th>
                 <th className="text-right px-4 py-3">Margen %</th>
+                <th className="text-right px-4 py-3">Horas</th>
+                <th className="text-right px-4 py-3">€/hora</th>
                 <th className="text-center px-4 py-3">Estado</th>
                 <th className="text-center px-4 py-3">Acciones</th>
               </tr>
@@ -238,7 +242,7 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center text-gray-500 py-12">No hay clientes</td>
+                  <td colSpan={11} className="text-center text-gray-500 py-12">No hay clientes</td>
                 </tr>
               )}
               {filtered.map(c => (
@@ -280,6 +284,18 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                     {c.ingresos_total > 0 ? (
                       <span className={`font-semibold ${c.margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {c.margen_pct.toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-300">
+                    {c.horas_dedicadas > 0 ? `${c.horas_dedicadas.toFixed(1)}h` : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {c.coste_por_hora != null ? (
+                      <span className={`font-semibold ${c.coste_por_hora >= 300 ? 'text-green-400' : 'text-red-400'}`}>
+                        {c.coste_por_hora.toFixed(0)}€/h
                       </span>
                     ) : (
                       <span className="text-gray-600">—</span>

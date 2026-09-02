@@ -55,6 +55,14 @@ export default async function ClientesPage({
   if (month > 0) gastosQ = gastosQ.eq('mes', month)
   const { data: gastosFijos } = await gastosQ
 
+  // Time logs for horas dedicadas per client
+  const { data: timeLogs } = await supabase
+    .from('time_logs')
+    .select('id_cliente, minutos, fecha')
+    .gte('fecha', `${year}-01-01`)
+    .lte('fecha', `${year}-12-31`)
+    .not('id_cliente', 'is', null)
+
   // Build a map of client_id -> mrr, num_servicios
   // Also service_id -> { id_cliente, id_departamento } map for responsables linkage
   const serviciosByCliente = new Map<string, { mrr: number; count: number }>()
@@ -121,6 +129,17 @@ export default async function ClientesPage({
     ? (responsables ?? []).filter(r => r.mes === month)
     : (responsables ?? [])
 
+  // Minutos por cliente (con filtro de mes si aplica)
+  const minutosByCliente = new Map<string, number>()
+  for (const t of timeLogs ?? []) {
+    if (!t.id_cliente) continue
+    if (month > 0) {
+      const tMes = new Date(t.fecha + 'T12:00:00').getMonth() + 1
+      if (tMes !== month) continue
+    }
+    minutosByCliente.set(t.id_cliente, (minutosByCliente.get(t.id_cliente) ?? 0) + Number(t.minutos))
+  }
+
   const costePersonalByCliente = new Map<string, number>()
   for (const r of filteredResponsables) {
     const info = servicioInfoMap.get(r.id_servicio)
@@ -140,6 +159,8 @@ export default async function ClientesPage({
     const costePersonal = costePersonalByCliente.get(c.id) ?? 0
     const resultado = ingresosTotal - gastosDirectos - costePersonal
     const margenPct = ingresosTotal > 0 ? (resultado / ingresosTotal) * 100 : 0
+    const horasDedicadas = (minutosByCliente.get(c.id) ?? 0) / 60
+    const costePorHora = horasDedicadas > 0 ? costePersonal / horasDedicadas : null
 
     return {
       ...c,
@@ -152,6 +173,8 @@ export default async function ClientesPage({
       coste_personal: costePersonal,
       resultado,
       margen_pct: margenPct,
+      horas_dedicadas: horasDedicadas,
+      coste_por_hora: costePorHora,
     }
   })
 
