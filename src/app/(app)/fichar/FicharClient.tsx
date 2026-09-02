@@ -182,16 +182,26 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (serviciosDelCliente().length > 0) {
         if (proyectoOtrosId && proyectoOtrosId !== '__manual__') {
           finalServicioId = proyectoOtrosId
+          // Derivar departamento del servicio seleccionado
+          const srv = servicios.find(s => s.id === finalServicioId)
+          if (srv) {
+            const deptObj = Array.isArray(srv.departamento) ? srv.departamento[0] : srv.departamento
+            if (deptObj) finalDeptId = deptObj.id
+          }
         } else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) {
           finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
-        } else if (!activeCliente.toLowerCase().includes('way')) {
-          // Auto-seleccionar servicio por departamento para clientes sin dropdown
+        } else {
+          // Auto-seleccionar servicio (primer servicio del cliente)
           const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === activeCliente.toLowerCase())
           const porDepto = todos.find(s => (!Array.isArray(s.departamento) ? s.departamento?.id : s.departamento[0]?.id) === departamentoId) ?? todos[0]
-          if (porDepto) finalServicioId = porDepto.id
+          if (porDepto) {
+            finalServicioId = porDepto.id
+            const deptObj = Array.isArray(porDepto.departamento) ? porDepto.departamento[0] : porDepto.departamento
+            if (deptObj) finalDeptId = deptObj.id
+          }
         }
       }
-      if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
+      if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Tipo: ${departamentoOtros.trim()}] ${finalDesc}`
       // Now clear state + localStorage and persist
       const savedTareaId = tareaId
       setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
@@ -254,6 +264,12 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (serviciosDelCliente().length > 0) {
         if (proyectoOtrosId && proyectoOtrosId !== '__manual__') {
           finalServicioId = proyectoOtrosId
+          // Derivar departamento del servicio seleccionado
+          const srv = servicios.find(s => s.id === finalServicioId)
+          if (srv) {
+            const deptObj = Array.isArray(srv.departamento) ? srv.departamento[0] : srv.departamento
+            if (deptObj) finalDeptId = deptObj.id
+          }
         } else if (proyectoOtrosId === '__manual__' && proyectoOtrosManual.trim()) {
           finalDesc = `[${proyectoOtrosManual.trim()}] ${finalDesc}`
         }
@@ -261,7 +277,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
 
       if (departamentoId === '__otros__') {
         finalDeptId = null
-        if (departamentoOtros.trim()) finalDesc = `[Dpto: ${departamentoOtros.trim()}] ${finalDesc}`
+        if (departamentoOtros.trim()) finalDesc = `[Tipo: ${departamentoOtros.trim()}] ${finalDesc}`
       }
 
       if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
@@ -272,7 +288,11 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         // Para otros clientes: auto-seleccionar el servicio que coincida con el departamento
         const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === activeCliente.toLowerCase())
         const porDepto = todos.find(s => (!Array.isArray(s.departamento) ? s.departamento?.id : s.departamento[0]?.id) === departamentoId) ?? todos[0]
-        if (porDepto) finalServicioId = porDepto.id
+        if (porDepto) {
+          finalServicioId = porDepto.id
+          const deptObj = Array.isArray(porDepto.departamento) ? porDepto.departamento[0] : porDepto.departamento
+          if (deptObj) finalDeptId = deptObj.id
+        }
       }
 
       const res = await fetch('/api/time-logs', {
@@ -410,21 +430,21 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30" />
           </div>
 
-          {/* Cliente + Departamento */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Cliente + Tipo de servicio */}
+          <div className={`grid gap-3 ${serviciosDelCliente().length > 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Cliente</label>
-                <select value={clienteId} onChange={e => setClienteId(e.target.value)}
+                <select value={clienteId} onChange={e => { setClienteId(e.target.value); setProyectoOtrosId(''); setDepartamentoId('') }}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
                   <option value="">— Ninguno —</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   <option value="__otros__">— Otros... —</option>
                 </select>
-                {serviciosDelCliente().length > 0 && activeCliente.toLowerCase().includes('way') && (
+                {serviciosDelCliente().length > 0 && (
                   <div className="mt-1.5 space-y-1.5">
                     <select value={proyectoOtrosId} onChange={e => setProyectoOtrosId(e.target.value)}
                       className="w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400">
-                      <option value="">— Selecciona proyecto —</option>
+                      <option value="">— Selecciona servicio —</option>
                       {serviciosDelCliente().map(s => (
                         <option key={s.id} value={s.id}>
                           {s._label}
@@ -440,8 +460,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                   </div>
                 )}
               </div>
+              {/* Tipo de servicio: solo visible cuando el cliente no tiene servicios */}
+              {serviciosDelCliente().length === 0 && (
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Departamento</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tipo de servicio</label>
                 <select value={departamentoId} onChange={e => setDepartamentoId(e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
                   <option value="">— Ninguno —</option>
@@ -450,10 +472,11 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                 </select>
                 {(departamentoId === '__otros__' || departamentos.find(d => d.id === departamentoId)?.nombre?.toLowerCase() === 'otros') && (
                   <input type="text" value={departamentoOtros} onChange={e => setDepartamentoOtros(e.target.value)}
-                    placeholder="Especifica el departamento..."
+                    placeholder="Especifica el tipo..."
                     className="mt-1.5 w-full bg-gray-800 border border-blue-500 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-400" />
                 )}
               </div>
+              )}
             </div>
 
           {/* Tarea de procesos — siempre visible cuando hay cliente */}
@@ -689,7 +712,7 @@ function HistorialPersonal({ onDelete, clientes, departamentos }: {
                         </select>
                         <select value={editDeptId} onChange={e => setEditDeptId(e.target.value)}
                           className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500">
-                          <option value="">— Sin depto —</option>
+                          <option value="">— Sin tipo —</option>
                           {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
                         </select>
                       </div>
@@ -1196,7 +1219,7 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
 
               {/* Dept breakdown */}
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-                <h3 className="text-base font-bold text-white mb-5">Distribución por departamento</h3>
+                <h3 className="text-base font-bold text-white mb-5">Distribución por tipo de servicio</h3>
                 <div className="space-y-4">
                   {(() => {
                     const deptMap = new Map<string, number>()

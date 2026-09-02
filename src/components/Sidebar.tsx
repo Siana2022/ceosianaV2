@@ -14,7 +14,6 @@ const menuAdmin = [
   { href: '/equipo', label: 'Equipo', icon: '👥' },
   { href: '/comercial', label: 'Comercial', icon: '🎯' },
   { href: '/dedicacion', label: 'Dedicación', icon: '⏱️' },
-  { href: '/departamentos', label: 'Departamentos', icon: '🗂️' },
   { href: '/costes', label: 'Costes', icon: '💰' },
   { href: '/administracion', label: 'Administración', icon: '🧾' },
   { href: '/historico', label: 'Histórico', icon: '📈' },

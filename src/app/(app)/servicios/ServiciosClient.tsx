@@ -304,7 +304,7 @@ function ServiciosTab({
               <th className="text-left text-gray-400 font-medium py-3 px-4">Tipo de servicio</th>
               <th className="text-left text-gray-400 font-medium py-3 px-4">Cliente</th>
               <th className="text-left text-gray-400 font-medium py-3 px-4">Modalidad</th>
-              <th className="text-left text-gray-400 font-medium py-3 px-4">Departamento</th>
+              <th className="text-left text-gray-400 font-medium py-3 px-4">Área</th>
               <th className="text-left text-gray-400 font-medium py-3 px-4">Responsables</th>
               <th className="text-right text-gray-400 font-medium py-3 px-4">Precio/mes</th>
               <th className="text-center text-gray-400 font-medium py-3 px-4">Estado</th>
@@ -407,11 +407,11 @@ function ServiciosTab({
                   <input type="number" value={form.precio_base} onChange={e => setForm(f => ({ ...f, precio_base: e.target.value }))} className={inputCls} placeholder="0" />
                 </div>
               </div>
-              {/* Departamento */}
+              {/* Área */}
               <div>
-                <label className="block text-gray-400 text-sm mb-1">Departamento</label>
+                <label className="block text-gray-400 text-sm mb-1">Área</label>
                 <select value={form.id_departamento} onChange={e => handleDeptChange(e.target.value)} className={inputCls}>
-                  <option value="">Sin departamento</option>
+                  <option value="">Sin área</option>
                   {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
                 </select>
               </div>
@@ -421,7 +421,7 @@ function ServiciosTab({
                   Responsables
                   <span className="ml-2 text-gray-600 text-xs">
                     ({selectedResponsables.length} seleccionados
-                    {form.id_departamento && empleadosPorDepartamento[form.id_departamento]?.length ? ' · miembros del depto.' : ' · todos'})
+                    {form.id_departamento && empleadosPorDepartamento[form.id_departamento]?.length ? ' · miembros del área' : ' · todos'})
                   </span>
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
