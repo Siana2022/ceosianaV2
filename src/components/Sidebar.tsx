@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 const menuAdmin = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/clientes', label: 'Clientes', icon: '🏢' },
-  { href: '/tareas', label: 'Procesos', icon: '🗂️' },
+  { href: '/tareas', label: 'Tareas', icon: '🗂️' },
   { href: '/ingresos', label: 'Ingresos', icon: '💶' },
   { href: '/equipo', label: 'Equipo', icon: '👥' },
   { href: '/comercial', label: 'Comercial', icon: '🎯' },
@@ -26,7 +26,7 @@ const menuAdmin = [
 
 const menuEmpleado = [
   { href: '/fichar', label: 'Fichar', icon: '🕐' },
-  { href: '/tareas', label: 'Procesos', icon: '🗂️' },
+  { href: '/tareas', label: 'Tareas', icon: '🗂️' },
   { href: '/perfil', label: 'Mi perfil', icon: '👤' },
 ]
 

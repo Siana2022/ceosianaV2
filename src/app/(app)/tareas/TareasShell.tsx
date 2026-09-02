@@ -30,7 +30,7 @@ function ShellInner({ children }: { children: ReactNode }) {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white mb-1">Procesos</h1>
+        <h1 className="text-2xl font-bold text-white mb-1">Tareas</h1>
         <p className="text-gray-500 text-sm">
           Gestión de tareas, reuniones y procesos por cliente. Los datos se guardan en la base de datos.
         </p>

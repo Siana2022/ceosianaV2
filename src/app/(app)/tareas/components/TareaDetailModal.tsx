@@ -105,7 +105,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
     }
     savedRef.current = true
     setSavedMsg(true)
-    setTimeout(() => setSavedMsg(false), 2500)
+    setTimeout(() => onClose(), 1000)
   }
 
   // ── Adjuntos (inmediatos, no necesitan Guardar) ───────────────────────
