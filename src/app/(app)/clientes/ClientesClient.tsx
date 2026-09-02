@@ -225,16 +225,12 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
             <thead>
               <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
                 <th className="text-left px-4 py-3">Cliente</th>
-                <th className="text-right px-4 py-3">Fact. mensual</th>
-                <th className="text-right px-4 py-3">
-                  {month > 0 ? `Ingresos ${MESES_CORTO[month - 1]} ${year}` : `Ingresos ${year}`}
-                </th>
-                <th className="text-right px-4 py-3">Costes Dir.</th>
+                <th className="text-right px-4 py-3">Facturación Total</th>
                 <th className="text-right px-4 py-3">Coste Personal</th>
-                <th className="text-right px-4 py-3">Resultado</th>
-                <th className="text-right px-4 py-3">Margen %</th>
-                <th className="text-right px-4 py-3">Horas</th>
-                <th className="text-right px-4 py-3">€/hora</th>
+                <th className="text-right px-4 py-3">Margen</th>
+                <th className="text-right px-4 py-3">Gastos Directos</th>
+                <th className="text-right px-4 py-3">Horas Destinadas</th>
+                <th className="text-right px-4 py-3">Coste/Hora</th>
                 <th className="text-center px-4 py-3">Estado</th>
                 <th className="text-center px-4 py-3">Acciones</th>
               </tr>
@@ -242,7 +238,7 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="text-center text-gray-500 py-12">No hay clientes</td>
+                  <td colSpan={9} className="text-center text-gray-500 py-12">No hay clientes</td>
                 </tr>
               )}
               {filtered.map(c => (
@@ -257,16 +253,8 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                       <span className="block text-gray-500 text-xs mt-0.5">Alta: {c.fecha_alta}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={c.mrr > 0 ? 'text-green-400 font-semibold' : 'text-gray-500'}>
-                      {fmt(c.mrr)}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-right text-white">
                     {c.ingresos_total > 0 ? fmt(c.ingresos_total) : <span className="text-gray-600">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right text-orange-400">
-                    {c.gastos_directos > 0 ? fmt(c.gastos_directos) : <span className="text-gray-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-orange-400">
                     {c.coste_personal > 0 ? fmt(c.coste_personal) : <span className="text-gray-600">—</span>}
@@ -274,20 +262,14 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                   <td className="px-4 py-3 text-right">
                     {c.ingresos_total > 0 ? (
                       <span className={`font-semibold ${c.resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {fmt(c.resultado)}
+                        {fmt(c.resultado)} <span className="text-xs font-normal opacity-70">({c.margen_pct.toFixed(1)}%)</span>
                       </span>
                     ) : (
                       <span className="text-gray-600">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {c.ingresos_total > 0 ? (
-                      <span className={`font-semibold ${c.margen_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {c.margen_pct.toFixed(1)}%
-                      </span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
+                  <td className="px-4 py-3 text-right text-orange-400">
+                    {c.gastos_directos > 0 ? fmt(c.gastos_directos) : <span className="text-gray-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-300">
                     {c.horas_dedicadas > 0 ? `${c.horas_dedicadas.toFixed(1)}h` : <span className="text-gray-600">—</span>}
