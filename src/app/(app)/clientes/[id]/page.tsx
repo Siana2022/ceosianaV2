@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/server/supabase'
-import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { notFound } from 'next/navigation'
 import ClienteDetailClient from './ClienteDetailClient'
 
@@ -69,71 +68,19 @@ export default async function ClienteDetailPage({
 
   if (!cliente) notFound()
 
-  // Fetch responsables for all services of this client in this year
-  const servicioIds = (servicios ?? []).map(s => s.id)
-  let responsablesData: {
-    id_servicio: string
-    id_empleado: string
-    nombre: string
-    mes: number
-    anio: number
-    porcentaje: number
-  }[] = []
+  // ── Nueva fórmula de coste personal: basada en horas fichadas ─────────
+  // Para cada empleado que ficha horas a este cliente:
+  //   coste = (minutos_cliente_mes / minutos_total_empleado_mes) × sueldo_mes
+  const { data: sueldosData } = await supabase
+    .from('sueldos')
+    .select('id_empleado, coste_total, mes')
+    .eq('anio', year)
 
-  if (servicioIds.length > 0) {
-    const { data: resps } = await supabase
-      .from('servicio_responsables')
-      .select('id_servicio, id_empleado, mes, anio, porcentaje, empleado:id_empleado(id,nombre)')
-      .in('id_servicio', servicioIds)
-      .eq('anio', year)
-
-    responsablesData = (resps ?? []).map((r: Record<string, unknown>) => {
-      // Supabase may return the join as an object OR as a single-element array
-      const empRaw = r.empleado
-      const emp = Array.isArray(empRaw)
-        ? (empRaw[0] as { id: string; nombre: string } | undefined) ?? null
-        : (empRaw as { id: string; nombre: string } | null)
-      return {
-        id_servicio: r.id_servicio as string,
-        id_empleado: r.id_empleado as string,
-        nombre: emp?.nombre ?? '',
-        mes: r.mes as number,
-        anio: r.anio as number,
-        porcentaje: Number(r.porcentaje ?? 100),
-      }
-    })
-  }
-
-  // Fetch additional data needed for correct coste_personal formula:
-  // ALL servicio_responsables for the year (all clients) — to compute num_services per (employee, dept, month)
-  // ALL servicios with id_departamento — to map each service to its department
-  // dedicación calculada a partir del fichaje — % dedicación por (empleado, dept, mes)
-  // sueldos — for all employees
-  const [
-    { data: allResponsablesRaw },
-    { data: todosServicios },
-    dedicaciones,
-    { data: sueldosData },
-  ] = await Promise.all([
-    supabase
-      .from('servicio_responsables')
-      .select('id_servicio, id_empleado, mes, anio')
-      .eq('anio', year),
-    supabase
-      .from('servicios')
-      .select('id, id_departamento'),
-    getDedicacionCalculada(supabase, { anio: year }),
-    supabase
-      .from('sueldos')
-      .select('id_empleado, coste_total, mes')
-      .eq('anio', year),
-  ])
-
-  // servicioMap: id -> { id_departamento }
-  const servicioMap = new Map<string, { id_departamento: string | null }>()
-  for (const s of todosServicios ?? []) {
-    servicioMap.set(s.id, { id_departamento: s.id_departamento ?? null })
-  }
+  const { data: totalTimeLogsRaw } = await supabase
+    .from('time_logs')
+    .select('id_empleado, minutos, fecha')
+    .gte('fecha', `${year}-01-01`)
+    .lte('fecha', `${year}-12-31`)
 
   // sueldoMap: `${id_empleado}_${mes}` -> coste_total
   const sueldoMap = new Map<string, number>()
@@ -141,90 +88,86 @@ export default async function ClienteDetailPage({
     sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total))
   }
 
-  // dedicacionMap: `${id_empleado}_${id_departamento}_${mes}` -> porcentaje
-  const dedicacionMap = new Map<string, number>()
-  for (const d of dedicaciones ?? []) {
-    dedicacionMap.set(`${d.id_empleado}_${d.id_departamento}_${d.mes}`, Number(d.porcentaje))
+  // totalMinutosByEmpMes: `${id_empleado}_${mes}` -> total minutos (todos los clientes)
+  const totalMinutosByEmpMes = new Map<string, number>()
+  for (const t of totalTimeLogsRaw ?? []) {
+    const mes = parseInt(t.fecha.substring(5, 7))
+    const key = `${t.id_empleado}_${mes}`
+    totalMinutosByEmpMes.set(key, (totalMinutosByEmpMes.get(key) ?? 0) + t.minutos)
   }
 
-  // numServiciosMap: `${id_empleado}_${id_departamento}_${mes}` -> count of distinct services
-  // Count across ALL clients (all servicio_responsables for the year)
-  const numServiciosMap = new Map<string, number>()
-  for (const r of allResponsablesRaw ?? []) {
-    const servicio = servicioMap.get(r.id_servicio as string)
-    const deptId = servicio?.id_departamento
-    if (!deptId) continue
-    const key = `${r.id_empleado}_${deptId}_${r.mes}`
-    numServiciosMap.set(key, (numServiciosMap.get(key) ?? 0) + 1)
+  // clienteMinutosByEmpMes: `${id_empleado}_${mes}` -> minutos fichados a este cliente
+  const clienteMinutosByEmpMes = new Map<string, number>()
+  for (const t of timeLogsRaw ?? []) {
+    const mes = parseInt((t as { fecha: string }).fecha.substring(5, 7))
+    const empId = (t as { id_empleado: string }).id_empleado
+    const key = `${empId}_${mes}`
+    clienteMinutosByEmpMes.set(key, (clienteMinutosByEmpMes.get(key) ?? 0) + (t as { minutos: number }).minutos)
   }
 
-  // Compute coste_personal using the correct formula:
-  // cost = sueldo(X, M) × dedicacion%(X, dept, M) / 100 / num_services(X, dept, M)
-  const clienteServicioIds = new Set(servicioIds)
+  // Compute coste_personal
   let coste_personal = 0
-  for (const r of responsablesData) {
-    if (!clienteServicioIds.has(r.id_servicio)) continue
-    const servicio = servicioMap.get(r.id_servicio)
-    const deptId = servicio?.id_departamento
-    if (!deptId) continue
-    const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
-    const dedicacion = dedicacionMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 0
-    const numServicios = numServiciosMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 1
-    coste_personal += sueldo * (dedicacion / 100) / numServicios
+  for (const [key, minutosCliente] of clienteMinutosByEmpMes) {
+    const lastUnderscore = key.lastIndexOf('_')
+    const empId = key.substring(0, lastUnderscore)
+    const mes = parseInt(key.substring(lastUnderscore + 1))
+    const totalMinutos = totalMinutosByEmpMes.get(key) ?? 0
+    if (totalMinutos === 0) continue
+    const sueldo = sueldoMap.get(`${empId}_${mes}`) ?? 0
+    coste_personal += sueldo * (minutosCliente / totalMinutos)
   }
 
-  // Build per-service, per-month, per-responsable cost
-  // costeByServicioMesResp: Map<servicioId, Map<mes, Map<empleadoId, {nombre, coste}>>>
-  const costeByServicioMesResp = new Map<string, Map<number, Map<string, { nombre: string; coste: number }>>>()
+  // ── rentabilidadServicios: basada en time_logs por servicio ───────────
+  // costeByServicioMes: Map<servicioId, Map<mes, Map<empId, {nombre, coste}>>>
+  const costeByServicioMes = new Map<string, Map<number, Map<string, { nombre: string; coste: number }>>>()
+  const empNombreMap = new Map<string, string>()
+  for (const e of empleados ?? []) empNombreMap.set(e.id, e.nombre)
 
-  for (const r of responsablesData) {
-    if (!clienteServicioIds.has(r.id_servicio)) continue
-    const servicio = servicioMap.get(r.id_servicio)
-    const deptId = servicio?.id_departamento
-    if (!deptId) continue
-    const sueldo = sueldoMap.get(`${r.id_empleado}_${r.mes}`) ?? 0
-    const dedicacion = dedicacionMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 0
-    const numServicios = numServiciosMap.get(`${r.id_empleado}_${deptId}_${r.mes}`) ?? 1
-    const coste = sueldo * (dedicacion / 100) / numServicios
+  for (const t of timeLogsRaw ?? []) {
+    const tl = t as { id_empleado: string; id_servicio: string | null; minutos: number; fecha: string }
+    if (!tl.id_servicio) continue
+    const mes = parseInt(tl.fecha.substring(5, 7))
+    const key = `${tl.id_empleado}_${mes}`
+    const totalMinutos = totalMinutosByEmpMes.get(key) ?? 0
+    if (totalMinutos === 0) continue
+    const sueldo = sueldoMap.get(`${tl.id_empleado}_${mes}`) ?? 0
+    const coste = sueldo * (tl.minutos / totalMinutos)
 
-    if (!costeByServicioMesResp.has(r.id_servicio)) costeByServicioMesResp.set(r.id_servicio, new Map())
-    const mesMap = costeByServicioMesResp.get(r.id_servicio)!
-    if (!mesMap.has(r.mes)) mesMap.set(r.mes, new Map())
-    const respMap = mesMap.get(r.mes)!
-    const existing = respMap.get(r.id_empleado)
-    respMap.set(r.id_empleado, { nombre: r.nombre, coste: (existing?.coste ?? 0) + coste })
+    if (!costeByServicioMes.has(tl.id_servicio)) costeByServicioMes.set(tl.id_servicio, new Map())
+    const mesMap = costeByServicioMes.get(tl.id_servicio)!
+    if (!mesMap.has(mes)) mesMap.set(mes, new Map())
+    const empMap = mesMap.get(mes)!
+    const existing = empMap.get(tl.id_empleado)
+    empMap.set(tl.id_empleado, { nombre: empNombreMap.get(tl.id_empleado) ?? '', coste: (existing?.coste ?? 0) + coste })
   }
 
-  // Build factByServicioMes: Map<servicioId, Map<mes, facturado>>
+  // factByServicioMes
   const factByServicioMes = new Map<string, Map<number, number>>()
   for (const ing of ingresos ?? []) {
     if (!ing.id_servicio) continue
     if (!factByServicioMes.has(ing.id_servicio)) factByServicioMes.set(ing.id_servicio, new Map())
-    const mesMap = factByServicioMes.get(ing.id_servicio)!
-    mesMap.set(ing.mes, (mesMap.get(ing.mes) ?? 0) + Number(ing.valor))
+    factByServicioMes.get(ing.id_servicio)!.set(ing.mes, (factByServicioMes.get(ing.id_servicio)!.get(ing.mes) ?? 0) + Number(ing.valor))
   }
 
-  // Build final rentabilidadServicios array
   const rentabilidadServicios = (servicios ?? []).map(s => {
-    const depNombre = (s.departamento as { nombre: string } | null)?.nombre ?? s.nombre
-    const mesRespMap = costeByServicioMesResp.get(s.id) ?? new Map()
+    const mesCosteMap = costeByServicioMes.get(s.id) ?? new Map()
     const mesFact = factByServicioMes.get(s.id) ?? new Map()
-
-    // Collect all months that have either billing or responsables
-    const allMeses = new Set<number>([...mesRespMap.keys(), ...mesFact.keys()])
+    const allMeses = new Set<number>([...mesCosteMap.keys(), ...mesFact.keys()])
     const meses = [...allMeses].sort((a, b) => a - b).map(mes => ({
       mes,
       facturado: mesFact.get(mes) ?? 0,
-      responsables: [...(mesRespMap.get(mes) ?? new Map()).values()],
+      responsables: [...(mesCosteMap.get(mes) ?? new Map()).values()],
     }))
-
     return {
       id: s.id,
-      nombre: depNombre,
+      nombre: s.nombre ?? '',
       idDepartamento: (s as { id_departamento?: string | null }).id_departamento ?? null,
       meses,
     }
   })
+
+  // responsablesData vacío (ya no se usa, mantenemos la prop por compatibilidad)
+  const responsablesData: { id_servicio: string; id_empleado: string; nombre: string; mes: number; anio: number; porcentaje: number }[] = []
 
   // Build empleadosPorDepartamento map
   const empleadosPorDepartamento: Record<string, { id: string; nombre: string }[]> = {}
