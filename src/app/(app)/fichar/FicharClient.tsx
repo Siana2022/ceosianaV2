@@ -849,7 +849,8 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
       if (!map.has(empId)) map.set(empId, { nombre, minutos: 0, clientes: new Map(), deptos: new Map() })
       const e = map.get(empId)!
       e.minutos += l.minutos
-      if (l.cliente?.nombre) e.clientes.set(l.cliente.nombre, (e.clientes.get(l.cliente.nombre) ?? 0) + l.minutos)
+      const clienteKey = l.cliente?.nombre ?? '— Sin cliente asignado'
+      e.clientes.set(clienteKey, (e.clientes.get(clienteKey) ?? 0) + l.minutos)
       if (l.departamento?.nombre) e.deptos.set(l.departamento.nombre, (e.deptos.get(l.departamento.nombre) ?? 0) + l.minutos)
     }
     return Array.from(map.values()).sort((a, b) => b.minutos - a.minutos)
@@ -1077,26 +1078,32 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
                       </div>
                       <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-3">
                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Clientes</p>
-                        <p className="font-mono text-lg font-black text-white mt-1">{selEmpData.clientes.size}</p>
+                        <p className="font-mono text-lg font-black text-white mt-1">{Array.from(selEmpData.clientes.keys()).filter(k => !k.startsWith('—')).length}</p>
                       </div>
                     </div>
                     {selEmpData.clientes.size > 0 && (
                       <>
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Por cliente</p>
                         <div className="space-y-3 flex-1 overflow-y-auto">
-                          {Array.from(selEmpData.clientes.entries()).sort((a,b) => b[1]-a[1]).map(([nombre, mins], i) => {
+                          {Array.from(selEmpData.clientes.entries()).sort((a,b) => {
+                            if (a[0].startsWith('—')) return 1
+                            if (b[0].startsWith('—')) return -1
+                            return b[1] - a[1]
+                          }).map(([nombre, mins], i) => {
+                            const sinAsignar = nombre.startsWith('—')
+                            const color = sinAsignar ? '#4B5563' : COLORS[i % COLORS.length]
                             const p = selEmpData.minutos > 0 ? (mins / selEmpData.minutos) * 100 : 0
                             return (
                               <div key={nombre}>
                                 <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                                  <span className="flex items-center gap-1.5 text-gray-300">
-                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                                  <span className={`flex items-center gap-1.5 ${sinAsignar ? 'text-gray-500 italic' : 'text-gray-300'}`}>
+                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
                                     {nombre}
                                   </span>
                                   <span className="font-mono text-white">{fmtMin(mins)} <span className="text-gray-500">({p.toFixed(0)}%)</span></span>
                                 </div>
                                 <div className="h-2 w-full rounded-full bg-gray-700">
-                                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${p}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${p}%`, backgroundColor: color }} />
                                 </div>
                               </div>
                             )
