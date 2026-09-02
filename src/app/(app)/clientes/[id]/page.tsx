@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getConfiguracion } from '@/lib/server/configuracion'
 import { notFound } from 'next/navigation'
 import ClienteDetailClient from './ClienteDetailClient'
 
@@ -216,6 +217,9 @@ export default async function ClienteDetailPage({
     .map(([concepto, data]) => ({ concepto, ...data }))
     .sort((a, b) => a.concepto.localeCompare(b.concepto))
 
+  const config = await getConfiguracion()
+  const umbralCostePorHora = parseFloat(config['coste_hora_umbral'] ?? '300') || 300
+
   const mrr = (servicios ?? [])
     .filter(s => s.activo && s.tipo === 'recurrente')
     .reduce((sum, s) => sum + Number(s.precio_base ?? 0), 0)
@@ -255,6 +259,7 @@ export default async function ClienteDetailPage({
       coste_personal={coste_personal}
       rentabilidadServicios={rentabilidadServicios}
       year={year}
+      umbralCostePorHora={umbralCostePorHora}
       timeLogsCliente={timeLogsCliente}
     />
   )

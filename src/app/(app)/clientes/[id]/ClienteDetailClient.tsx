@@ -115,6 +115,7 @@ interface Props {
   coste_personal: number
   rentabilidadServicios: RentabilidadServicio[]
   year: number
+  umbralCostePorHora: number
   timeLogsCliente: {
     id_empleado: string; id_servicio: string | null; id_departamento: string | null
     minutos: number; fecha: string; descripcion: string
@@ -159,6 +160,7 @@ export default function ClienteDetailClient({
   coste_personal,
   rentabilidadServicios,
   year,
+  umbralCostePorHora,
   timeLogsCliente,
 }: Props) {
   const router = useRouter()
@@ -984,11 +986,11 @@ export default function ClienteDetailClient({
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Coste/Hora</p>
               {costePorHora != null ? (
-                <p className={`text-2xl font-bold mt-1 ${costePorHora >= 300 ? 'text-green-400' : 'text-red-400'}`}>{costePorHora.toFixed(0)}€/h</p>
+                <p className={`text-2xl font-bold mt-1 ${costePorHora >= umbralCostePorHora ? 'text-green-400' : 'text-red-400'}`}>{costePorHora.toFixed(0)}€/h</p>
               ) : (
                 <p className="text-2xl font-bold text-gray-500 mt-1">—</p>
               )}
-              {costePorHora != null && <p className="text-gray-500 text-xs mt-0.5">{costePorHora >= 300 ? 'Rentable' : 'Bajo margen'}</p>}
+              {costePorHora != null && <p className="text-gray-500 text-xs mt-0.5">{costePorHora >= umbralCostePorHora ? 'Rentable' : 'Bajo margen'}</p>}
             </div>
           </div>
           </>
@@ -1516,7 +1518,7 @@ export default function ClienteDetailClient({
                         <td className="px-6 py-3 text-right">
                           {eurHora != null ? (
                             <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full ${
-                              eurHora >= 300 ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
+                              eurHora >= umbralCostePorHora ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
                             }`}>{eurHora.toFixed(0)}€/h</span>
                           ) : <span className="text-gray-600 text-xs">—</span>}
                         </td>

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { getConfiguracion } from '@/lib/server/configuracion'
 import ClientesClient from './ClientesClient'
 
 export default async function ClientesPage({
@@ -150,5 +151,8 @@ export default async function ClientesPage({
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: currentYear - 2023 + 2 }, (_, i) => 2023 + i)
 
-  return <ClientesClient clientes={enriched} year={year} years={years} month={month} />
+  const config = await getConfiguracion()
+  const umbralCostePorHora = parseFloat(config['coste_hora_umbral'] ?? '300') || 300
+
+  return <ClientesClient clientes={enriched} year={year} years={years} month={month} umbralCostePorHora={umbralCostePorHora} />
 }

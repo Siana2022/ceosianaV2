@@ -19,6 +19,11 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
 
+  // Configuración de agencia (solo admin)
+  const [umbral, setUmbral] = useState('')
+  const [umbralSaving, setUmbralSaving] = useState(false)
+  const [umbralMsg, setUmbralMsg] = useState('')
+
   // Password change
   const [pwd, setPwd] = useState('')
   const [pwd2, setPwd2] = useState('')
@@ -46,6 +51,12 @@ export default function PerfilPage() {
       setPerfil(data)
       setSlack(data.slack_username ?? '')
     }
+    // Load config for admins
+    const cfgRes = await fetch('/api/configuracion')
+    if (cfgRes.ok) {
+      const cfg = await cfgRes.json() as Record<string, string>
+      setUmbral(cfg['coste_hora_umbral'] ?? '300')
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -62,6 +73,26 @@ export default function PerfilPage() {
     setSaving(false)
     setMsg('✅ Guardado')
     setTimeout(() => setMsg(''), 2000)
+  }
+
+  async function saveUmbral() {
+    const val = parseFloat(umbral)
+    if (isNaN(val) || val <= 0) { setUmbralMsg('❌ Introduce un valor válido mayor que 0'); return }
+    setUmbralSaving(true)
+    setUmbralMsg('')
+    const res = await fetch('/api/configuracion', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave: 'coste_hora_umbral', valor: String(val) }),
+    })
+    setUmbralSaving(false)
+    if (res.ok) {
+      setUmbralMsg('✅ Guardado')
+      setTimeout(() => setUmbralMsg(''), 2000)
+    } else {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setUmbralMsg(`❌ ${d.error ?? 'Error al guardar'}`)
+    }
   }
 
   async function disconnectGoogle() {
@@ -169,6 +200,41 @@ export default function PerfilPage() {
           </div>
         )}
       </div>
+
+      {/* Configuración de agencia — solo admins */}
+      {perfil.rol === 'admin' && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <span className="text-lg">⚙️</span> Configuración de agencia
+          </h2>
+          <div>
+            <label className="block text-xs text-gray-400 uppercase tracking-wider mb-1.5">
+              Umbral rentabilidad (€/hora)
+            </label>
+            <p className="text-gray-500 text-xs mb-3">
+              Los clientes con €/hora por encima de este valor se consideran rentables (verde). Por debajo, bajo margen (rojo).
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="1"
+                value={umbral}
+                onChange={e => setUmbral(e.target.value)}
+                placeholder="300"
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={saveUmbral}
+                disabled={umbralSaving}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {umbralSaving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+            {umbralMsg && <p className="text-sm mt-2">{umbralMsg}</p>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

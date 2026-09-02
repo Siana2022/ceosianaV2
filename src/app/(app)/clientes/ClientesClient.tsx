@@ -35,6 +35,7 @@ interface Props {
   year: number
   years: number[]
   month: number // 0 = todos los meses
+  umbralCostePorHora: number
 }
 
 type ModalMode = 'create' | 'edit'
@@ -45,7 +46,7 @@ interface FormState {
   notas: string
 }
 
-export default function ClientesClient({ clientes, year, years, month }: Props) {
+export default function ClientesClient({ clientes, year, years, month, umbralCostePorHora }: Props) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [mode, setMode] = useState<ModalMode>('create')
@@ -276,7 +277,7 @@ export default function ClientesClient({ clientes, year, years, month }: Props) 
                   </td>
                   <td className="px-4 py-3 text-right">
                     {c.coste_por_hora != null ? (
-                      <span className={`font-semibold ${c.coste_por_hora >= 300 ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className={`font-semibold ${c.coste_por_hora >= umbralCostePorHora ? 'text-green-400' : 'text-red-400'}`}>
                         {c.coste_por_hora.toFixed(0)}€/h
                       </span>
                     ) : (
