@@ -118,35 +118,59 @@ export default async function ClienteDetailPage({
   }
 
   // ── rentabilidadServicios: basada en time_logs por servicio ───────────
+
+  // factByServicioMes (construido primero para poder resolver dept → servicio)
+  const factByServicioMes = new Map<string, Map<number, number>>()
+  for (const ing of ingresos ?? []) {
+    if (!ing.id_servicio) continue
+    if (!factByServicioMes.has(ing.id_servicio)) factByServicioMes.set(ing.id_servicio, new Map())
+    factByServicioMes.get(ing.id_servicio)!.set(ing.mes, (factByServicioMes.get(ing.id_servicio)!.get(ing.mes) ?? 0) + Number(ing.valor))
+  }
+
+  // Para logs sin id_servicio: si el departamento tiene exactamente 1 servicio con facturación ese mes, le imputamos el coste
+  const deptMonthToServices = new Map<string, Map<number, string[]>>()
+  for (const s of servicios ?? []) {
+    const sAny = s as { id: string; id_departamento?: string | null }
+    if (!sAny.id_departamento) continue
+    const mesFact = factByServicioMes.get(sAny.id) ?? new Map()
+    let monthMap = deptMonthToServices.get(sAny.id_departamento)
+    if (!monthMap) { monthMap = new Map(); deptMonthToServices.set(sAny.id_departamento, monthMap) }
+    for (const mes of mesFact.keys()) {
+      const arr = monthMap.get(mes) ?? []
+      if (!arr.includes(sAny.id)) arr.push(sAny.id)
+      monthMap.set(mes, arr)
+    }
+  }
+
   // costeByServicioMes: Map<servicioId, Map<mes, Map<empId, {nombre, coste}>>>
   const costeByServicioMes = new Map<string, Map<number, Map<string, { nombre: string; coste: number }>>>()
   const empNombreMap = new Map<string, string>()
   for (const e of empleados ?? []) empNombreMap.set(e.id, e.nombre)
 
   for (const t of timeLogsRaw ?? []) {
-    const tl = t as { id_empleado: string; id_servicio: string | null; minutos: number; fecha: string }
-    if (!tl.id_servicio) continue
+    const tl = t as { id_empleado: string; id_servicio: string | null; id_departamento: string | null; minutos: number; fecha: string }
     const mes = parseInt(tl.fecha.substring(5, 7))
+
+    // Resolver servicio: directo o por departamento (si hay exactamente 1 con facturación ese mes)
+    let svcId = tl.id_servicio
+    if (!svcId && tl.id_departamento) {
+      const candidates = deptMonthToServices.get(tl.id_departamento)?.get(mes)
+      if (candidates?.length === 1) svcId = candidates[0]
+    }
+    if (!svcId) continue
+
     const key = `${tl.id_empleado}_${mes}`
     const totalMinutos = totalMinutosByEmpMes.get(key) ?? 0
     if (totalMinutos === 0) continue
     const sueldo = sueldoMap.get(`${tl.id_empleado}_${mes}`) ?? 0
     const coste = sueldo * (tl.minutos / totalMinutos)
 
-    if (!costeByServicioMes.has(tl.id_servicio)) costeByServicioMes.set(tl.id_servicio, new Map())
-    const mesMap = costeByServicioMes.get(tl.id_servicio)!
+    if (!costeByServicioMes.has(svcId)) costeByServicioMes.set(svcId, new Map())
+    const mesMap = costeByServicioMes.get(svcId)!
     if (!mesMap.has(mes)) mesMap.set(mes, new Map())
     const empMap = mesMap.get(mes)!
     const existing = empMap.get(tl.id_empleado)
     empMap.set(tl.id_empleado, { nombre: empNombreMap.get(tl.id_empleado) ?? '', coste: (existing?.coste ?? 0) + coste })
-  }
-
-  // factByServicioMes
-  const factByServicioMes = new Map<string, Map<number, number>>()
-  for (const ing of ingresos ?? []) {
-    if (!ing.id_servicio) continue
-    if (!factByServicioMes.has(ing.id_servicio)) factByServicioMes.set(ing.id_servicio, new Map())
-    factByServicioMes.get(ing.id_servicio)!.set(ing.mes, (factByServicioMes.get(ing.id_servicio)!.get(ing.mes) ?? 0) + Number(ing.valor))
   }
 
   const rentabilidadServicios = (servicios ?? []).map(s => {
