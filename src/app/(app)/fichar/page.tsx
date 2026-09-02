@@ -31,8 +31,9 @@ export default async function FicharPage() {
     .eq('activo', true)
     .order('nombre')
 
-  // Fetch employee info if linked
+  // Fetch employee info if linked; if not, try to resolve by email
   let empleadoNombre = 'Usuario'
+  let perfilConEmpleado = { ...perfil }
   if (perfil.id_empleado) {
     const { data: emp } = await supabase
       .from('empleados')
@@ -40,6 +41,19 @@ export default async function FicharPage() {
       .eq('id', perfil.id_empleado)
       .single()
     if (emp) empleadoNombre = emp.nombre
+  } else {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user?.email) {
+      const { data: emp } = await supabase
+        .from('empleados')
+        .select('id, nombre')
+        .eq('email', user.email)
+        .maybeSingle()
+      if (emp) {
+        empleadoNombre = emp.nombre
+        perfilConEmpleado = { ...perfil, id_empleado: emp.id }
+      }
+    }
   }
 
   // Admin: fetch all employees for the team view
@@ -62,7 +76,7 @@ export default async function FicharPage() {
 
   return (
     <FicharClient
-      perfil={perfil}
+      perfil={perfilConEmpleado}
       empleadoNombre={empleadoNombre}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       servicios={(servicios ?? []) as any[]}
