@@ -917,39 +917,50 @@ export default function ClienteDetailClient({
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Facturación mensual</p>
-          <p className={`text-2xl font-bold mt-1 ${mrr > 0 ? 'text-green-400' : 'text-gray-500'}`}>{fmt(mrr)}</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Facturado {year}</p>
-          <p className="text-2xl font-bold text-white mt-1">{fmt(grandTotal)}</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Gastos directos {year}</p>
-          <p className="text-2xl font-bold text-orange-400 mt-1">{fmt(localTotalCostes)}</p>
-          <p className="text-gray-500 text-xs mt-0.5">{localGastos.length} partidas</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Coste personal {year}</p>
-          <p className={`text-2xl font-bold mt-1 ${coste_personal > 0 ? 'text-orange-400' : 'text-gray-500'}`}>{fmt(coste_personal)}</p>
-          <p className="text-gray-500 text-xs mt-0.5">sueldo × responsabilidad</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-gray-400 text-sm">Margen {year}</p>
-          {(() => {
-            const margen = grandTotal - localTotalCostes - coste_personal
-            const pct = grandTotal > 0 ? (margen / grandTotal) * 100 : 0
-            return (
-              <>
-                <p className={`text-2xl font-bold mt-1 ${margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(margen)}</p>
-                <p className="text-gray-500 text-xs mt-0.5">{pct.toFixed(1)}% sobre facturado</p>
-              </>
-            )
-          })()}
-        </div>
-      </div>
+      {(() => {
+        const margen = grandTotal - localTotalCostes - coste_personal
+        const pct = grandTotal > 0 ? (margen / grandTotal) * 100 : 0
+        const yearStr = String(year)
+        const horasAnio = timeLogsCliente
+          .filter(t => t.fecha.startsWith(yearStr))
+          .reduce((s, t) => s + t.minutos, 0) / 60
+        const costePorHora = horasAnio > 0 ? coste_personal / horasAnio : null
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">Facturación Total</p>
+              <p className="text-2xl font-bold text-white mt-1">{fmt(grandTotal)}</p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">Coste Personal</p>
+              <p className={`text-2xl font-bold mt-1 ${coste_personal > 0 ? 'text-orange-400' : 'text-gray-500'}`}>{fmt(coste_personal)}</p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">Margen</p>
+              <p className={`text-2xl font-bold mt-1 ${margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(margen)}</p>
+              <p className="text-gray-500 text-xs mt-0.5">{pct.toFixed(1)}% sobre facturado</p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">Gastos Directos</p>
+              <p className="text-2xl font-bold text-orange-400 mt-1">{fmt(localTotalCostes)}</p>
+              <p className="text-gray-500 text-xs mt-0.5">{localGastos.length} partidas</p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">Horas Destinadas</p>
+              <p className="text-2xl font-bold text-white mt-1">{horasAnio > 0 ? `${horasAnio.toFixed(1)}h` : '—'}</p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">Coste/Hora</p>
+              {costePorHora != null ? (
+                <p className={`text-2xl font-bold mt-1 ${costePorHora >= 300 ? 'text-green-400' : 'text-red-400'}`}>{costePorHora.toFixed(0)}€/h</p>
+              ) : (
+                <p className="text-2xl font-bold text-gray-500 mt-1">—</p>
+              )}
+              {costePorHora != null && <p className="text-gray-500 text-xs mt-0.5">{costePorHora >= 300 ? 'Rentable' : 'Bajo margen'}</p>}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Notas */}
       {cliente.notas && (
