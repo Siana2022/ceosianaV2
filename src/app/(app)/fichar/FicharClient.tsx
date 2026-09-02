@@ -227,9 +227,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         const nombreLower = finalDesc.trim().toLowerCase()
         const tareaExiste = tareas.some(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
         if (!tareaExiste && finalDesc.trim() && finalClienteId) {
+          const empId = perfil.id_empleado
           fetch('/api/tareas', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea' }),
+            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
           }).catch(() => {})
         }
         setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros(''); setTareaId('')
@@ -304,9 +305,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       const nombreLower = finalDesc.trim().toLowerCase()
       const tareaExiste = tareas.some(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
       if (!tareaExiste && finalDesc.trim() && finalClienteId) {
+        const empId = perfil.id_empleado
         fetch('/api/tareas', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea' }),
+          body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
         }).catch(() => {})
       }
       setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual('')
