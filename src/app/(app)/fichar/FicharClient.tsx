@@ -308,7 +308,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         const empId = perfil.id_empleado
         fetch('/api/tareas', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
+          body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'terminado', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
         }).catch(() => {})
       }
       setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual('')
