@@ -166,6 +166,9 @@ export default function ClienteDetailClient({
   // ── Rentabilidad mes filter ──────────────────────────────────────────
   const [rentMes, setRentMes] = useState<number | null>(null)
 
+  // ── Filtro mes KPIs (0 = todo el año) ────────────────────────────────
+  const [kpiMes, setKpiMes] = useState(0)
+
   // ── Gastos locales ───────────────────────────────────────────────────
   const [localGastos, setLocalGastos] = useState<Gasto[]>(gastos)
   const localTotalCostes = localGastos.reduce((s, g) => s + Number(g.valor), 0)
@@ -918,22 +921,51 @@ export default function ClienteDetailClient({
 
       {/* KPIs */}
       {(() => {
-        const margen = grandTotal - localTotalCostes - coste_personal
-        const pct = grandTotal > 0 ? (margen / grandTotal) * 100 : 0
+        const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+        // Facturación filtrada
+        const facturacionFiltrada = kpiMes === 0
+          ? grandTotal
+          : servicios.reduce((sum, s) => {
+              const ing = ingresoMap.get(`${s.id}_${kpiMes}`)
+              return sum + (ing ? Number(ing.valor) : 0)
+            }, 0)
+        // Gastos filtrados
+        const gastosFiltrados = kpiMes === 0
+          ? localTotalCostes
+          : localGastos.filter(g => g.mes === kpiMes).reduce((s, g) => s + Number(g.valor), 0)
+        // Coste personal filtrado (desde rentabilidadServicios que tiene desglose por mes)
+        const costeFiltrado = kpiMes === 0
+          ? coste_personal
+          : rentabilidadServicios.reduce((sum, srv) => {
+              const m = srv.meses.find(m => m.mes === kpiMes)
+              return sum + (m ? m.responsables.reduce((s, r) => s + r.coste, 0) : 0)
+            }, 0)
+        // Horas filtradas
         const yearStr = String(year)
-        const horasAnio = timeLogsCliente
-          .filter(t => t.fecha.startsWith(yearStr))
+        const mesStr = kpiMes > 0 ? `${yearStr}-${String(kpiMes).padStart(2, '0')}` : yearStr
+        const horasFiltradas = timeLogsCliente
+          .filter(t => t.fecha.startsWith(mesStr))
           .reduce((s, t) => s + t.minutos, 0) / 60
-        const costePorHora = horasAnio > 0 ? coste_personal / horasAnio : null
+        const margen = facturacionFiltrada - gastosFiltrados - costeFiltrado
+        const pct = facturacionFiltrada > 0 ? (margen / facturacionFiltrada) * 100 : 0
+        const costePorHora = horasFiltradas > 0 ? costeFiltrado / horasFiltradas : null
         return (
+          <>
+          {/* Selector de mes */}
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => setKpiMes(0)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${kpiMes === 0 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>Todo</button>
+            {MESES_CORTOS.map((m, i) => (
+              <button key={i} onClick={() => setKpiMes(i + 1)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${kpiMes === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>{m}</button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Facturación Total</p>
-              <p className="text-2xl font-bold text-white mt-1">{fmt(grandTotal)}</p>
+              <p className="text-2xl font-bold text-white mt-1">{fmt(facturacionFiltrada)}</p>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Coste Personal</p>
-              <p className={`text-2xl font-bold mt-1 ${coste_personal > 0 ? 'text-orange-400' : 'text-gray-500'}`}>{fmt(coste_personal)}</p>
+              <p className={`text-2xl font-bold mt-1 ${costeFiltrado > 0 ? 'text-orange-400' : 'text-gray-500'}`}>{fmt(costeFiltrado)}</p>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Margen</p>
@@ -942,12 +974,11 @@ export default function ClienteDetailClient({
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Gastos Directos</p>
-              <p className="text-2xl font-bold text-orange-400 mt-1">{fmt(localTotalCostes)}</p>
-              <p className="text-gray-500 text-xs mt-0.5">{localGastos.length} partidas</p>
+              <p className="text-2xl font-bold text-orange-400 mt-1">{fmt(gastosFiltrados)}</p>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Horas Destinadas</p>
-              <p className="text-2xl font-bold text-white mt-1">{horasAnio > 0 ? `${horasAnio.toFixed(1)}h` : '—'}</p>
+              <p className="text-2xl font-bold text-white mt-1">{horasFiltradas > 0 ? `${horasFiltradas.toFixed(1)}h` : '—'}</p>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Coste/Hora</p>
@@ -959,6 +990,7 @@ export default function ClienteDetailClient({
               {costePorHora != null && <p className="text-gray-500 text-xs mt-0.5">{costePorHora >= 300 ? 'Rentable' : 'Bajo margen'}</p>}
             </div>
           </div>
+          </>
         )
       })()}
 
