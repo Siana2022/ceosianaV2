@@ -1496,7 +1496,7 @@ export default function ClienteDetailClient({
                   const pct = s.facturado > 0 ? (margen / s.facturado) * 100 : null
                   const margenColor = margen > 0 ? 'text-green-400' : margen < 0 ? 'text-red-400' : 'text-gray-400'
                   const multiResp = s.responsables.length > 1
-                  const eurHora = s.facturado > 0 && s.totalMin >= 60 ? s.facturado / (s.totalMin / 60) : null
+                  const eurHora = s.facturado > 0 ? s.facturado / (Math.max(s.totalMin, 60) / 60) : null
 
                   return (
                     <Fragment key={s.id}>
@@ -1516,9 +1516,7 @@ export default function ClienteDetailClient({
                         <td className="px-6 py-3 text-right">
                           {eurHora != null ? (
                             <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full ${
-                              eurHora >= 50 ? 'bg-green-500/15 text-green-400' :
-                              eurHora >= 25 ? 'bg-yellow-500/15 text-yellow-400' :
-                              'bg-red-500/15 text-red-400'
+                              eurHora >= 300 ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
                             }`}>{eurHora.toFixed(0)}€/h</span>
                           ) : <span className="text-gray-600 text-xs">—</span>}
                         </td>
