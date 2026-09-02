@@ -63,7 +63,7 @@ export default async function EquipoPage() {
     }
 
     const margen = facturacion - total_anual
-    const margen_pct = facturacion > 0 ? (margen / facturacion) * 100 : 0
+    const margen_pct = total_anual > 0 ? (margen / total_anual) * 100 : 0
 
     return {
       id: emp.id, nombre: emp.nombre, email: emp.email,
