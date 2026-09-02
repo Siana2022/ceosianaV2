@@ -948,7 +948,7 @@ export default function ClienteDetailClient({
           .reduce((s, t) => s + t.minutos, 0) / 60
         const margen = facturacionFiltrada - gastosFiltrados - costeFiltrado
         const pct = facturacionFiltrada > 0 ? (margen / facturacionFiltrada) * 100 : 0
-        const horasParaCalculo = horasFiltradas > 0 ? horasFiltradas : 1
+        const horasParaCalculo = Math.max(horasFiltradas, 1)
         const costePorHora = facturacionFiltrada > 0 ? facturacionFiltrada / horasParaCalculo : null
         return (
           <>

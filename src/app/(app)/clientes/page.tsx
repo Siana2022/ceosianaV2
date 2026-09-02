@@ -160,7 +160,7 @@ export default async function ClientesPage({
     const resultado = ingresosTotal - gastosDirectos - costePersonal
     const margenPct = ingresosTotal > 0 ? (resultado / ingresosTotal) * 100 : 0
     const horasDedicadas = (minutosByCliente.get(c.id) ?? 0) / 60
-    const horasParaCalculo = horasDedicadas > 0 ? horasDedicadas : 1
+    const horasParaCalculo = Math.max(horasDedicadas, 1)
     const costePorHora = ingresosTotal > 0 ? ingresosTotal / horasParaCalculo : null
 
     return {
