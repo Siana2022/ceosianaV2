@@ -198,17 +198,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       localStorage.removeItem(TIMER_KEY)
       setSaving(true)
       try {
-        // Resolve or auto-create tarea
-        let finalTareaId: string | null = savedTareaId && savedTareaId !== '__nueva__' ? savedTareaId : null
-        if (savedTareaId === '__nueva__' && finalDesc.trim()) {
-          const nuevaRes = await fetch('/api/tareas', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea', fechaLimite: todayStr(), minutosAcumulados: minutos }),
-          })
-          if (nuevaRes.ok) { const nueva = await nuevaRes.json(); finalTareaId = nueva.id ?? null }
-        }
+        // Resolve tarea vinculada
+        let finalTareaId: string | null = savedTareaId || null
         // Sumar minutos a la tarea existente (incremento sobre valor conocido)
-        if (finalTareaId && savedTareaId !== '__nueva__') {
+        if (finalTareaId) {
           const tareaActual = tareas.find(t => t.id === finalTareaId)
           await fetch(`/api/tareas?id=${finalTareaId}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -220,6 +213,15 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
           body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error al guardar'); return }
+        // Auto-crear tarea en background si no existe una con el mismo nombre y cliente
+        const nombreLower = finalDesc.trim().toLowerCase()
+        const tareaExiste = tareas.some(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
+        if (!tareaExiste && finalDesc.trim() && finalClienteId) {
+          fetch('/api/tareas', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea' }),
+          }).catch(() => {})
+        }
         setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros(''); setTareaId('')
         onSaved()
       } finally { setSaving(false) }
@@ -278,6 +280,15 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         body: JSON.stringify({ descripcion: finalDesc, ...extra, id_servicio: finalServicioId, id_cliente: finalClienteId, id_departamento: finalDeptId }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
+      // Auto-crear tarea en background si no existe una con el mismo nombre y cliente
+      const nombreLower = finalDesc.trim().toLowerCase()
+      const tareaExiste = tareas.some(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
+      if (!tareaExiste && finalDesc.trim() && finalClienteId) {
+        fetch('/api/tareas', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea' }),
+        }).catch(() => {})
+      }
       setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual('')
       setDepartamentoId(''); setDepartamentoOtros('')
       setManualHoras(''); setManualMin('30')
@@ -357,7 +368,6 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                         className="w-full bg-gray-800 border border-purple-700 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500">
                         <option value="">— Sin tarea —</option>
                         {tareas.filter(t => t.idCliente === clienteId).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                        <option value="__nueva__">✨ Crear nueva tarea</option>
                       </select>
                     </div>
                   )}
@@ -450,11 +460,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
           {clienteId && clienteId !== '__otros__' && (
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tarea de Procesos</label>
-              <select value={tareaId} onChange={e => { setTareaId(e.target.value); if (e.target.value && e.target.value !== '__nueva__') setDescripcion(tareas.find(t => t.id === e.target.value)?.nombre ?? descripcion) }}
+              <select value={tareaId} onChange={e => { setTareaId(e.target.value); if (e.target.value) setDescripcion(tareas.find(t => t.id === e.target.value)?.nombre ?? descripcion) }}
                 className="w-full bg-gray-800 border border-purple-600 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-400">
                 <option value="">— Sin tarea vinculada —</option>
                 {tareas.filter(t => t.idCliente === clienteId).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                <option value="__nueva__">✨ Crear nueva tarea en Procesos al guardar</option>
               </select>
             </div>
           )}
