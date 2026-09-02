@@ -25,7 +25,7 @@ export async function getDedicacionCalculada(
 ): Promise<DedicacionCalculadaRow[]> {
   let query = supabase
     .from('time_logs')
-    .select('id_empleado, id_departamento, minutos, fecha')
+    .select('id_empleado, id_departamento, id_servicio, minutos, fecha, servicios(id_departamento)')
 
   if (anio) {
     query = query.gte('fecha', `${anio}-01-01`).lte('fecha', `${anio}-12-31`)
@@ -53,13 +53,19 @@ export async function getDedicacionCalculada(
     const keyTotal = `${row.id_empleado}_${anioFila}_${mesFila}`
     totalPorEmpleadoMes.set(keyTotal, (totalPorEmpleadoMes.get(keyTotal) ?? 0) + (row.minutos ?? 0))
 
-    if (!row.id_departamento) continue
-    const keyCombo = `${row.id_empleado}_${row.id_departamento}_${anioFila}_${mesFila}`
+    // Resolve effective department: direct assignment takes priority, then fall back
+    // to the department of the associated service (if any).
+    // Supabase may type the joined relation as an array; normalise to a single record.
+    const servicioRaw = row.servicios as unknown
+    const servicio = Array.isArray(servicioRaw) ? (servicioRaw[0] as { id_departamento: string | null } | undefined) : (servicioRaw as { id_departamento: string | null } | null)
+    const idDept: string | null = row.id_departamento ?? servicio?.id_departamento ?? null
+    if (!idDept) continue
+    const keyCombo = `${row.id_empleado}_${idDept}_${anioFila}_${mesFila}`
     const actual = minutosPorCombo.get(keyCombo)
     if (actual) {
       actual.minutos += row.minutos ?? 0
     } else {
-      minutosPorCombo.set(keyCombo, { idEmpleado: row.id_empleado, idDepartamento: row.id_departamento, mes: mesFila, anio: anioFila, minutos: row.minutos ?? 0 })
+      minutosPorCombo.set(keyCombo, { idEmpleado: row.id_empleado, idDepartamento: idDept, mes: mesFila, anio: anioFila, minutos: row.minutos ?? 0 })
     }
   }
 
