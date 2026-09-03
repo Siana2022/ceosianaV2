@@ -16,12 +16,12 @@ function parseMinutos(s: string): number | null {
   return total > 0 ? total : null
 }
 
+type SlackValues = Record<string, Record<string, { selected_option?: { value: string }; value?: string; selected_date?: string }>>
+
 async function procesarFichaje(payload: Record<string, unknown>) {
-  const values = (payload.view as Record<string, unknown>)?.state as Record<
-    string,
-    Record<string, Record<string, { selected_option?: { value: string }; value?: string; selected_date?: string }>>
-  >
-  const vals = (values as unknown as Record<string, Record<string, { selected_option?: { value: string }; value?: string; selected_date?: string }>>)
+  const view = payload.view as Record<string, unknown>
+  const state = view?.state as Record<string, unknown>
+  const vals = state?.values as SlackValues
   const slackUserId = (payload.user as Record<string, string>)?.id
 
   const clienteId = vals?.blk_cliente?.cliente?.selected_option?.value ?? null
