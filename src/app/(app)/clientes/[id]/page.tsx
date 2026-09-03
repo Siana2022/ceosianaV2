@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getConfiguracion } from '@/lib/server/configuracion'
 import { notFound } from 'next/navigation'
 import ClienteDetailClient from './ClienteDetailClient'
@@ -77,11 +78,26 @@ export default async function ClienteDetailPage({
     .select('id_empleado, coste_total, mes')
     .eq('anio', year)
 
-  const { data: totalTimeLogsRaw } = await supabase
-    .from('time_logs')
-    .select('id_empleado, minutos, fecha')
-    .gte('fecha', `${year}-01-01`)
-    .lte('fecha', `${year}-12-31`)
+  // Paginamos para superar el límite de 1000 filas de PostgREST
+  const adminForTotals = createAdminClient()
+  const totalTimeLogsRaw: { id_empleado: string; minutos: number; fecha: string }[] = []
+  {
+    const PAGE = 1000
+    let from = 0
+    while (true) {
+      const { data } = await adminForTotals
+        .from('time_logs')
+        .select('id_empleado, minutos, fecha')
+        .gte('fecha', `${year}-01-01`)
+        .lte('fecha', `${year}-12-31`)
+        .order('fecha', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (!data?.length) break
+      totalTimeLogsRaw.push(...data)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+  }
 
   // sueldoMap: `${id_empleado}_${mes}` -> coste_total
   const sueldoMap = new Map<string, number>()

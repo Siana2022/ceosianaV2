@@ -49,39 +49,38 @@ export default async function ClientesPage({
   if (month > 0) gastosQ = gastosQ.eq('mes', month)
   const { data: gastosFijos } = await gastosQ
 
-  // Para el % de dedicación: necesitamos todos los logs del año (sin filtro de mes)
-  // Para las horas por cliente: solo el mes seleccionado (si lo hay)
-  // Usamos dos queries para evitar el límite de 1000 filas de PostgREST
+  // Función para paginar time_logs (PostgREST limita filas por página)
   const adminDb = createAdminClient()
-  const [{ data: timeLogsAnio }, { data: timeLogsMes }] = await Promise.all([
-    // Todos los del año (para totalMinutosByEmpMes): solo campos necesarios para el cálculo
-    adminDb
-      .from('time_logs')
-      .select('id_empleado, minutos, fecha')
-      .gte('fecha', `${year}-01-01`)
-      .lte('fecha', `${year}-12-31`)
-      .limit(9999),
-    // Solo el mes seleccionado (para horas y coste por cliente): con id_cliente
-    month > 0
-      ? adminDb
-          .from('time_logs')
-          .select('id_cliente, id_empleado, minutos, fecha')
-          .gte('fecha', `${year}-${String(month).padStart(2, '0')}-01`)
-          .lte('fecha', `${year}-${String(month).padStart(2, '0')}-31`)
-          .not('id_cliente', 'is', null)
-          .limit(9999)
-      : adminDb
-          .from('time_logs')
-          .select('id_cliente, id_empleado, minutos, fecha')
-          .gte('fecha', `${year}-01-01`)
-          .lte('fecha', `${year}-12-31`)
-          .not('id_cliente', 'is', null)
-          .limit(9999),
-  ])
+  async function fetchTimeLogs(desde: string, hasta: string): Promise<{ id_cliente: string | null; id_empleado: string; minutos: number; fecha: string }[]> {
+    const PAGE = 1000
+    const all: { id_cliente: string | null; id_empleado: string; minutos: number; fecha: string }[] = []
+    let from = 0
+    while (true) {
+      const { data } = await adminDb
+        .from('time_logs')
+        .select('id_cliente, id_empleado, minutos, fecha')
+        .gte('fecha', desde)
+        .lte('fecha', hasta)
+        .order('fecha', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (!data?.length) break
+      all.push(...data)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    return all
+  }
+
+  // Cuando hay mes: solo ese mes (decenas de filas). Cuando es año completo: paginamos.
+  const mm = String(month).padStart(2, '0')
+  const lastDay = month > 0 ? new Date(year, month, 0).getDate() : 31
+  const timeLogs = month > 0
+    ? await fetchTimeLogs(`${year}-${mm}-01`, `${year}-${mm}-${lastDay}`)
+    : await fetchTimeLogs(`${year}-01-01`, `${year}-12-31`)
 
   // Total time logs por empleado (todos los clientes) para calcular % dedicación
   const totalMinutosByEmpMes = new Map<string, number>()
-  for (const t of timeLogsAnio ?? []) {
+  for (const t of timeLogs) {
     const mes = parseInt(t.fecha.substring(5, 7))
     const key = `${t.id_empleado}_${mes}`
     totalMinutosByEmpMes.set(key, (totalMinutosByEmpMes.get(key) ?? 0) + Number(t.minutos))
@@ -129,10 +128,9 @@ export default async function ClientesPage({
   }
 
   // Minutos por cliente y coste personal basado en horas fichadas
-  // timeLogsMes ya viene filtrado por mes (o por año entero si month=0)
   const minutosByCliente = new Map<string, number>()
   const costePersonalByCliente = new Map<string, number>()
-  for (const t of timeLogsMes ?? []) {
+  for (const t of timeLogs) {
     if (!t.id_cliente) continue
     const mes = parseInt(t.fecha.substring(5, 7))
     minutosByCliente.set(t.id_cliente, (minutosByCliente.get(t.id_cliente) ?? 0) + Number(t.minutos))
