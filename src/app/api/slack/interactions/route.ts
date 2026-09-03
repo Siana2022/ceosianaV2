@@ -45,7 +45,10 @@ async function procesarFichaje(payload: Record<string, unknown>) {
   const admin = createAdminClient()
 
   const { data: emp } = await admin
-    .from('empleados').select('id, nombre').eq('email', email).maybeSingle()
+    .from('empleados')
+    .select('id, nombre')
+    .or(`email.eq.${email},slack_email.eq.${email}`)
+    .maybeSingle()
 
   if (!emp) {
     console.error('[slack/interactions] empleado no encontrado para:', email)
