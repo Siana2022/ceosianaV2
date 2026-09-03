@@ -7,6 +7,15 @@ import ConfirmModal from '@/components/ConfirmModal'
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
 
+const fmtHoras = (h: number): string => {
+  const totalMin = Math.round(h * 60)
+  const hrs = Math.floor(totalMin / 60)
+  const min = totalMin % 60
+  if (hrs === 0) return `${min}m`
+  if (min === 0) return `${hrs}h`
+  return `${hrs}h ${min}m`
+}
+
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
 interface Empleado { id: string; nombre: string }
@@ -981,7 +990,7 @@ export default function ClienteDetailClient({
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Horas Destinadas</p>
-              <p className="text-2xl font-bold text-white mt-1">{horasFiltradas > 0 ? `${horasFiltradas.toFixed(1)}h` : '—'}</p>
+              <p className="text-2xl font-bold text-white mt-1">{horasFiltradas > 0 ? fmtHoras(horasFiltradas) : '—'}</p>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Coste/Hora</p>
