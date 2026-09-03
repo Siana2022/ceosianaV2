@@ -1,31 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { createAdminClient } from '@/lib/server/supabase-admin'
-import { sendSlackMessage } from '@/lib/slack'
-import crypto from 'crypto'
-
-function verifySignature(req: NextRequest, body: string): boolean {
-  const secret = process.env.SLACK_SIGNING_SECRET ?? ''
-  if (!secret) return true
-  const ts = req.headers.get('x-slack-request-timestamp') ?? ''
-  const sig = req.headers.get('x-slack-signature') ?? ''
-  const expected = `v0=${crypto.createHmac('sha256', secret).update(`v0:${ts}:${body}`).digest('hex')}`
-  try {
-    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
-  } catch {
-    return false
-  }
-}
-
-async function slackEmailDeUsuario(userId: string): Promise<string | null> {
-  const tok = process.env.SLACK_BOT_TOKEN ?? ''
-  if (!tok) return null
-  const res = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
-    headers: { Authorization: `Bearer ${tok}` },
-  })
-  const data = await res.json()
-  return data.ok ? (data.user?.profile?.email ?? null) : null
-}
+import { sendSlackMessage, verifySlackSignature, slackEmailDeUsuario } from '@/lib/slack'
 
 async function tareasDeEmpleado(email: string): Promise<{ nombre: string; estado: string; cliente: string | null; fechaLimite: string | null; id: string }[]> {
   const admin = createAdminClient()
@@ -89,7 +65,7 @@ function formatTareas(tareas: Awaited<ReturnType<typeof tareasDeEmpleado>>, base
 export async function POST(req: NextRequest) {
   const body = await req.text()
 
-  if (!verifySignature(req, body)) {
+  if (!verifySlackSignature(req, body)) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 

@@ -1,7 +1,33 @@
+import crypto from 'crypto'
+import { NextRequest } from 'next/server'
+
 const SLACK_API = 'https://slack.com/api'
 
 function token() {
   return process.env.SLACK_BOT_TOKEN ?? ''
+}
+
+export function verifySlackSignature(req: NextRequest, body: string): boolean {
+  const secret = process.env.SLACK_SIGNING_SECRET ?? ''
+  if (!secret) return true
+  const ts = req.headers.get('x-slack-request-timestamp') ?? ''
+  const sig = req.headers.get('x-slack-signature') ?? ''
+  const expected = `v0=${crypto.createHmac('sha256', secret).update(`v0:${ts}:${body}`).digest('hex')}`
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
+  } catch {
+    return false
+  }
+}
+
+export async function slackEmailDeUsuario(userId: string): Promise<string | null> {
+  const tok = token()
+  if (!tok) return null
+  const res = await fetch(`${SLACK_API}/users.info?user=${userId}`, {
+    headers: { Authorization: `Bearer ${tok}` },
+  })
+  const data = await res.json()
+  return data.ok ? (data.user?.profile?.email ?? null) : null
 }
 
 async function resolveChannelId(tok: string, nombre: string): Promise<string> {
