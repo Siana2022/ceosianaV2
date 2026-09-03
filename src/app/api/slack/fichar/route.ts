@@ -8,15 +8,19 @@ type Servicio = { id: string; nombre: string; id_cliente: string | null }
 function buildFicharModal(clientes: Cliente[], servicios: Servicio[]) {
   const today = new Date().toISOString().split('T')[0]
 
-  const clienteOptions = clientes.map(c => ({
-    text: { type: 'plain_text', text: c.nombre.slice(0, 75) },
-    value: c.id,
-  }))
+  const clienteOptions = clientes
+    .filter(c => c.id && c.nombre)
+    .map(c => ({
+      text: { type: 'plain_text', text: (c.nombre ?? '').slice(0, 75) },
+      value: c.id,
+    }))
 
-  const servicioOptions = servicios.map(s => ({
-    text: { type: 'plain_text', text: s.nombre.slice(0, 75) },
-    value: s.id,
-  }))
+  const servicioOptions = servicios
+    .filter(s => s.id && s.nombre)
+    .map(s => ({
+      text: { type: 'plain_text', text: (s.nombre ?? '').slice(0, 75) },
+      value: s.id,
+    }))
 
   return {
     type: 'modal',
@@ -95,22 +99,30 @@ export async function POST(req: NextRequest) {
   if (!triggerId) return new NextResponse('', { status: 200 })
 
   const tok = process.env.SLACK_BOT_TOKEN ?? ''
-  const admin = createAdminClient()
 
-  const [{ data: clientes }, { data: servicios }] = await Promise.all([
-    admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
-    admin.from('servicios').select('id, nombre, id_cliente').eq('activo', true).order('nombre'),
-  ])
+  try {
+    const admin = createAdminClient()
 
-  const modal = buildFicharModal(clientes ?? [], servicios ?? [])
+    const [{ data: clientes, error: eC }, { data: servicios, error: eS }] = await Promise.all([
+      admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
+      admin.from('servicios').select('id, nombre, id_cliente').eq('activo', true).order('nombre'),
+    ])
 
-  const res = await fetch('https://slack.com/api/views.open', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-    body: JSON.stringify({ trigger_id: triggerId, view: modal }),
-  })
-  const data = await res.json()
-  if (!data.ok) console.error('[slack/fichar] views.open error:', data.error)
+    if (eC) console.error('[slack/fichar] clientes error:', eC)
+    if (eS) console.error('[slack/fichar] servicios error:', eS)
+
+    const modal = buildFicharModal(clientes ?? [], servicios ?? [])
+
+    const res = await fetch('https://slack.com/api/views.open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+      body: JSON.stringify({ trigger_id: triggerId, view: modal }),
+    })
+    const data = await res.json()
+    if (!data.ok) console.error('[slack/fichar] views.open error:', data.error, JSON.stringify(data))
+  } catch (e) {
+    console.error('[slack/fichar] handler error:', e)
+  }
 
   return new NextResponse('', { status: 200 })
 }
