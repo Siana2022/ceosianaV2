@@ -73,6 +73,16 @@ async function procesarFichaje(payload: Record<string, unknown>) {
     return
   }
 
+  // Auto-crear tarea terminada (igual que fichaje manual en web)
+  await admin.from('tareas').insert({
+    nombre: descripcion,
+    id_cliente: clienteId || null,
+    id_departamento: deptoId || null,
+    estado: 'terminado',
+    tipo: 'tarea',
+    ids_responsables: [emp.id],
+  }).then(({ error }) => { if (error) console.error('[slack/interactions] tarea error:', error) })
+
   console.log('[slack/interactions] fichaje guardado:', { emp: emp.nombre, depto: depto?.nombre, minutos, fecha })
 
   // DM confirmation
