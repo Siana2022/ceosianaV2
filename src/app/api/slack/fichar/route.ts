@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { waitUntil } from '@vercel/functions'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { verifySlackSignature } from '@/lib/slack'
 
@@ -96,29 +95,22 @@ export async function POST(req: NextRequest) {
   if (!triggerId) return new NextResponse('', { status: 200 })
 
   const tok = process.env.SLACK_BOT_TOKEN ?? ''
+  const admin = createAdminClient()
 
-  // Respond immediately so Slack doesn't time out, then open the modal
-  waitUntil((async () => {
-    try {
-      const admin = createAdminClient()
-      const [{ data: clientes }, { data: servicios }] = await Promise.all([
-        admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
-        admin.from('servicios').select('id, nombre, id_cliente').eq('activo', true).order('nombre'),
-      ])
+  const [{ data: clientes }, { data: servicios }] = await Promise.all([
+    admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
+    admin.from('servicios').select('id, nombre, id_cliente').eq('activo', true).order('nombre'),
+  ])
 
-      const modal = buildFicharModal(clientes ?? [], servicios ?? [])
+  const modal = buildFicharModal(clientes ?? [], servicios ?? [])
 
-      const res = await fetch('https://slack.com/api/views.open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-        body: JSON.stringify({ trigger_id: triggerId, view: modal }),
-      })
-      const data = await res.json()
-      if (!data.ok) console.error('[slack/fichar] views.open error:', data.error)
-    } catch (e) {
-      console.error('[slack/fichar]', e)
-    }
-  })())
+  const res = await fetch('https://slack.com/api/views.open', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+    body: JSON.stringify({ trigger_id: triggerId, view: modal }),
+  })
+  const data = await res.json()
+  if (!data.ok) console.error('[slack/fichar] views.open error:', data.error)
 
   return new NextResponse('', { status: 200 })
 }
