@@ -49,16 +49,39 @@ export default async function ClientesPage({
   if (month > 0) gastosQ = gastosQ.eq('mes', month)
   const { data: gastosFijos } = await gastosQ
 
-  // Time logs para horas y coste personal por cliente (admin client para ver todos los empleados)
-  const { data: timeLogs } = await createAdminClient()
-    .from('time_logs')
-    .select('id_cliente, id_empleado, minutos, fecha')
-    .gte('fecha', `${year}-01-01`)
-    .lte('fecha', `${year}-12-31`)
+  // Para el % de dedicación: necesitamos todos los logs del año (sin filtro de mes)
+  // Para las horas por cliente: solo el mes seleccionado (si lo hay)
+  // Usamos dos queries para evitar el límite de 1000 filas de PostgREST
+  const adminDb = createAdminClient()
+  const [{ data: timeLogsAnio }, { data: timeLogsMes }] = await Promise.all([
+    // Todos los del año (para totalMinutosByEmpMes): solo campos necesarios para el cálculo
+    adminDb
+      .from('time_logs')
+      .select('id_empleado, minutos, fecha')
+      .gte('fecha', `${year}-01-01`)
+      .lte('fecha', `${year}-12-31`)
+      .limit(9999),
+    // Solo el mes seleccionado (para horas y coste por cliente): con id_cliente
+    month > 0
+      ? adminDb
+          .from('time_logs')
+          .select('id_cliente, id_empleado, minutos, fecha')
+          .gte('fecha', `${year}-${String(month).padStart(2, '0')}-01`)
+          .lte('fecha', `${year}-${String(month).padStart(2, '0')}-31`)
+          .not('id_cliente', 'is', null)
+          .limit(9999)
+      : adminDb
+          .from('time_logs')
+          .select('id_cliente, id_empleado, minutos, fecha')
+          .gte('fecha', `${year}-01-01`)
+          .lte('fecha', `${year}-12-31`)
+          .not('id_cliente', 'is', null)
+          .limit(9999),
+  ])
 
   // Total time logs por empleado (todos los clientes) para calcular % dedicación
   const totalMinutosByEmpMes = new Map<string, number>()
-  for (const t of timeLogs ?? []) {
+  for (const t of timeLogsAnio ?? []) {
     const mes = parseInt(t.fecha.substring(5, 7))
     const key = `${t.id_empleado}_${mes}`
     totalMinutosByEmpMes.set(key, (totalMinutosByEmpMes.get(key) ?? 0) + Number(t.minutos))
@@ -105,19 +128,18 @@ export default async function ClientesPage({
     sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total))
   }
 
-  // Minutos por cliente (con filtro de mes) y coste personal basado en horas fichadas
+  // Minutos por cliente y coste personal basado en horas fichadas
+  // timeLogsMes ya viene filtrado por mes (o por año entero si month=0)
   const minutosByCliente = new Map<string, number>()
   const costePersonalByCliente = new Map<string, number>()
-  for (const t of timeLogs ?? []) {
+  for (const t of timeLogsMes ?? []) {
+    if (!t.id_cliente) continue
     const mes = parseInt(t.fecha.substring(5, 7))
-    if (month > 0 && mes !== month) continue
-    if (t.id_cliente) {
-      minutosByCliente.set(t.id_cliente, (minutosByCliente.get(t.id_cliente) ?? 0) + Number(t.minutos))
-    }
+    minutosByCliente.set(t.id_cliente, (minutosByCliente.get(t.id_cliente) ?? 0) + Number(t.minutos))
     // Coste imputado = (minutos de este log / minutos totales del empleado ese mes) × sueldo
     const empKey = `${t.id_empleado}_${mes}`
     const totalMinutos = totalMinutosByEmpMes.get(empKey) ?? 0
-    if (totalMinutos === 0 || !t.id_cliente) continue
+    if (totalMinutos === 0) continue
     const sueldo = sueldoMap.get(empKey) ?? 0
     const coste = sueldo * (Number(t.minutos) / totalMinutos)
     costePersonalByCliente.set(t.id_cliente, (costePersonalByCliente.get(t.id_cliente) ?? 0) + coste)
