@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getConfiguracion } from '@/lib/server/configuracion'
 import ClientesClient from './ClientesClient'
 
@@ -25,7 +26,7 @@ export default async function ClientesPage({
     supabase
       .from('captacion_clientes')
       .select('id_cliente, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)'),
-    supabase
+    createAdminClient()
       .from('sueldos')
       .select('id_empleado, coste_total, mes')
       .eq('anio', year),
@@ -48,8 +49,8 @@ export default async function ClientesPage({
   if (month > 0) gastosQ = gastosQ.eq('mes', month)
   const { data: gastosFijos } = await gastosQ
 
-  // Time logs para horas y coste personal por cliente
-  const { data: timeLogs } = await supabase
+  // Time logs para horas y coste personal por cliente (admin client para ver todos los empleados)
+  const { data: timeLogs } = await createAdminClient()
     .from('time_logs')
     .select('id_cliente, id_empleado, minutos, fecha')
     .gte('fecha', `${year}-01-01`)
