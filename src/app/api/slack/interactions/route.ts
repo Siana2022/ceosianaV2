@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
   const tiempoStr = values?.blk_tiempo?.tiempo?.value ?? ''
   const descripcion = (values?.blk_descripcion?.descripcion?.value ?? '').trim()
 
+  console.log('[slack/interactions] submit:', { clienteId, deptoId, fecha, tiempoStr, descripcion })
+
   // Validate inputs
   const errors: Record<string, string> = {}
 
@@ -89,6 +91,7 @@ export async function POST(req: NextRequest) {
     .eq('id', deptoId)
     .maybeSingle()
 
+  console.log('[slack/interactions] inserting for emp:', emp.id, 'depto:', deptoId, 'cliente:', clienteId)
   const { error: insertError } = await admin.from('time_logs').insert({
     id_empleado: emp.id,
     id_cliente: clienteId,
