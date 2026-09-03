@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const slackUserId = payload.user?.id as string
 
   const clienteId = values?.blk_cliente?.cliente?.selected_option?.value ?? null
-  const svcId = values?.blk_servicio?.servicio?.selected_option?.value ?? null
+  const deptoId = values?.blk_depto?.depto?.selected_option?.value ?? null
   const fecha = values?.blk_fecha?.fecha?.selected_date ?? new Date().toISOString().split('T')[0]
   const tiempoStr = values?.blk_tiempo?.tiempo?.value ?? ''
   const descripcion = (values?.blk_descripcion?.descripcion?.value ?? '').trim()
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const minutos = parseMinutos(tiempoStr)
   if (!minutos) errors.blk_tiempo = 'Formato no válido. Usa: 45m · 1h30m · 2h · 0.5h'
 
-  if (!svcId) errors.blk_servicio = 'Selecciona un servicio.'
+  if (!deptoId) errors.blk_depto = 'Selecciona un servicio.'
 
   if (!descripcion) errors.blk_descripcion = 'La descripción es obligatoria.'
 
@@ -82,18 +82,18 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Get servicio details (to resolve id_departamento)
-  const { data: svc } = await admin
-    .from('servicios')
-    .select('nombre, id_departamento')
-    .eq('id', svcId)
+  // Get departamento name for the confirmation message
+  const { data: depto } = await admin
+    .from('departamentos')
+    .select('nombre')
+    .eq('id', deptoId)
     .maybeSingle()
 
   const { error: insertError } = await admin.from('time_logs').insert({
     id_empleado: emp.id,
     id_cliente: clienteId,
-    id_servicio: svcId,
-    id_departamento: svc?.id_departamento ?? null,
+    id_servicio: null,
+    id_departamento: deptoId,
     descripcion,
     fecha,
     minutos: minutos!,
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
         body: JSON.stringify({
           channel: dmData.channel.id,
-          text: `✅ *Fichaje guardado*\n• ${svc?.nombre ?? 'Servicio'} · ${tiempoFmt} · ${fechaFmt}\n• _${descripcion}_`,
+          text: `✅ *Fichaje guardado*\n• ${depto?.nombre ?? 'Servicio'} · ${tiempoFmt} · ${fechaFmt}\n• _${descripcion}_`,
         }),
       })
     }

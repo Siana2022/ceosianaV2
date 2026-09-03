@@ -3,9 +3,9 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { verifySlackSignature } from '@/lib/slack'
 
 type Cliente = { id: string; nombre: string }
-type Servicio = { id: string; nombre: string; id_cliente: string | null }
+type Departamento = { id: string; nombre: string }
 
-function buildFicharModal(clientes: Cliente[], servicios: Servicio[]) {
+function buildFicharModal(clientes: Cliente[], departamentos: Departamento[]) {
   const today = new Date().toISOString().split('T')[0]
 
   const clienteOptions = clientes
@@ -15,11 +15,11 @@ function buildFicharModal(clientes: Cliente[], servicios: Servicio[]) {
       value: c.id,
     }))
 
-  const servicioOptions = servicios
-    .filter(s => s.id && s.nombre)
-    .map(s => ({
-      text: { type: 'plain_text', text: (s.nombre ?? '').slice(0, 75) },
-      value: s.id,
+  const deptoOptions = departamentos
+    .filter(d => d.id && d.nombre)
+    .map(d => ({
+      text: { type: 'plain_text', text: (d.nombre ?? '').slice(0, 75) },
+      value: d.id,
     }))
 
   return {
@@ -42,13 +42,13 @@ function buildFicharModal(clientes: Cliente[], servicios: Servicio[]) {
       },
       {
         type: 'input',
-        block_id: 'blk_servicio',
+        block_id: 'blk_depto',
         label: { type: 'plain_text', text: 'Servicio' },
         element: {
           type: 'static_select',
-          action_id: 'servicio',
+          action_id: 'depto',
           placeholder: { type: 'plain_text', text: 'Selecciona servicio...' },
-          options: servicioOptions,
+          options: deptoOptions,
         },
       },
       {
@@ -103,15 +103,15 @@ export async function POST(req: NextRequest) {
   try {
     const admin = createAdminClient()
 
-    const [{ data: clientes, error: eC }, { data: servicios, error: eS }] = await Promise.all([
+    const [{ data: clientes, error: eC }, { data: departamentos, error: eD }] = await Promise.all([
       admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
-      admin.from('servicios').select('id, nombre, id_cliente').eq('activo', true).order('nombre'),
+      admin.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
     ])
 
     if (eC) console.error('[slack/fichar] clientes error:', eC)
-    if (eS) console.error('[slack/fichar] servicios error:', eS)
+    if (eD) console.error('[slack/fichar] departamentos error:', eD)
 
-    const modal = buildFicharModal(clientes ?? [], servicios ?? [])
+    const modal = buildFicharModal(clientes ?? [], departamentos ?? [])
 
     const res = await fetch('https://slack.com/api/views.open', {
       method: 'POST',
