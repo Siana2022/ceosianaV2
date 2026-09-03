@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { waitUntil } from '@vercel/functions'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { verifySlackSignature } from '@/lib/slack'
 
@@ -96,49 +95,22 @@ export async function POST(req: NextRequest) {
   if (!triggerId) return new NextResponse('', { status: 200 })
 
   const tok = process.env.SLACK_BOT_TOKEN ?? ''
+  const admin = createAdminClient()
 
-  // Abrir modal de carga inmediatamente para no perder el trigger_id (válido 3s)
-  const loadingView = {
-    type: 'modal',
-    callback_id: 'fichar_modal',
-    title: { type: 'plain_text', text: 'Fichar horas' },
-    close: { type: 'plain_text', text: 'Cancelar' },
-    blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '⏳ Cargando...' } }],
-  }
+  const [{ data: clientes }, { data: servicios }] = await Promise.all([
+    admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
+    admin.from('servicios').select('id, nombre, id_cliente').eq('activo', true).order('nombre'),
+  ])
 
-  const openRes = await fetch('https://slack.com/api/views.open', {
+  const modal = buildFicharModal(clientes ?? [], servicios ?? [])
+
+  const res = await fetch('https://slack.com/api/views.open', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-    body: JSON.stringify({ trigger_id: triggerId, view: loadingView }),
+    body: JSON.stringify({ trigger_id: triggerId, view: modal }),
   })
-  const openData = await openRes.json()
-  if (!openData.ok) {
-    console.error('[slack/fichar] views.open error:', openData.error)
-    return new NextResponse('', { status: 200 })
-  }
-
-  const viewId = openData.view.id as string
-
-  // Cargar datos y actualizar el modal en background (ya tenemos el view_id, no necesitamos trigger_id)
-  waitUntil((async () => {
-    try {
-      const admin = createAdminClient()
-      const [{ data: clientes }, { data: servicios }] = await Promise.all([
-        admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
-        admin.from('servicios').select('id, nombre, id_cliente').eq('activo', true).order('nombre'),
-      ])
-      const modal = buildFicharModal(clientes ?? [], servicios ?? [])
-      const updRes = await fetch('https://slack.com/api/views.update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-        body: JSON.stringify({ view_id: viewId, view: modal }),
-      })
-      const updData = await updRes.json()
-      if (!updData.ok) console.error('[slack/fichar] views.update error:', updData.error)
-    } catch (e) {
-      console.error('[slack/fichar] update error:', e)
-    }
-  })())
+  const data = await res.json()
+  if (!data.ok) console.error('[slack/fichar] views.open error:', data.error)
 
   return new NextResponse('', { status: 200 })
 }
