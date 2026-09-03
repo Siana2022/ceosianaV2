@@ -7,6 +7,15 @@ import ConfirmModal from '@/components/ConfirmModal'
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
 
+const fmtHoras = (h: number): string => {
+  const totalMin = Math.round(h * 60)
+  const hrs = Math.floor(totalMin / 60)
+  const min = totalMin % 60
+  if (hrs === 0) return `${min}m`
+  if (min === 0) return `${hrs}h`
+  return `${hrs}h ${min}m`
+}
+
 const today = () => new Date().toISOString().split('T')[0]
 
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -273,7 +282,7 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                     {c.gastos_directos > 0 ? fmt(c.gastos_directos) : <span className="text-gray-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-300">
-                    {c.horas_dedicadas > 0 ? `${c.horas_dedicadas.toFixed(1)}h` : <span className="text-gray-600">—</span>}
+                    {c.horas_dedicadas > 0 ? fmtHoras(c.horas_dedicadas) : <span className="text-gray-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {c.coste_por_hora != null ? (
