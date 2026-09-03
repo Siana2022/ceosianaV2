@@ -8,23 +8,15 @@ type Servicio = { id: string; nombre: string; id_cliente: string | null }
 function buildFicharModal(clientes: Cliente[], servicios: Servicio[]) {
   const today = new Date().toISOString().split('T')[0]
 
-  const byCliente = new Map<string, Servicio[]>()
-  for (const s of servicios) {
-    if (!s.id_cliente) continue
-    const arr = byCliente.get(s.id_cliente) ?? []
-    arr.push(s)
-    byCliente.set(s.id_cliente, arr)
-  }
+  const clienteOptions = clientes.map(c => ({
+    text: { type: 'plain_text', text: c.nombre.slice(0, 75) },
+    value: c.id,
+  }))
 
-  const option_groups = clientes
-    .filter(c => (byCliente.get(c.id)?.length ?? 0) > 0)
-    .map(c => ({
-      label: { type: 'plain_text', text: c.nombre.slice(0, 75) },
-      options: (byCliente.get(c.id) ?? []).map(s => ({
-        text: { type: 'plain_text', text: s.nombre.slice(0, 75) },
-        value: `${s.id}|${c.id}`,
-      })),
-    }))
+  const servicioOptions = servicios.map(s => ({
+    text: { type: 'plain_text', text: s.nombre.slice(0, 75) },
+    value: s.id,
+  }))
 
   return {
     type: 'modal',
@@ -35,13 +27,24 @@ function buildFicharModal(clientes: Cliente[], servicios: Servicio[]) {
     blocks: [
       {
         type: 'input',
+        block_id: 'blk_cliente',
+        label: { type: 'plain_text', text: 'Cliente' },
+        element: {
+          type: 'static_select',
+          action_id: 'cliente',
+          placeholder: { type: 'plain_text', text: 'Selecciona cliente...' },
+          options: clienteOptions,
+        },
+      },
+      {
+        type: 'input',
         block_id: 'blk_servicio',
         label: { type: 'plain_text', text: 'Servicio' },
         element: {
           type: 'static_select',
           action_id: 'servicio',
-          placeholder: { type: 'plain_text', text: 'Selecciona cliente · servicio...' },
-          option_groups,
+          placeholder: { type: 'plain_text', text: 'Selecciona servicio...' },
+          options: servicioOptions,
         },
       },
       {

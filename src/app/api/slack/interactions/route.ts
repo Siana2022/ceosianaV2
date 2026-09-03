@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
   >
   const slackUserId = payload.user?.id as string
 
-  const servicioValue = values?.blk_servicio?.servicio?.selected_option?.value
+  const clienteId = values?.blk_cliente?.cliente?.selected_option?.value ?? null
+  const svcId = values?.blk_servicio?.servicio?.selected_option?.value ?? null
   const fecha = values?.blk_fecha?.fecha?.selected_date ?? new Date().toISOString().split('T')[0]
   const tiempoStr = values?.blk_tiempo?.tiempo?.value ?? ''
   const descripcion = (values?.blk_descripcion?.descripcion?.value ?? '').trim()
@@ -50,15 +51,13 @@ export async function POST(req: NextRequest) {
   const minutos = parseMinutos(tiempoStr)
   if (!minutos) errors.blk_tiempo = 'Formato no válido. Usa: 45m · 1h30m · 2h · 0.5h'
 
-  if (!servicioValue) errors.blk_servicio = 'Selecciona un servicio.'
+  if (!svcId) errors.blk_servicio = 'Selecciona un servicio.'
 
   if (!descripcion) errors.blk_descripcion = 'La descripción es obligatoria.'
 
   if (Object.keys(errors).length > 0) {
     return NextResponse.json({ response_action: 'errors', errors })
   }
-
-  const [svcId, clienteId] = (servicioValue ?? '').split('|')
 
   const email = await slackEmailDeUsuario(slackUserId)
   if (!email) {
@@ -92,8 +91,8 @@ export async function POST(req: NextRequest) {
 
   const { error: insertError } = await admin.from('time_logs').insert({
     id_empleado: emp.id,
-    id_cliente: clienteId || null,
-    id_servicio: svcId || null,
+    id_cliente: clienteId,
+    id_servicio: svcId,
     id_departamento: svc?.id_departamento ?? null,
     descripcion,
     fecha,
