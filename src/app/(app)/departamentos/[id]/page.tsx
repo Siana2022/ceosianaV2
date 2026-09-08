@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
+import FiltroPeriodo from './FiltroPeriodo'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -87,12 +89,20 @@ interface ProjectEntry { label: string; logs: FichajeEntry[] }
 
 export default async function DepartamentoDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string>>
 }) {
   const { id } = await params
+  const sp = await searchParams
   const supabase = await createClient()
-  const anio = new Date().getFullYear()
+  const anio = Number(sp.anio) || new Date().getFullYear()
+  const mesDesde = Math.min(12, Math.max(1, Number(sp.mesDesde) || 1))
+  const mesHasta = Math.min(12, Math.max(mesDesde, Number(sp.mesHasta) || 12))
+  const fechaDesde = `${anio}-${String(mesDesde).padStart(2, '0')}-01`
+  const ultimoDia = new Date(anio, mesHasta, 0).getDate()
+  const fechaHasta = `${anio}-${String(mesHasta).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
 
   const [
     { data: dept },
@@ -107,8 +117,8 @@ export default async function DepartamentoDetailPage({
     // Sin filtro idDepartamento: necesitamos el total de minutos de cada empleado
     // para que el % sea correcto (minutos_en_este_depto / minutos_totales_empleado)
     getDedicacionCalculada(createAdminClient(), { anio }),
-    supabase.from('sueldos').select('id_empleado, coste_total, mes').eq('anio', anio),
-    supabase.from('ingresos').select('id_servicio, valor, mes').eq('id_departamento', id).eq('anio', anio),
+    supabase.from('sueldos').select('id_empleado, coste_total, mes').eq('anio', anio).gte('mes', mesDesde).lte('mes', mesHasta),
+    supabase.from('ingresos').select('id_servicio, valor, mes').eq('id_departamento', id).eq('anio', anio).gte('mes', mesDesde).lte('mes', mesHasta),
     supabase
       .from('servicios')
       .select('id, nombre, notas, tipo, activo, fecha_inicio, fecha_fin, cliente:id_cliente(id,nombre)')
@@ -121,6 +131,8 @@ export default async function DepartamentoDetailPage({
       .eq('id_departamento', id)
       .eq('tipo', 'departamento')
       .eq('anio', anio)
+      .gte('mes', mesDesde)
+      .lte('mes', mesHasta)
       .order('mes'),
     supabase.from('empleados').select('id, nombre').eq('activo', true),
   ])
@@ -137,8 +149,8 @@ export default async function DepartamentoDetailPage({
         .from('time_logs')
         .select('id_empleado, id_servicio, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas, cliente:id_cliente(id, nombre))')
         .eq('id_departamento', id)
-        .gte('fecha', `${anio}-01-01`)
-        .lte('fecha', `${anio}-12-31`)
+        .gte('fecha', fechaDesde)
+        .lte('fecha', fechaHasta)
         .order('fecha', { ascending: true })
         .range(from, from + PAGE - 1)
       if (!data?.length) break
@@ -148,8 +160,10 @@ export default async function DepartamentoDetailPage({
     }
   }
 
-  // Only dedicaciones for THIS department (correct % because denominator = all minutes)
-  const dedicacionList = (dedicaciones ?? []).filter(d => d.id_departamento === id) as EmpleadoDedicacion[]
+  // Only dedicaciones for THIS department and selected month range
+  const dedicacionList = (dedicaciones ?? []).filter(
+    d => d.id_departamento === id && d.mes >= mesDesde && d.mes <= mesHasta
+  ) as EmpleadoDedicacion[]
   const sueldosList = (sueldosRaw ?? []) as Sueldo[]
   const ingresosList = (ingresosRaw ?? []) as Ingreso[]
   const gastosList = (gastosRaw ?? []) as GastoFijo[]
@@ -257,9 +271,9 @@ export default async function DepartamentoDetailPage({
   const resultado = ingresosTotal - costeTotalGeneral
   const margenPct = ingresosTotal > 0 ? (resultado / ingresosTotal) * 100 : 0
 
-  // Monthly breakdown table
-  const monthlyRows = Array.from({ length: 12 }, (_, i) => {
-    const mes = i + 1
+  // Monthly breakdown table — only months in selected range
+  const monthlyRows = Array.from({ length: mesHasta - mesDesde + 1 }, (_, i) => {
+    const mes = mesDesde + i
     const ingresosMes = ingresosList.filter(x => x.mes === mes).reduce((s, x) => s + Number(x.valor), 0)
     const gastosMes = gastosList.filter(x => x.mes === mes).reduce((s, x) => s + Number(x.valor), 0)
     const costPersonalMes = dedicacionList
@@ -271,7 +285,7 @@ export default async function DepartamentoDetailPage({
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <Link href="/departamentos" className="text-gray-500 hover:text-gray-300 text-sm transition-colors inline-flex items-center gap-1 mb-3">
           ← Departamentos
         </Link>
@@ -281,8 +295,13 @@ export default async function DepartamentoDetailPage({
             {dept.activo ? 'Activo' : 'Inactivo'}
           </span>
         </div>
-        <p className="text-gray-500 text-sm mt-1">Año {anio} · Vista de rentabilidad</p>
+        <p className="text-gray-500 text-sm mt-1">
+          {mesDesde === 1 && mesHasta === 12 ? `Año ${anio}` : `${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mesDesde-1]}–${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mesHasta-1]} ${anio}`} · Vista de rentabilidad
+        </p>
       </div>
+      <Suspense>
+        <FiltroPeriodo anio={anio} mesDesde={mesDesde} mesHasta={mesHasta} />
+      </Suspense>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
