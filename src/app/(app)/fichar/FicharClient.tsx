@@ -11,7 +11,7 @@ interface Servicio {
 interface Departamento { id: string; nombre: string }
 interface Cliente { id: string; nombre: string }
 interface Empleado { id: string; nombre: string }
-interface TareaFichar { id: string; nombre: string; idCliente: string | null; idDepartamento: string | null; minutosAcumulados: number }
+interface TareaFichar { id: string; nombre: string; idCliente: string | null; idDepartamento: string | null; minutosAcumulados: number; estado: string }
 interface TimeLog {
   id: string; id_empleado: string; descripcion: string; fecha: string
   hora_inicio: string | null; hora_fin: string | null; minutos: number
@@ -187,6 +187,16 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (res.ok) { const d = await res.json(); dbId = d.id ?? null }
     } catch { /* non-critical */ }
 
+    // Marcar tarea como en_curso si existe con ese nombre y cliente
+    const cliParaTimer = clienteId && clienteId !== '__otros__' ? clienteId : null
+    const tareaActivaExiste = tareas.find(t => t.nombre.trim().toLowerCase() === descripcion.trim().toLowerCase() && t.idCliente === cliParaTimer)
+    if (tareaActivaExiste && tareaActivaExiste.estado !== 'en_curso') {
+      fetch(`/api/tareas?id=${tareaActivaExiste.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'en_curso' }),
+      }).catch(() => {})
+    }
+
     setTimerStart(now); setTimerRunning(true); setElapsed(0); setTimerDbId(dbId)
     localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, srv: proyectoOtrosId, tid: tareaId, dbId }))
   }
@@ -249,14 +259,19 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
           body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error al guardar'); return }
-        // Auto-crear tarea en background si no existe una con el mismo nombre y cliente
+        // Marcar tarea como terminado al guardar el timer
         const nombreLower = finalDesc.trim().toLowerCase()
-        const tareaExiste = tareas.some(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
-        if (!tareaExiste && finalDesc.trim() && finalClienteId) {
+        const tareaStopExiste = tareas.find(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
+        if (tareaStopExiste) {
+          fetch(`/api/tareas?id=${tareaStopExiste.id}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estado: 'terminado' }),
+          }).catch(() => {})
+        } else if (finalDesc.trim() && finalClienteId) {
           const empId = perfil.id_empleado
           fetch('/api/tareas', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
+            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'terminado', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
           }).catch(() => {})
         }
         setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros(''); setTareaId('')
@@ -323,10 +338,15 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         body: JSON.stringify({ descripcion: finalDesc, ...extra, id_servicio: finalServicioId, id_cliente: finalClienteId, id_departamento: finalDeptId }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
-      // Auto-crear tarea en background si no existe una con el mismo nombre y cliente
+      // Marcar tarea como terminado al guardar fichaje manual
       const nombreLower = finalDesc.trim().toLowerCase()
-      const tareaExiste = tareas.some(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
-      if (!tareaExiste && finalDesc.trim() && finalClienteId) {
+      const tareaManualExiste = tareas.find(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
+      if (tareaManualExiste) {
+        fetch(`/api/tareas?id=${tareaManualExiste.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'terminado' }),
+        }).catch(() => {})
+      } else if (finalDesc.trim() && finalClienteId) {
         const empId = perfil.id_empleado
         fetch('/api/tareas', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },

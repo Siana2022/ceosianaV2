@@ -83,7 +83,7 @@ export default async function FicharPage() {
       departamentos={departamentos ?? []}
       clientes={clientes ?? []}
       empleados={empleados}
-      tareas={(tareas ?? []).map(t => ({ id: String(t.id), nombre: t.nombre as string, idCliente: t.id_cliente ? String(t.id_cliente) : null, idDepartamento: t.id_departamento ? String(t.id_departamento) : null, minutosAcumulados: (t.minutos_acumulados as number) ?? 0 }))}
+      tareas={(tareas ?? []).map(t => ({ id: String(t.id), nombre: t.nombre as string, idCliente: t.id_cliente ? String(t.id_cliente) : null, idDepartamento: t.id_departamento ? String(t.id_departamento) : null, minutosAcumulados: (t.minutos_acumulados as number) ?? 0, estado: (t.estado as string) ?? 'espera' }))}
     />
   )
 }
