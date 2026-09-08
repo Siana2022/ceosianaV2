@@ -187,13 +187,20 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (res.ok) { const d = await res.json(); dbId = d.id ?? null }
     } catch { /* non-critical */ }
 
-    // Marcar tarea como en_curso si existe con ese nombre y cliente
+    // Marcar tarea como en_curso si existe, o crearla si no existe
     const cliParaTimer = clienteId && clienteId !== '__otros__' ? clienteId : null
     const tareaActivaExiste = tareas.find(t => t.nombre.trim().toLowerCase() === descripcion.trim().toLowerCase() && t.idCliente === cliParaTimer)
     if (tareaActivaExiste && tareaActivaExiste.estado !== 'en_curso') {
       fetch(`/api/tareas?id=${tareaActivaExiste.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: 'en_curso' }),
+      }).catch(() => {})
+    } else if (!tareaActivaExiste && descripcion.trim() && cliParaTimer) {
+      const empId = perfil.id_empleado
+      const deptParaTimer = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
+      fetch('/api/tareas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: descripcion.trim(), idCliente: cliParaTimer, idDepartamento: deptParaTimer, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
       }).catch(() => {})
     }
 
