@@ -6,7 +6,9 @@ import type { ReactNode } from 'react'
 import { TareasProvider, useTareas } from './store'
 import type { Cliente, Departamento, Empleado, Plantilla, Proceso, Servicio, Tarea } from './types'
 
-const TABS = [
+const EN_VIVO_EMAILS = ['anais@sianadigital.com', 'juanjo@sianadigital.com']
+
+const BASE_TABS = [
   { href: '/tareas/vista-global', label: '🌐 Vista global' },
   { href: '/tareas/plantillas', label: '📐 Plantillas' },
 ]
@@ -25,8 +27,11 @@ function ToastStack() {
   )
 }
 
-function ShellInner({ children }: { children: ReactNode }) {
+function ShellInner({ children, userEmail }: { children: ReactNode; userEmail: string }) {
   const pathname = usePathname()
+  const tabs = EN_VIVO_EMAILS.includes(userEmail)
+    ? [...BASE_TABS, { href: '/tareas/en-vivo', label: '🟢 En vivo' }]
+    : BASE_TABS
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -37,7 +42,7 @@ function ShellInner({ children }: { children: ReactNode }) {
       </div>
 
       <div className="flex gap-1 bg-gray-800 rounded-lg p-1 w-fit">
-        {TABS.map(tab => (
+        {tabs.map(tab => (
           <Link
             key={tab.href}
             href={tab.href}
@@ -65,6 +70,7 @@ interface TareasShellProps {
   initialTareas: Tarea[]
   initialProcesos: Proceso[]
   initialPlantillas: Plantilla[]
+  userEmail: string
 }
 
 export default function TareasShell({
@@ -76,6 +82,7 @@ export default function TareasShell({
   initialTareas,
   initialProcesos,
   initialPlantillas,
+  userEmail,
 }: TareasShellProps) {
   return (
     <TareasProvider
@@ -87,7 +94,7 @@ export default function TareasShell({
       initialProcesos={initialProcesos}
       initialPlantillas={initialPlantillas}
     >
-      <ShellInner>{children}</ShellInner>
+      <ShellInner userEmail={userEmail}>{children}</ShellInner>
     </TareasProvider>
   )
 }

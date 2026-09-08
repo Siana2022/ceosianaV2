@@ -7,6 +7,8 @@ const COLORES_DEPTO = ['blue', 'purple', 'pink', 'amber', 'green', 'red', 'teal'
 
 export default async function TareasLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const userEmail = user?.email ?? ''
 
   const [
     { data: rawClientes, error: errClientes },
@@ -104,6 +106,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       initialTareas={tareas}
       initialProcesos={procesos}
       initialPlantillas={plantillas}
+      userEmail={userEmail}
     >
       {children}
     </TareasShell>
