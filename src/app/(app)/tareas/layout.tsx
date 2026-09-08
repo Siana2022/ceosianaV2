@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/server/supabase'
+import { getPerfil } from '@/lib/server/perfil'
 import TareasShell from './TareasShell'
 import type { Cliente, Departamento, Empleado, Plantilla, Proceso, Servicio, Tarea } from './types'
 
@@ -7,8 +8,8 @@ const COLORES_DEPTO = ['blue', 'purple', 'pink', 'amber', 'green', 'red', 'teal'
 
 export default async function TareasLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const userEmail = user?.email ?? ''
+  const perfil = await getPerfil()
+  const isAdmin = perfil?.rol === 'admin'
 
   const [
     { data: rawClientes, error: errClientes },
@@ -106,7 +107,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       initialTareas={tareas}
       initialProcesos={procesos}
       initialPlantillas={plantillas}
-      userEmail={userEmail}
+      isAdmin={isAdmin}
     >
       {children}
     </TareasShell>

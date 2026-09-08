@@ -166,6 +166,12 @@ export async function PATCH(req: NextRequest) {
     const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
     const body = await req.json() as Record<string, unknown>
+    // Atomic increment: client sends delta only, server fetches current value and adds
+    if ('minutosIncremento' in body && typeof body.minutosIncremento === 'number') {
+      const { data: cur } = await supabase.from('tareas').select('minutos_acumulados').eq('id', id).maybeSingle()
+      body.minutosAcumulados = (Number((cur as Record<string, unknown> | null)?.minutos_acumulados) || 0) + body.minutosIncremento
+      delete body.minutosIncremento
+    }
     const row = bodyToDbRow(body)
     if (Object.keys(row).length === 0) return NextResponse.json({ ok: true })
     // Fetch BEFORE update to detect responsable changes (for Slack "nueva tarea asignada")

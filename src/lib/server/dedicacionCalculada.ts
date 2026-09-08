@@ -23,6 +23,11 @@ export async function getDedicacionCalculada(
   supabase: SupabaseClient,
   { anio, mes, idDepartamento, idEmpleado }: Opciones = {}
 ): Promise<DedicacionCalculadaRow[]> {
+  // Passing idDepartamento breaks the denominator (totalPorEmpleadoMes would only
+  // contain dept-filtered rows, making every employee show 100% for that dept).
+  // No current callsite passes it; throw to prevent future misuse.
+  if (idDepartamento) throw new Error('getDedicacionCalculada: no pasar idDepartamento, rompe el denominador')
+
   let query = supabase
     .from('time_logs')
     .select('id_empleado, id_departamento, id_servicio, minutos, fecha, servicios(id_departamento)')

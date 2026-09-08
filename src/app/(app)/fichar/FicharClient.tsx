@@ -104,8 +104,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         return
       } catch { localStorage.removeItem(TIMER_KEY) }
     }
-    // Sin localStorage — busca un timer abierto en la BD (iniciado desde otra página)
-    fetch(`/api/time-logs?mine=1&fecha=${todayStr()}`)
+    // Sin localStorage — busca un timer abierto en la BD (cubre cross-midnight: ayer y hoy)
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = yesterday.toISOString().split('T')[0]
+    fetch(`/api/time-logs?mine=1&desde=${yesterdayStr}&hasta=${todayStr()}`)
       .then(r => r.ok ? r.json() : [])
       .then((logs: TimeLog[]) => {
         const activo = logs.find(l => !l.hora_fin)
@@ -125,15 +127,17 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         localStorage.setItem(TIMER_KEY, JSON.stringify({
           startTs, d: activo.descripcion, c: clienteIdDB, dep: deptIdDB, srv: srvIdDB, dbId: activo.id,
         }))
-        // Siempre avisar cuando se detecta un timer abierto desde otra sesión/página
-        setOrphanWarning({ mins: elapsedMins, desc: activo.descripcion ?? '' })
-        const notifKey = `timer_notified_${activo.id}`
-        if (!localStorage.getItem(notifKey)) {
-          localStorage.setItem(notifKey, '1')
-          fetch('/api/slack/timer-warning', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ empNombre: empleadoNombre, elapsedMins, descripcion: activo.descripcion ?? '' }),
-          }).catch(() => {})
+        // Solo avisar si el timer lleva más de 8h abierto (posible olvido)
+        if (elapsedMins > 480) {
+          setOrphanWarning({ mins: elapsedMins, desc: activo.descripcion ?? '' })
+          const notifKey = `timer_notified_${activo.id}`
+          if (!localStorage.getItem(notifKey)) {
+            localStorage.setItem(notifKey, '1')
+            fetch('/api/slack/timer-warning', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ empNombre: empleadoNombre, elapsedMins, descripcion: activo.descripcion ?? '' }),
+            }).catch(() => {})
+          }
         }
       })
       .catch(() => {})
@@ -223,6 +227,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     if (savedDbId) {
       // Resolve final values BEFORE clearing state
       let finalDesc = descripcion
+      const descParaBusqueda = descripcion  // original, without prefixes — for tarea lookup
       let finalClienteId: string | null = clienteId && clienteId !== '__otros__' ? clienteId : null
       let finalDeptId: string | null = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
       let finalServicioId: string | null = null
@@ -257,12 +262,11 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       try {
         // Resolve tarea vinculada
         let finalTareaId: string | null = savedTareaId || null
-        // Sumar minutos a la tarea existente (incremento sobre valor conocido)
+        // Sumar minutos a la tarea (delta atómico: el servidor lee el valor actual y suma)
         if (finalTareaId) {
-          const tareaActual = tareas.find(t => t.id === finalTareaId)
           await fetch(`/api/tareas?id=${finalTareaId}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ minutosAcumulados: (tareaActual?.minutosAcumulados ?? 0) + minutos }),
+            body: JSON.stringify({ minutosIncremento: minutos }),
           })
         }
         const res = await fetch(`/api/time-logs?id=${savedDbId}`, {
@@ -270,8 +274,8 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
           body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error al guardar'); return }
-        // Marcar tarea como terminado al guardar el timer
-        const nombreLower = finalDesc.trim().toLowerCase()
+        // Marcar tarea como terminado al guardar el timer (buscar por desc original, sin prefijos)
+        const nombreLower = descParaBusqueda.trim().toLowerCase()
         const tareaStopExiste = tareas.find(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
         if (tareaStopExiste) {
           fetch(`/api/tareas?id=${tareaStopExiste.id}`, {
@@ -306,6 +310,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     setSaving(true); setError('')
     try {
       let finalDesc = descripcion
+      const descParaBusqueda = descripcion  // original, without prefixes — for tarea lookup
       let finalClienteId: string | null = clienteId || null
       let finalDeptId: string | null = departamentoId || null
       let finalServicioId: string | null = null
@@ -349,8 +354,8 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         body: JSON.stringify({ descripcion: finalDesc, ...extra, id_servicio: finalServicioId, id_cliente: finalClienteId, id_departamento: finalDeptId }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
-      // Marcar tarea como terminado al guardar fichaje manual
-      const nombreLower = finalDesc.trim().toLowerCase()
+      // Marcar tarea como terminado al guardar fichaje manual (buscar por desc original, sin prefijos)
+      const nombreLower = descParaBusqueda.trim().toLowerCase()
       const tareaManualExiste = tareas.find(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
       if (tareaManualExiste) {
         fetch(`/api/tareas?id=${tareaManualExiste.id}`, {

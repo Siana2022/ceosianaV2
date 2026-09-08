@@ -19,8 +19,8 @@ async function resolveEmpleadoId(supabase: Awaited<ReturnType<typeof createClien
     .maybeSingle()
 
   if (!emp) {
-    // Valid session but no employee record → deny admin access
-    return { id: session.user.id, rol: 'empleado' as const }
+    // Valid session but no employee record → deny access entirely
+    return null
   }
   // No profile row → treat as empleado (safe default)
   return { id: emp.id, rol: perfil?.rol ?? 'empleado' }
@@ -172,7 +172,11 @@ export async function PATCH(req: NextRequest) {
   if (id_cliente !== undefined) updatePayload.id_cliente = id_cliente || null
   if (id_departamento !== undefined) updatePayload.id_departamento = id_departamento || null
   if (id_servicio !== undefined) updatePayload.id_servicio = id_servicio || null
-  if (minutos !== undefined) updatePayload.minutos = parseInt(minutos)
+  if (minutos !== undefined) {
+    const mins = parseInt(minutos)
+    if (isNaN(mins) || mins <= 0) return NextResponse.json({ error: 'minutos debe ser mayor que 0' }, { status: 400 })
+    updatePayload.minutos = mins
+  }
   if (hora_fin !== undefined) updatePayload.hora_fin = hora_fin || null
   if (hora_inicio !== undefined) updatePayload.hora_inicio = hora_inicio || null
   const { data, error } = await supabase.from('time_logs')

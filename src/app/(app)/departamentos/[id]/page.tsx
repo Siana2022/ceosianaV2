@@ -139,15 +139,21 @@ export default async function DepartamentoDetailPage({
 
   if (!dept) notFound()
 
-  // Paginate time_logs for this department with service+client info
+  // Paginate time_logs for this department with service+client info.
+  // We fetch two sets and merge to match getDedicacionCalculada which includes both
+  // direct dept assignment AND logs whose service belongs to this department.
   const adminCl = createAdminClient()
   const timeLogsList: TimeLog[] = []
   {
-    const PAGE = 1000; let from = 0
+    const PAGE = 1000
+    const TIME_SELECT = 'id_empleado, id_servicio, id_cliente, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas, cliente:id_cliente(id, nombre)), cliente:id_cliente(id, nombre)'
+
+    // Query 1: direct department assignment
+    let from = 0
     while (true) {
       const { data } = await adminCl
         .from('time_logs')
-        .select('id_empleado, id_servicio, id_cliente, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas, cliente:id_cliente(id, nombre)), cliente:id_cliente(id, nombre)')
+        .select(TIME_SELECT)
         .eq('id_departamento', id)
         .gte('fecha', fechaDesde)
         .lte('fecha', fechaHasta)
@@ -157,6 +163,31 @@ export default async function DepartamentoDetailPage({
       timeLogsList.push(...(data as unknown as TimeLog[]))
       if (data.length < PAGE) break
       from += PAGE
+    }
+
+    // Query 2: logs via service belonging to this department (no direct dept assignment)
+    const deptServicioIds = (serviciosRaw ?? []).map((s: { id: string }) => s.id)
+    if (deptServicioIds.length > 0) {
+      from = 0
+      const seen = new Set(timeLogsList.map(l => `${l.id_empleado}_${l.fecha}_${l.id_servicio ?? ''}_${l.minutos}`))
+      while (true) {
+        const { data } = await adminCl
+          .from('time_logs')
+          .select(TIME_SELECT)
+          .is('id_departamento', null)
+          .in('id_servicio', deptServicioIds)
+          .gte('fecha', fechaDesde)
+          .lte('fecha', fechaHasta)
+          .order('fecha', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (!data?.length) break
+        for (const row of data as unknown as TimeLog[]) {
+          const key = `${row.id_empleado}_${row.fecha}_${row.id_servicio ?? ''}_${row.minutos}`
+          if (!seen.has(key)) { seen.add(key); timeLogsList.push(row) }
+        }
+        if (data.length < PAGE) break
+        from += PAGE
+      }
     }
   }
 

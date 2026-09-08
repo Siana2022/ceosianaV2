@@ -113,7 +113,10 @@ export default async function EmpleadoPage({
   // Build maps
   const ingresoMap = new Map<string, number>()
   for (const ing of ingresosRaw ?? []) {
-    if (ing.id_servicio) ingresoMap.set(`${ing.id_servicio}_${ing.mes}`, Number(ing.valor))
+    if (ing.id_servicio) {
+      const k = `${ing.id_servicio}_${ing.mes}`
+      ingresoMap.set(k, (ingresoMap.get(k) ?? 0) + Number(ing.valor))
+    }
   }
 
   const servicioMap = new Map<string, { id: string; clienteNombre: string; servicioNombre: string; tipo: string; fecha_inicio: string | null; fecha_fin: string | null; id_departamento: string | null }>()
