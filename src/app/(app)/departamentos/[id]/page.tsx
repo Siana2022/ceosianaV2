@@ -194,6 +194,15 @@ export default async function DepartamentoDetailPage({
     }
   }
 
+  // servicioInfoMap: servicioId → label (clienteNombre · servicioNombre)
+  const servicioInfoMap = new Map<string, string>()
+  for (const s of serviciosList) {
+    const clienteNombre = (s.cliente as { nombre: string } | null)?.nombre ?? null
+    const svcNombre = s.notas ?? s.nombre ?? null
+    const label = clienteNombre && svcNombre ? `${clienteNombre} · ${svcNombre}` : clienteNombre ?? svcNombre ?? s.id
+    servicioInfoMap.set(s.id, label)
+  }
+
   // respByServicio for projects table
   const respByServicio = new Map<string, string[]>()
   for (const r of responsablesServicio) {
@@ -251,13 +260,18 @@ export default async function DepartamentoDetailPage({
       const pct = dedicMap.get(`${empId}_${mes}`) ?? 0
       const sueldo = sueldoMap.get(`${empId}_${mes}`) ?? 0
       const costeDept = sueldo * pct / 100
-      const facturacion = responsablesServicio
+      const facturacionDetalle = responsablesServicio
         .filter(r => r.id_empleado === empId && r.mes === mes)
-        .reduce((sum, r) => sum + (ingresosMap.get(`${r.id_servicio}_${r.mes}`) ?? 0) * r.porcentaje / 100, 0)
+        .map(r => ({
+          label: servicioInfoMap.get(r.id_servicio) ?? r.id_servicio,
+          valor: (ingresosMap.get(`${r.id_servicio}_${r.mes}`) ?? 0) * r.porcentaje / 100,
+        }))
+        .filter(x => x.valor > 0)
+      const facturacion = facturacionDetalle.reduce((s, x) => s + x.valor, 0)
       const minDept = empMonthMinutes.get(empId)?.get(mes) ?? 0
       const projects = Array.from(empMonthMap.get(empId)?.get(mes)?.entries() ?? [])
         .map(([, p]) => p)
-      return { mes, sueldo, pct, costeDept, facturacion, rentabilidad: facturacion - costeDept, minDept, projects }
+      return { mes, sueldo, pct, costeDept, facturacion, facturacionDetalle, rentabilidad: facturacion - costeDept, minDept, projects }
     })
 
     const totalCosteDept = mesData.reduce((s, m) => s + m.costeDept, 0)
@@ -393,6 +407,18 @@ export default async function DepartamentoDetailPage({
                               <div>
                                 <span className="text-gray-500 text-xs">Facturación</span>
                                 <p className="text-white font-medium">{fmt(m.facturacion)}</p>
+                                {m.facturacionDetalle.length > 1 && (
+                                  <div className="mt-1 space-y-0.5">
+                                    {m.facturacionDetalle.map((fd, fi) => (
+                                      <p key={fi} className="text-gray-500 text-[10px]">
+                                        {fd.label}: <span className="text-gray-400">{fmt(fd.valor)}</span>
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+                                {m.facturacionDetalle.length === 1 && (
+                                  <p className="text-gray-500 text-[10px] mt-0.5">{m.facturacionDetalle[0].label}</p>
+                                )}
                               </div>
                               <div>
                                 <span className="text-gray-500 text-xs">Rentabilidad</span>
