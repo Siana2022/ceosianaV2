@@ -116,8 +116,6 @@ export default async function DepartamentoDetailPage({
     { data: empleadosRaw },
   ] = await Promise.all([
     supabase.from('departamentos').select('id, nombre, activo').eq('id', id).single(),
-    // Sin filtro idDepartamento: necesitamos el total de minutos de cada empleado
-    // para que el % sea correcto (minutos_en_este_depto / minutos_totales_empleado)
     getDedicacionCalculada(createAdminClient(), { anio }),
     supabase.from('sueldos').select('id_empleado, coste_total, mes').eq('anio', anio).gte('mes', mesDesde).lte('mes', mesHasta),
     supabase.from('ingresos').select('id_servicio, valor, mes').eq('id_departamento', id).eq('anio', anio).gte('mes', mesDesde).lte('mes', mesHasta),
@@ -162,7 +160,6 @@ export default async function DepartamentoDetailPage({
     }
   }
 
-  // Only dedicaciones for THIS department and selected month range
   const dedicacionList = (dedicaciones ?? []).filter(
     d => d.id_departamento === id && d.mes >= mesDesde && d.mes <= mesHasta
   ) as EmpleadoDedicacion[]
@@ -175,11 +172,9 @@ export default async function DepartamentoDetailPage({
   const empNameMap = new Map<string, string>()
   for (const e of empleadosList) empNameMap.set(e.id, e.nombre)
 
-  // sueldo map
   const sueldoMap = new Map<string, number>()
   for (const s of sueldosList) sueldoMap.set(`${s.id_empleado}_${s.mes}`, Number(s.coste_total ?? 0))
 
-  // Fetch servicio_responsables
   const servicioIds = serviciosList.map(s => s.id)
   const { data: responsablesServicioRaw } = servicioIds.length > 0
     ? await supabase.from('servicio_responsables').select('id_servicio, id_empleado, mes, porcentaje').in('id_servicio', servicioIds).eq('anio', anio)
@@ -194,15 +189,6 @@ export default async function DepartamentoDetailPage({
     }
   }
 
-  // servicioInfoMap: servicioId → label (clienteNombre · servicioNombre)
-  const servicioInfoMap = new Map<string, string>()
-  for (const s of serviciosList) {
-    const clienteNombre = (s.cliente as { nombre: string } | null)?.nombre ?? null
-    const svcNombre = s.notas ?? s.nombre ?? null
-    const label = clienteNombre && svcNombre ? `${clienteNombre} · ${svcNombre}` : clienteNombre ?? svcNombre ?? s.id
-    servicioInfoMap.set(s.id, label)
-  }
-
   // respByServicio for projects table
   const respByServicio = new Map<string, string[]>()
   for (const r of responsablesServicio) {
@@ -211,85 +197,118 @@ export default async function DepartamentoDetailPage({
     if (nombre && !respByServicio.get(r.id_servicio)!.includes(nombre)) respByServicio.get(r.id_servicio)!.push(nombre)
   }
 
-  // Build empMonthMap: empId → mes → servicioKey → { label, logs }
-  const empMonthMap = new Map<string, Map<number, Map<string, ProjectEntry>>>()
-  const empMonthMinutes = new Map<string, Map<number, number>>() // empId → mes → total minutes in this dept
+  // empMonthMinutes: empId → mes → total minutes in this dept
+  const empMonthMinutes = new Map<string, Map<number, number>>()
   for (const tl of timeLogsList) {
-    const empId = tl.id_empleado
     const mes = parseInt(tl.fecha.substring(5, 7))
-    const svc = tl.servicio as { nombre: string | null; notas: string | null; cliente: { nombre: string } | null } | null
-    const clienteDirecto = (tl.cliente as { nombre: string } | null)?.nombre ?? null
-    const clienteNombre = svc?.cliente?.nombre ?? clienteDirecto ?? null
-    const svcNombre = svc?.notas ?? svc?.nombre ?? null
-    const label = clienteNombre && svcNombre
-      ? `${clienteNombre} · ${svcNombre}`
-      : clienteNombre ?? svcNombre ?? 'Sin proyecto'
-    // Group by cliente when no service
-    const svcKey = tl.id_servicio ?? (tl.id_cliente ? `cliente_${tl.id_cliente}` : '__none__')
-
-    if (!empMonthMap.has(empId)) empMonthMap.set(empId, new Map())
-    const monthMap = empMonthMap.get(empId)!
-    if (!monthMap.has(mes)) monthMap.set(mes, new Map())
-    const projMap = monthMap.get(mes)!
-    if (!projMap.has(svcKey)) projMap.set(svcKey, { label, logs: [] })
-    projMap.get(svcKey)!.logs.push({ fecha: tl.fecha, descripcion: tl.descripcion, minutos: tl.minutos })
-
-    if (!empMonthMinutes.has(empId)) empMonthMinutes.set(empId, new Map())
-    const mmap = empMonthMinutes.get(empId)!
+    if (!empMonthMinutes.has(tl.id_empleado)) empMonthMinutes.set(tl.id_empleado, new Map())
+    const mmap = empMonthMinutes.get(tl.id_empleado)!
     mmap.set(mes, (mmap.get(mes) ?? 0) + tl.minutos)
   }
 
-  // Build personal detail per employee
-  const dedicMap = new Map<string, number>() // empId_mes → porcentaje
-  for (const d of dedicacionList) dedicMap.set(`${d.id_empleado}_${d.mes}`, d.porcentaje)
+  // costeDeptMap: empId_mes → coste imputado al departamento
+  const costeDeptMap = new Map<string, number>()
+  const dedicMap = new Map<string, number>()
+  for (const d of dedicacionList) {
+    dedicMap.set(`${d.id_empleado}_${d.mes}`, d.porcentaje)
+    const sueldo = sueldoMap.get(`${d.id_empleado}_${d.mes}`) ?? 0
+    costeDeptMap.set(`${d.id_empleado}_${d.mes}`, sueldo * d.porcentaje / 100)
+  }
 
-  // All employees who appear in either dedicacion or time_logs for this dept
-  const allEmpIds = new Set<string>([
-    ...dedicacionList.map(d => d.id_empleado),
-    ...Array.from(empMonthMap.keys()),
-  ])
+  // --- CLIENT-CENTRIC DATA ---
+  // servicioClienteMap: servicioId → { id, nombre }
+  const servicioClienteMap = new Map<string, { id: string; nombre: string }>()
+  for (const s of serviciosList) {
+    const cli = s.cliente as { id: string; nombre: string } | null
+    if (cli) servicioClienteMap.set(s.id, cli)
+  }
 
-  const personalDetalle = Array.from(allEmpIds).map(empId => {
-    const nombre = empNameMap.get(empId) ?? empId
-    // Months with any data
-    const allMeses = new Set<number>([
-      ...dedicacionList.filter(d => d.id_empleado === empId).map(d => d.mes),
-      ...Array.from(empMonthMap.get(empId)?.keys() ?? []),
-    ])
-    const mesData = Array.from(allMeses).sort((a, b) => a - b).map(mes => {
-      const pct = dedicMap.get(`${empId}_${mes}`) ?? 0
-      const sueldo = sueldoMap.get(`${empId}_${mes}`) ?? 0
-      const costeDept = sueldo * pct / 100
-      const facturacionDetalle = responsablesServicio
-        .filter(r => r.id_empleado === empId && r.mes === mes)
-        .map(r => ({
-          label: servicioInfoMap.get(r.id_servicio) ?? r.id_servicio,
-          valor: (ingresosMap.get(`${r.id_servicio}_${r.mes}`) ?? 0) * r.porcentaje / 100,
-        }))
-        .filter(x => x.valor > 0)
-      const facturacion = facturacionDetalle.reduce((s, x) => s + x.valor, 0)
-      const minDept = empMonthMinutes.get(empId)?.get(mes) ?? 0
-      const projects = Array.from(empMonthMap.get(empId)?.get(mes)?.entries() ?? [])
-        .map(([, p]) => p)
-      return { mes, sueldo, pct, costeDept, facturacion, facturacionDetalle, rentabilidad: facturacion - costeDept, minDept, projects }
-    })
+  // Ingresos per cliente
+  const ingresosPerCliente = new Map<string, number>()
+  const clienteNombreMap = new Map<string, string>()
+  for (const ing of ingresosList) {
+    if (!ing.id_servicio) continue
+    const cli = servicioClienteMap.get(ing.id_servicio)
+    if (!cli) continue
+    clienteNombreMap.set(cli.id, cli.nombre)
+    ingresosPerCliente.set(cli.id, (ingresosPerCliente.get(cli.id) ?? 0) + Number(ing.valor))
+  }
 
-    const totalCosteDept = mesData.reduce((s, m) => s + m.costeDept, 0)
-    const totalFacturacion = mesData.reduce((s, m) => s + m.facturacion, 0)
-    const totalMinDept = mesData.reduce((s, m) => s + m.minDept, 0)
+  // Group time_logs by cliente → empId
+  interface EmpClienteData { nombre: string; minutos: number; coste: number; fichajes: FichajeEntry[] }
+  const clienteEmpMap = new Map<string, Map<string, EmpClienteData>>()
 
-    return { empId, nombre, mesData, totalCosteDept, totalFacturacion, totalRentabilidad: totalFacturacion - totalCosteDept, totalMinDept }
-  }).sort((a, b) => a.nombre.localeCompare(b.nombre))
+  for (const tl of timeLogsList) {
+    const svc = tl.servicio as { cliente: { id: string; nombre: string } | null } | null
+    const cliFromSvc = svc?.cliente
+    const cliFromDirect = tl.cliente as { id: string; nombre: string } | null
+    const cliId = cliFromSvc?.id ?? cliFromDirect?.id ?? null
+    const cliNombre = cliFromSvc?.nombre ?? cliFromDirect?.nombre ?? null
+    if (!cliId || !cliNombre) continue
 
-  // Totals
+    clienteNombreMap.set(cliId, cliNombre)
+
+    const mes = parseInt(tl.fecha.substring(5, 7))
+    const minDept = empMonthMinutes.get(tl.id_empleado)?.get(mes) ?? 0
+    const costeDept = costeDeptMap.get(`${tl.id_empleado}_${mes}`) ?? 0
+    const costeEntry = minDept > 0 ? costeDept * (tl.minutos / minDept) : 0
+
+    if (!clienteEmpMap.has(cliId)) clienteEmpMap.set(cliId, new Map())
+    const empMap = clienteEmpMap.get(cliId)!
+    if (!empMap.has(tl.id_empleado)) {
+      empMap.set(tl.id_empleado, {
+        nombre: empNameMap.get(tl.id_empleado) ?? tl.id_empleado,
+        minutos: 0,
+        coste: 0,
+        fichajes: [],
+      })
+    }
+    const empData = empMap.get(tl.id_empleado)!
+    empData.minutos += tl.minutos
+    empData.coste += costeEntry
+    empData.fichajes.push({ fecha: tl.fecha, descripcion: tl.descripcion, minutos: tl.minutos })
+  }
+
+  interface ClienteCard {
+    clienteId: string
+    clienteNombre: string
+    ingresos: number
+    minutos: number
+    coste: number
+    empleados: (EmpClienteData & { empId: string })[]
+  }
+
+  const allClienteIds = new Set([...clienteEmpMap.keys(), ...ingresosPerCliente.keys()])
+  const clienteCards: ClienteCard[] = Array.from(allClienteIds).map(cliId => {
+    const empMap = clienteEmpMap.get(cliId) ?? new Map()
+    const empleados = Array.from(empMap.entries())
+      .map(([empId, data]) => ({
+        empId,
+        ...data,
+        fichajes: data.fichajes.sort((a: FichajeEntry, b: FichajeEntry) => a.fecha.localeCompare(b.fecha)),
+      }))
+      .sort((a, b) => b.minutos - a.minutos)
+    return {
+      clienteId: cliId,
+      clienteNombre: clienteNombreMap.get(cliId) ?? cliId,
+      ingresos: ingresosPerCliente.get(cliId) ?? 0,
+      minutos: empleados.reduce((s, e) => s + e.minutos, 0),
+      coste: empleados.reduce((s, e) => s + e.coste, 0),
+      empleados,
+    }
+  }).sort((a, b) => (b.ingresos - a.ingresos) || (b.minutos - a.minutos))
+
+  // Totals (from dedicacionList for KPIs)
+  const costePersonalTotal = dedicacionList.reduce((s, d) => {
+    return s + (sueldoMap.get(`${d.id_empleado}_${d.mes}`) ?? 0) * d.porcentaje / 100
+  }, 0)
   const ingresosTotal = ingresosList.reduce((s, i) => s + Number(i.valor), 0)
   const gastosPropiosTotal = gastosList.reduce((s, g) => s + Number(g.valor), 0)
-  const costePersonalTotal = personalDetalle.reduce((s, r) => s + r.totalCosteDept, 0)
   const costeTotalGeneral = costePersonalTotal + gastosPropiosTotal
   const resultado = ingresosTotal - costeTotalGeneral
   const margenPct = ingresosTotal > 0 ? (resultado / ingresosTotal) * 100 : 0
 
-  // Monthly breakdown table — only months in selected range
+  // Monthly breakdown
   const monthlyRows = Array.from({ length: mesHasta - mesDesde + 1 }, (_, i) => {
     const mes = mesDesde + i
     const ingresosMes = ingresosList.filter(x => x.mes === mes).reduce((s, x) => s + Number(x.valor), 0)
@@ -299,6 +318,25 @@ export default async function DepartamentoDetailPage({
       .reduce((s, d) => s + (sueldoMap.get(`${d.id_empleado}_${mes}`) ?? 0) * d.porcentaje / 100, 0)
     return { mes, ingresosMes, gastosMes, costPersonalMes, resultadoMes: ingresosMes - gastosMes - costPersonalMes }
   })
+
+  // empMonthMap for legacy use (services table)
+  const empMonthMap = new Map<string, Map<number, Map<string, ProjectEntry>>>()
+  for (const tl of timeLogsList) {
+    const empId = tl.id_empleado
+    const mes = parseInt(tl.fecha.substring(5, 7))
+    const svc = tl.servicio as { nombre: string | null; notas: string | null; cliente: { nombre: string } | null } | null
+    const clienteDirecto = (tl.cliente as { nombre: string } | null)?.nombre ?? null
+    const clienteNombre = svc?.cliente?.nombre ?? clienteDirecto ?? null
+    const svcNombre = svc?.notas ?? svc?.nombre ?? null
+    const label = clienteNombre && svcNombre ? `${clienteNombre} · ${svcNombre}` : clienteNombre ?? svcNombre ?? 'Sin proyecto'
+    const svcKey = tl.id_servicio ?? (tl.id_cliente ? `cliente_${tl.id_cliente}` : '__none__')
+    if (!empMonthMap.has(empId)) empMonthMap.set(empId, new Map())
+    const monthMap = empMonthMap.get(empId)!
+    if (!monthMap.has(mes)) monthMap.set(mes, new Map())
+    const projMap = monthMap.get(mes)!
+    if (!projMap.has(svcKey)) projMap.set(svcKey, { label, logs: [] })
+    projMap.get(svcKey)!.logs.push({ fecha: tl.fecha, descripcion: tl.descripcion, minutos: tl.minutos })
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -314,7 +352,7 @@ export default async function DepartamentoDetailPage({
           </span>
         </div>
         <p className="text-gray-500 text-sm mt-1">
-          {mesDesde === 1 && mesHasta === 12 ? `Año ${anio}` : `${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mesDesde-1]}–${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mesHasta-1]} ${anio}`} · Vista de rentabilidad
+          {mesDesde === 1 && mesHasta === 12 ? `Año ${anio}` : `${MESES_CORTO[mesDesde-1]}–${MESES_CORTO[mesHasta-1]} ${anio}`} · Vista de rentabilidad
         </p>
       </div>
       <Suspense>
@@ -344,144 +382,99 @@ export default async function DepartamentoDetailPage({
         </div>
       </div>
 
-      {/* Personal */}
+      {/* POR CLIENTE — sección principal */}
       <div className="space-y-4">
         <div>
-          <h3 className="text-white font-semibold text-lg">Personal</h3>
-          <p className="text-gray-500 text-xs mt-0.5">Empleados con fichajes en este servicio — {anio}</p>
+          <h3 className="text-white font-semibold text-lg">Por cliente</h3>
+          <p className="text-gray-500 text-xs mt-0.5">Ingreso, coste y horas invertidas por cliente · empleados y fichajes dentro de cada uno</p>
         </div>
 
-        {personalDetalle.length === 0 ? (
+        {clienteCards.length === 0 ? (
           <div className="bg-gray-900 border border-gray-800 rounded-xl py-8 text-center">
-            <p className="text-gray-500 text-sm">Sin empleados con fichajes en este servicio este año</p>
+            <p className="text-gray-500 text-sm">Sin datos de clientes para este periodo</p>
           </div>
         ) : (
-          personalDetalle.map(emp => {
-            const rentabPct = emp.totalFacturacion > 0 ? (emp.totalRentabilidad / emp.totalFacturacion) * 100 : 0
+          clienteCards.map(c => {
+            const margen = c.ingresos - c.coste
+            const margenPctCard = c.ingresos > 0 ? (margen / c.ingresos) * 100 : null
             return (
-              <div key={emp.empId} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                {/* Employee header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-wrap gap-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <h4 className="text-white font-semibold">{emp.nombre}</h4>
-                    <span className="text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">
-                      {fmtMin(emp.totalMinDept)} en este servicio
-                    </span>
-                    <span className={`text-[11px] border px-2 py-0.5 rounded-full ${emp.totalRentabilidad >= 0 ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
-                      {emp.totalRentabilidad >= 0 ? '+' : ''}{fmt(emp.totalRentabilidad)} rentabilidad
-                      {emp.totalFacturacion > 0 && <span className="ml-1 opacity-70">({rentabPct.toFixed(0)}%)</span>}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500">Coste imputado al servicio</p>
-                    <p className="text-white font-bold">{fmt(emp.totalCosteDept)}</p>
-                  </div>
-                </div>
-
-                {/* Per month */}
-                <div className="divide-y divide-gray-800/60">
-                  {emp.mesData.map(m => (
-                    <div key={m.mes} className="px-6 py-4">
-                      {/* Month summary row */}
-                      <div className="flex flex-wrap items-center gap-4 mb-3">
-                        <span className="text-white font-semibold w-28">{MESES[m.mes - 1]}</span>
-                        <div className="flex flex-wrap gap-6 text-sm">
-                          <div>
-                            <span className="text-gray-500 text-xs">Horas</span>
-                            <p className="text-blue-400 font-medium">{fmtMin(m.minDept)}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 text-xs">% tiempo</span>
-                            <p className="text-blue-300 font-medium">{m.pct > 0 ? fmtPct(m.pct) : '—'}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 text-xs">Sueldo</span>
-                            <p className="text-gray-300">{m.sueldo > 0 ? fmt(m.sueldo) : '—'}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 text-xs">Coste imputado</span>
-                            <p className="text-orange-400 font-medium">{m.costeDept > 0 ? fmt(m.costeDept) : '—'}</p>
-                          </div>
-                          {m.facturacion > 0 && (
-                            <>
-                              <div>
-                                <span className="text-gray-500 text-xs">Facturación</span>
-                                <p className="text-white font-medium">{fmt(m.facturacion)}</p>
-                                {m.facturacionDetalle.length > 1 && (
-                                  <div className="mt-1 space-y-0.5">
-                                    {m.facturacionDetalle.map((fd, fi) => (
-                                      <p key={fi} className="text-gray-500 text-[10px]">
-                                        {fd.label}: <span className="text-gray-400">{fmt(fd.valor)}</span>
-                                      </p>
-                                    ))}
-                                  </div>
-                                )}
-                                {m.facturacionDetalle.length === 1 && (
-                                  <p className="text-gray-500 text-[10px] mt-0.5">{m.facturacionDetalle[0].label}</p>
-                                )}
-                              </div>
-                              <div>
-                                <span className="text-gray-500 text-xs">Rentabilidad</span>
-                                <p className={`font-medium ${m.rentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(m.rentabilidad)}</p>
-                              </div>
-                            </>
-                          )}
-                        </div>
+              <div key={c.clienteId} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                {/* Cliente header */}
+                <div className="px-6 py-4 border-b border-gray-800 bg-gray-800/20">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <h4 className="text-white font-semibold text-base">{c.clienteNombre}</h4>
+                    <div className="flex flex-wrap gap-5">
+                      <div className="text-right">
+                        <p className="text-gray-500 text-[10px] uppercase tracking-wide">Ingreso</p>
+                        <p className={`font-bold text-sm ${c.ingresos > 0 ? 'text-green-400' : 'text-gray-600'}`}>
+                          {c.ingresos > 0 ? fmt(c.ingresos) : '—'}
+                        </p>
                       </div>
-
-                      {/* Project breakdown */}
-                      {m.projects.length > 0 && (
-                        <div className="ml-32 space-y-2">
-                          {m.projects.map((proj, pi) => (
-                            <div key={pi} className="bg-gray-800/40 rounded-lg overflow-hidden">
-                              {/* Project header */}
-                              <div className="px-4 py-2 border-b border-gray-700/50 flex items-center justify-between">
-                                <span className="text-gray-300 text-xs font-medium">{proj.label}</span>
-                                <span className="text-blue-400 text-xs">{fmtMin(proj.logs.reduce((s, l) => s + l.minutos, 0))}</span>
-                              </div>
-                              {/* Individual fichajes */}
-                              <table className="w-full text-xs">
-                                <tbody>
-                                  {proj.logs.map((log, li) => (
-                                    <tr key={li} className="border-b border-gray-700/30 last:border-0 hover:bg-gray-700/20">
-                                      <td className="px-4 py-1.5 text-gray-500 whitespace-nowrap w-24">
-                                        {new Date(log.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-                                      </td>
-                                      <td className="px-4 py-1.5 text-gray-400">{log.descripcion ?? '—'}</td>
-                                      <td className="px-4 py-1.5 text-right text-blue-400 whitespace-nowrap w-20">{fmtMin(log.minutos)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <div className="text-right">
+                        <p className="text-gray-500 text-[10px] uppercase tracking-wide">Horas</p>
+                        <p className="text-blue-400 font-bold text-sm">{c.minutos > 0 ? fmtMin(c.minutos) : '—'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-500 text-[10px] uppercase tracking-wide">Coste</p>
+                        <p className="text-orange-400 font-bold text-sm">{c.coste > 0 ? fmt(c.coste) : '—'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-500 text-[10px] uppercase tracking-wide">Margen</p>
+                        <p className={`font-bold text-sm ${margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {margenPctCard !== null
+                            ? `${fmt(margen)} (${margenPctCard.toFixed(0)}%)`
+                            : c.coste > 0 ? fmt(-c.coste) : '—'}
+                        </p>
+                      </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
 
-                {/* Employee footer */}
-                <div className="px-6 py-3 bg-gray-800/30 border-t border-gray-700 flex justify-between items-center text-sm">
-                  <span className="text-gray-400 text-xs">Total anual</span>
-                  <div className="flex gap-6">
-                    <span className="text-orange-400 font-bold">{fmt(emp.totalCosteDept)} coste</span>
-                    {emp.totalFacturacion > 0 && <span className="text-white font-bold">{fmt(emp.totalFacturacion)} facturado</span>}
-                    <span className={`font-bold ${emp.totalRentabilidad >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(emp.totalRentabilidad)} resultado</span>
-                  </div>
+                {/* Per employee */}
+                <div className="divide-y divide-gray-800/50">
+                  {c.empleados.map(emp => {
+                    const empPct = c.minutos > 0 ? (emp.minutos / c.minutos) * 100 : 0
+                    return (
+                      <div key={emp.empId} className="px-6 py-4">
+                        {/* Employee summary */}
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <span className="text-gray-200 font-medium text-sm min-w-[120px]">{emp.nombre}</span>
+                          <span className="text-[11px] bg-blue-500/15 text-blue-400 border border-blue-500/25 px-2 py-0.5 rounded-full">
+                            {fmtMin(emp.minutos)}
+                          </span>
+                          {c.minutos > 0 && (
+                            <span className="text-[11px] text-gray-500">{empPct.toFixed(0)}% de horas</span>
+                          )}
+                          <span className="text-[11px] bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-0.5 rounded-full">
+                            {fmt(emp.coste)} coste
+                          </span>
+                        </div>
+
+                        {/* Fichajes */}
+                        {emp.fichajes.length > 0 && (
+                          <div className="ml-0 mt-1 border border-gray-800/60 rounded-lg overflow-hidden">
+                            <table className="w-full text-xs">
+                              <tbody>
+                                {emp.fichajes.map((f, fi) => (
+                                  <tr key={fi} className="border-b border-gray-800/40 last:border-0 hover:bg-gray-800/30">
+                                    <td className="px-3 py-1.5 text-gray-600 whitespace-nowrap w-20">
+                                      {new Date(f.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-gray-400">{f.descripcion ?? '—'}</td>
+                                    <td className="px-3 py-1.5 text-right text-blue-400/80 whitespace-nowrap w-16">{fmtMin(f.minutos)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
           })
-        )}
-
-        {personalDetalle.length > 0 && (
-          <div className="flex justify-end">
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg px-6 py-3 text-sm">
-              <span className="text-gray-400">Total coste personal imputado: </span>
-              <span className="text-white font-bold ml-2">{fmt(costePersonalTotal)}</span>
-            </div>
-          </div>
         )}
       </div>
 
