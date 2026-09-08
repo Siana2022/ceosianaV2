@@ -75,6 +75,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   const [error, setError] = useState('')
   const [orphanWarning, setOrphanWarning] = useState<{ mins: number; desc: string } | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startingRef = useRef(false)
 
   // Restore timer — primero desde localStorage, y si no hay, desde la BD (por si se inició desde /tareas)
   useEffect(() => {
@@ -162,7 +163,9 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   }, [timerRunning, timerStart])
 
   async function startTimer() {
+    if (startingRef.current || timerRunning) return
     if (!descripcion.trim()) { setError('Añade una descripción'); return }
+    startingRef.current = true
     setError(''); const now = Date.now()
     const pad = (n: number) => String(n).padStart(2, '0')
     const hi = `${pad(new Date(now).getHours())}:${pad(new Date(now).getMinutes())}`
@@ -206,6 +209,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
 
     setTimerStart(now); setTimerRunning(true); setElapsed(0); setTimerDbId(dbId)
     localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, srv: proyectoOtrosId, tid: tareaId, dbId }))
+    startingRef.current = false
   }
 
   async function stopTimer() {
