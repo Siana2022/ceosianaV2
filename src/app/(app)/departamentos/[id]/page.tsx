@@ -24,6 +24,7 @@ function fmtMin(m: number) {
 interface TimeLog {
   id_empleado: string
   id_servicio: string | null
+  id_cliente: string | null
   minutos: number
   fecha: string
   descripcion: string | null
@@ -34,6 +35,7 @@ interface TimeLog {
     notas: string | null
     cliente: { id: string; nombre: string } | null
   } | null
+  cliente: { id: string; nombre: string } | null
 }
 
 interface Servicio {
@@ -147,7 +149,7 @@ export default async function DepartamentoDetailPage({
     while (true) {
       const { data } = await adminCl
         .from('time_logs')
-        .select('id_empleado, id_servicio, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas, cliente:id_cliente(id, nombre))')
+        .select('id_empleado, id_servicio, id_cliente, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas, cliente:id_cliente(id, nombre)), cliente:id_cliente(id, nombre)')
         .eq('id_departamento', id)
         .gte('fecha', fechaDesde)
         .lte('fecha', fechaHasta)
@@ -207,12 +209,14 @@ export default async function DepartamentoDetailPage({
     const empId = tl.id_empleado
     const mes = parseInt(tl.fecha.substring(5, 7))
     const svc = tl.servicio as { nombre: string | null; notas: string | null; cliente: { nombre: string } | null } | null
-    const clienteNombre = svc?.cliente?.nombre ?? null
+    const clienteDirecto = (tl.cliente as { nombre: string } | null)?.nombre ?? null
+    const clienteNombre = svc?.cliente?.nombre ?? clienteDirecto ?? null
     const svcNombre = svc?.notas ?? svc?.nombre ?? null
     const label = clienteNombre && svcNombre
       ? `${clienteNombre} · ${svcNombre}`
       : clienteNombre ?? svcNombre ?? 'Sin proyecto'
-    const svcKey = tl.id_servicio ?? '__none__'
+    // Group by cliente when no service
+    const svcKey = tl.id_servicio ?? (tl.id_cliente ? `cliente_${tl.id_cliente}` : '__none__')
 
     if (!empMonthMap.has(empId)) empMonthMap.set(empId, new Map())
     const monthMap = empMonthMap.get(empId)!
