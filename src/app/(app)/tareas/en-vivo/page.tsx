@@ -72,10 +72,12 @@ export default function EnVivoPage() {
     return () => clearInterval(t)
   }, [])
 
-  // Build map: empId → timer (if active)
+  // Build map: empId → timer más reciente (primera escritura gana, API viene DESC)
   const timerByEmp = new Map<string, TimerActivo>()
   for (const t of timers) {
-    if (t.empleado?.id) timerByEmp.set(t.empleado.id, t)
+    if (t.empleado?.id && !timerByEmp.has(t.empleado.id)) {
+      timerByEmp.set(t.empleado.id, t)
+    }
   }
 
   const activos = empleados.filter(e => timerByEmp.has(e.id))

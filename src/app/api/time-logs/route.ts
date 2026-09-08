@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
       .select('id, id_empleado, descripcion, fecha, hora_inicio, minutos, empleado:id_empleado(id, nombre), cliente:id_cliente(id, nombre), departamento:id_departamento(id, nombre)')
       .is('hora_fin', null)
       .eq('fecha', today)
-      .order('hora_inicio', { ascending: true })
+      .order('hora_inicio', { ascending: false, nullsFirst: false })
     if (activosError) return NextResponse.json({ error: activosError.message }, { status: 500 })
     return NextResponse.json(activosData ?? [])
   }
