@@ -308,11 +308,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       }
 
       if (clienteId && clienteId !== '__otros__' && serviciosDelCliente().length > 0 && !finalServicioId) {
-        if (activeCliente.toLowerCase().includes('way')) {
-          setError('Por favor selecciona un servicio')
-          return
-        }
-        // Para otros clientes: auto-seleccionar el servicio que coincida con el departamento
+        // Auto-seleccionar el servicio que coincida con el departamento elegido; si no hay match, usar el primero
         const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === activeCliente.toLowerCase())
         const porDepto = todos.find(s => (!Array.isArray(s.departamento) ? s.departamento?.id : s.departamento[0]?.id) === departamentoId) ?? todos[0]
         if (porDepto) {

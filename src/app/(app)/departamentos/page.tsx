@@ -43,7 +43,7 @@ export default async function DepartamentosPage({ searchParams }: { searchParams
       .gte('mes', mesDesde)
       .lte('mes', mesHasta)
       .not('id_departamento', 'is', null),
-    supabase
+    createAdminClient()
       .from('sueldos')
       .select('id_empleado, coste_total, mes')
       .eq('anio', anio)
@@ -51,10 +51,12 @@ export default async function DepartamentosPage({ searchParams }: { searchParams
       .lte('mes', mesHasta),
     supabase
       .from('gastos_fijos')
-      .select('valor, id_departamento, tipo')
+      .select('valor, id_departamento, tipo, mes')
       .eq('anio', anio)
       .eq('tipo', 'departamento')
-      .not('id_departamento', 'is', null),
+      .not('id_departamento', 'is', null)
+      .gte('mes', mesDesde)
+      .lte('mes', mesHasta),
     supabase
       .from('servicios')
       .select('id, id_departamento, activo')
@@ -117,11 +119,9 @@ export default async function DepartamentosPage({ searchParams }: { searchParams
       costePersonal += sueldo * d.porcentaje / 100
     }
 
-    // Gastos fijos son anuales: prorratear por meses seleccionados
-    const numMeses = mesHasta - mesDesde + 1
     const gastosPropios = (gastosFijos ?? [])
       .filter(g => g.id_departamento === dept.id)
-      .reduce((s, g) => s + Number(g.valor) * numMeses / 12, 0)
+      .reduce((s, g) => s + Number(g.valor), 0)
 
     const costTotal = costePersonal + gastosPropios
     const resultado = ingresosDept - costTotal

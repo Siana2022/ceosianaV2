@@ -177,7 +177,7 @@ export default async function DepartamentoDetailPage({
 
   const servicioIds = serviciosList.map(s => s.id)
   const { data: responsablesServicioRaw } = servicioIds.length > 0
-    ? await supabase.from('servicio_responsables').select('id_servicio, id_empleado, mes, porcentaje').in('id_servicio', servicioIds).eq('anio', anio)
+    ? await supabase.from('servicio_responsables').select('id_servicio, id_empleado, mes, porcentaje').in('id_servicio', servicioIds).eq('anio', anio).gte('mes', mesDesde).lte('mes', mesHasta)
     : { data: [] }
   const responsablesServicio = (responsablesServicioRaw ?? []) as ServicioResponsable[]
 

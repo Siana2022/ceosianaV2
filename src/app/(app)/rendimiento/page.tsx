@@ -40,7 +40,7 @@ export default async function RendimientoPage({
     { data: ingresosRaw },
     { data: empleadosRaw },
   ] = await Promise.all([
-    supabase.from('sueldos').select('id_empleado, coste_total, mes').eq('anio', anio),
+    createAdminClient().from('sueldos').select('id_empleado, coste_total, mes').eq('anio', anio),
     supabase.from('servicio_responsables').select('id_servicio, id_empleado, porcentaje, mes').eq('anio', anio),
     supabase.from('servicios').select('id, nombre, notas, id_departamento, cliente:id_cliente(id, nombre), departamento:id_departamento(id, nombre)'),
     supabase.from('ingresos').select('id_servicio, valor, mes').eq('anio', anio),

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import DedicacionClient from './DedicacionClient'
 
@@ -19,7 +20,7 @@ export default async function DedicacionPage({
   ] = await Promise.all([
     supabase.from('empleados').select('id, nombre').order('nombre'),
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
-    getDedicacionCalculada(supabase, { anio }),
+    getDedicacionCalculada(createAdminClient(), { anio }),
   ])
 
   return (

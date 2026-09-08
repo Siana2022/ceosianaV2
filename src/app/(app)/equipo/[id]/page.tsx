@@ -37,8 +37,8 @@ export default async function EmpleadoPage({
 
   const supabase = await createClient()
 
-  // Round 1: employee + all sueldos + responsables + dedicacion + departamentos (in parallel)
-  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, dedicacionRaw, { data: departamentosRaw }, { data: allRespYear }, { data: allServiciosYear }, { data: timeLogsRaw }] = await Promise.all([
+  // Round 1: employee data in parallel (time_logs se pagina por separado)
+  const [{ data: empleado }, { data: sueldos }, { data: responsablesRaw }, dedicacionRaw, { data: departamentosRaw }] = await Promise.all([
     supabase
       .from('empleados')
       .select('id, nombre, email, activo, fecha_alta, fecha_baja')
@@ -61,20 +61,32 @@ export default async function EmpleadoPage({
       .select('id, nombre')
       .eq('activo', true)
       .order('nombre'),
-    supabase
-      .from('servicio_responsables')
-      .select('id_servicio, id_empleado, mes')
-      .eq('anio', year),
-    supabase
-      .from('servicios')
-      .select('id, id_departamento'),
-    supabase
-      .from('time_logs')
-      .select('id_cliente, id_servicio, minutos, fecha, descripcion, cliente:id_cliente(id, nombre), servicio:id_servicio(id, nombre, notas)')
-      .eq('id_empleado', id)
-      .gte('fecha', `${year}-01-01`)
-      .lte('fecha', `${year}-12-31`),
   ])
+
+  // Paginamos time_logs con adminClient para evitar RLS y el límite de 1000 filas
+  const adminClEq = createAdminClient()
+  interface TimeLogEmpRaw {
+    id_cliente: string | null; id_servicio: string | null; minutos: number; fecha: string; descripcion: string | null
+    cliente: { id: string; nombre: string } | null
+    servicio: { id: string; nombre: string; notas: string | null } | null
+  }
+  const timeLogsRaw: TimeLogEmpRaw[] = []
+  {
+    const PAGE = 1000; let from = 0
+    while (true) {
+      const { data } = await adminClEq
+        .from('time_logs')
+        .select('id_cliente, id_servicio, minutos, fecha, descripcion, cliente:id_cliente(id, nombre), servicio:id_servicio(id, nombre, notas)')
+        .eq('id_empleado', id)
+        .gte('fecha', `${year}-01-01`)
+        .lte('fecha', `${year}-12-31`)
+        .range(from, from + PAGE - 1)
+      if (!data?.length) break
+      timeLogsRaw.push(...(data as unknown as TimeLogEmpRaw[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+  }
 
   if (!empleado) notFound()
 
@@ -262,36 +274,19 @@ export default async function EmpleadoPage({
       return { deptId: d.id, deptNombre: d.nombre, meses }
     })
 
-  // Build numServiciosByEmpDeptMes for coste imputado calculation
-  // Map: `${emp}_${dept}_${mes}` → count of services that employee is responsible for in that dept/month
-  const numServMap = new Map<string, number>()
-  for (const r of allRespYear ?? []) {
-    const s = (allServiciosYear ?? []).find((sv: { id: string; id_departamento: string | null }) => sv.id === r.id_servicio)
-    if (!s?.id_departamento) continue
-    const key = `${r.id_empleado}_${s.id_departamento}_${r.mes}`
-    numServMap.set(key, (numServMap.get(key) ?? 0) + 1)
-  }
-
-  // Compute total imputated cost for this employee across all departments and months
+  // Coste imputado por mes = sueldo × (dedicacion% / 100)
+  // Suma de todos los departamentos en que el empleado tuvo dedicación ese mes
   let costeImputadoTotal = 0
   const costeImputadoByMes = new Map<number, number>()
   for (const d of dedicacionRaw ?? []) {
     const sueldo = sueldoByMes.get(d.mes) ?? 0
-    const numServ = numServMap.get(`${id}_${d.id_departamento}_${d.mes}`) ?? 1
-    const coste = sueldo * Number(d.porcentaje) / 100 / numServ
+    const coste = sueldo * Number(d.porcentaje) / 100
     costeImputadoTotal += coste
     costeImputadoByMes.set(d.mes, (costeImputadoByMes.get(d.mes) ?? 0) + coste)
   }
 
   // Time logs aggregation
-  interface TimeLogEmp {
-    id_cliente: string | null
-    id_servicio: string | null
-    minutos: number
-    cliente: { id: string; nombre: string } | null
-    servicio: { id: string; nombre: string; notas: string | null } | null
-  }
-  const timeLogsList = (timeLogsRaw ?? []) as unknown as TimeLogEmp[]
+  const timeLogsList = timeLogsRaw
   const totalMinutosEmp = timeLogsList.reduce((s, t) => s + Number(t.minutos), 0)
 
   // Group by cliente
