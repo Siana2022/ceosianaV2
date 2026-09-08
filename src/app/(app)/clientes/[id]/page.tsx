@@ -27,7 +27,6 @@ export default async function ClienteDetailPage({
     { data: gastos },
     { data: miembrosDepto },
     { data: todosConceptos },
-    { data: timeLogsRaw },
   ] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
     supabase
@@ -60,20 +59,42 @@ export default async function ClienteDetailPage({
       .from('departamento_empleados')
       .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
     supabase.from('gastos_fijos').select('concepto, valor, tipo, id_departamento').order('anio', { ascending: false }).order('mes', { ascending: false }),
-    supabase
-      .from('time_logs')
-      .select('id_empleado, id_servicio, id_departamento, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas), departamento:id_departamento(id, nombre)')
-      .eq('id_cliente', id)
-      .gte('fecha', `${year}-01-01`)
-      .lte('fecha', `${year}-12-31`),
   ])
 
   if (!cliente) notFound()
 
-  // ── Nueva fórmula de coste personal: basada en horas fichadas ─────────
+  // ── Coste personal: basada en horas fichadas ──────────────────────────
   // Para cada empleado que ficha horas a este cliente:
   //   coste = (minutos_cliente_mes / minutos_total_empleado_mes) × sueldo_mes
-  const { data: sueldosData } = await supabase
+  const adminForData = createAdminClient()
+
+  // Paginate time_logs for THIS client (to display + compute cost)
+  const timeLogsRawArr: {
+    id_empleado: string; id_servicio: string | null; id_departamento: string | null
+    minutos: number; fecha: string; descripcion: string
+    empleado: { id: string; nombre: string } | null
+    servicio: { id: string; nombre: string | null; notas: string | null } | null
+    departamento: { id: string; nombre: string } | null
+  }[] = []
+  {
+    const PAGE = 1000; let from = 0
+    while (true) {
+      const { data } = await adminForData.from('time_logs')
+        .select('id_empleado, id_servicio, id_departamento, minutos, fecha, descripcion, empleado:id_empleado(id, nombre), servicio:id_servicio(id, nombre, notas), departamento:id_departamento(id, nombre)')
+        .eq('id_cliente', id)
+        .gte('fecha', `${year}-01-01`)
+        .lte('fecha', `${year}-12-31`)
+        .range(from, from + PAGE - 1)
+      if (!data?.length) break
+      timeLogsRawArr.push(...(data as unknown as typeof timeLogsRawArr))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+  }
+  const timeLogsRaw = timeLogsRawArr
+
+  // Sueldos con adminClient para evitar RLS (empleados no ven sueldos ajenos)
+  const { data: sueldosData } = await adminForData
     .from('sueldos')
     .select('id_empleado, coste_total, mes')
     .eq('anio', year)

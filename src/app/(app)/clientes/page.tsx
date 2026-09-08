@@ -25,7 +25,8 @@ export default async function ClientesPage({
     supabase.from('servicios').select('id, id_cliente, id_departamento, tipo, precio_base, activo'),
     supabase
       .from('captacion_clientes')
-      .select('id_cliente, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)'),
+      .select('id_cliente, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)')
+      .order('fecha_inicio', { ascending: false }),
     createAdminClient()
       .from('sueldos')
       .select('id_empleado, coste_total, mes')
@@ -150,8 +151,8 @@ export default async function ClientesPage({
     const resultado = ingresosTotal - gastosDirectos - costePersonal
     const margenPct = ingresosTotal > 0 ? (resultado / ingresosTotal) * 100 : 0
     const horasDedicadas = (minutosByCliente.get(c.id) ?? 0) / 60
-    const horasParaCalculo = Math.max(horasDedicadas, 1)
-    const costePorHora = ingresosTotal > 0 ? ingresosTotal / horasParaCalculo : null
+    const ingresoPorHora = ingresosTotal > 0 ? ingresosTotal / Math.max(horasDedicadas, 1) : null
+    const costeRealPorHora = horasDedicadas > 0 ? costePersonal / horasDedicadas : null
 
     return {
       ...c,
@@ -165,7 +166,8 @@ export default async function ClientesPage({
       resultado,
       margen_pct: margenPct,
       horas_dedicadas: horasDedicadas,
-      coste_por_hora: costePorHora,
+      ingreso_por_hora: ingresoPorHora,
+      coste_real_por_hora: costeRealPorHora,
     }
   })
 

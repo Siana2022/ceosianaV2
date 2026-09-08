@@ -98,9 +98,18 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const { data, error } = await query.limit(500)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+  const PAGE = 1000
+  const allResults: Record<string, unknown>[] = []
+  let from = 0
+  while (true) {
+    const { data: page, error } = await query.range(from, from + PAGE - 1)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const rows = (page ?? []) as Record<string, unknown>[]
+    allResults.push(...rows)
+    if (rows.length < PAGE) break
+    from += PAGE
+  }
+  return NextResponse.json(allResults)
   } catch (err) {
     console.error('GET /api/time-logs error:', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })

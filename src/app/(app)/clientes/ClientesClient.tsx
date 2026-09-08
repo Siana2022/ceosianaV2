@@ -36,7 +36,8 @@ interface Cliente {
   resultado: number
   margen_pct: number
   horas_dedicadas: number
-  coste_por_hora: number | null
+  ingreso_por_hora: number | null
+  coste_real_por_hora: number | null
 }
 
 interface Props {
@@ -240,7 +241,8 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                 <th className="text-right px-4 py-3">Margen</th>
                 <th className="text-right px-4 py-3">Gastos Directos</th>
                 <th className="text-right px-4 py-3">Horas Destinadas</th>
-                <th className="text-right px-4 py-3">Coste/Hora</th>
+                <th className="text-right px-4 py-3">Ingreso/Hora</th>
+                <th className="text-right px-4 py-3">Coste Real/Hora</th>
                 <th className="text-center px-4 py-3">Estado</th>
                 <th className="text-center px-4 py-3">Acciones</th>
               </tr>
@@ -248,7 +250,7 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center text-gray-500 py-12">No hay clientes</td>
+                  <td colSpan={10} className="text-center text-gray-500 py-12">No hay clientes</td>
                 </tr>
               )}
               {filtered.map(c => (
@@ -285,9 +287,18 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                     {c.horas_dedicadas > 0 ? fmtHoras(c.horas_dedicadas) : <span className="text-gray-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {c.coste_por_hora != null ? (
-                      <span className={`font-semibold ${c.coste_por_hora >= umbralCostePorHora ? 'text-green-400' : 'text-red-400'}`}>
-                        {c.coste_por_hora.toFixed(0)}€/h
+                    {c.ingreso_por_hora != null ? (
+                      <span className={`font-semibold ${c.ingreso_por_hora >= umbralCostePorHora ? 'text-green-400' : 'text-red-400'}`}>
+                        {c.ingreso_por_hora.toFixed(0)}€/h
+                      </span>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {c.coste_real_por_hora != null ? (
+                      <span className="font-semibold text-orange-400">
+                        {c.coste_real_por_hora.toFixed(0)}€/h
                       </span>
                     ) : (
                       <span className="text-gray-600">—</span>

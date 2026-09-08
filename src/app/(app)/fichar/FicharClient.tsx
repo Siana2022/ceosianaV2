@@ -73,6 +73,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   const [elapsed, setElapsed] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [orphanWarning, setOrphanWarning] = useState<{ mins: number; desc: string } | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Restore timer — primero desde localStorage, y si no hay, desde la BD (por si se inició desde /tareas)
@@ -84,7 +85,21 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         setTimerStart(startTs); setTimerRunning(true)
         setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? ''); setProyectoOtrosId(srv ?? ''); setTareaId(tid ?? '')
         setTimerDbId(dbId ?? null)
-        setElapsed(Math.floor((Date.now() - startTs) / 1000))
+        const elapsedSecs = Math.floor((Date.now() - startTs) / 1000)
+        setElapsed(elapsedSecs)
+        // Aviso si el timer lleva más de 8h abierto (posible olvido)
+        if (elapsedSecs > 8 * 3600 && dbId) {
+          const elapsedMins = Math.round(elapsedSecs / 60)
+          setOrphanWarning({ mins: elapsedMins, desc: d ?? '' })
+          const notifKey = `timer_notified_${dbId}`
+          if (!localStorage.getItem(notifKey)) {
+            localStorage.setItem(notifKey, '1')
+            fetch('/api/slack/timer-warning', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ empNombre: empleadoNombre, elapsedMins, descripcion: d ?? '' }),
+            }).catch(() => {})
+          }
+        }
         return
       } catch { localStorage.removeItem(TIMER_KEY) }
     }
@@ -104,10 +119,21 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         setTimerDbId(activo.id)
         setDescripcion(activo.descripcion ?? '')
         setClienteId(clienteIdDB); setDepartamentoId(deptIdDB); setProyectoOtrosId(srvIdDB)
+        const elapsedMins = Math.round((Date.now() - startTs) / 60000)
         setElapsed(Math.floor((Date.now() - startTs) / 1000))
         localStorage.setItem(TIMER_KEY, JSON.stringify({
           startTs, d: activo.descripcion, c: clienteIdDB, dep: deptIdDB, srv: srvIdDB, dbId: activo.id,
         }))
+        // Siempre avisar cuando se detecta un timer abierto desde otra sesión/página
+        setOrphanWarning({ mins: elapsedMins, desc: activo.descripcion ?? '' })
+        const notifKey = `timer_notified_${activo.id}`
+        if (!localStorage.getItem(notifKey)) {
+          localStorage.setItem(notifKey, '1')
+          fetch('/api/slack/timer-warning', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ empNombre: empleadoNombre, elapsedMins, descripcion: activo.descripcion ?? '' }),
+          }).catch(() => {})
+        }
       })
       .catch(() => {})
   }, [])
@@ -357,6 +383,28 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       {/* LEFT: Timer + Form */}
       <div className="lg:col-span-5 space-y-4">
+        {/* Aviso timer olvidado */}
+        {orphanWarning && (
+          <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-4 flex items-start gap-3">
+            <span className="text-yellow-400 text-lg mt-0.5">⚠️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-yellow-300 font-semibold text-sm">Timer abierto sin cerrar</p>
+              <p className="text-yellow-200/70 text-xs mt-0.5 line-clamp-2">
+                Llevas <strong>{Math.floor(orphanWarning.mins / 60) > 0 ? `${Math.floor(orphanWarning.mins / 60)}h ${orphanWarning.mins % 60}m` : `${orphanWarning.mins}m`}</strong> en: &ldquo;{orphanWarning.desc}&rdquo;
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button onClick={stopTimer} disabled={saving}
+                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                  ⏹ Parar ahora
+                </button>
+                <button onClick={() => setOrphanWarning(null)}
+                  className="text-yellow-400/70 hover:text-yellow-300 text-xs px-2 py-1 rounded-lg hover:bg-yellow-500/10 transition-colors">
+                  Ignorar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Chronometer card */}
         <div className="rounded-2xl border border-gray-800 bg-black p-6 relative overflow-hidden">
           <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-600/10 blur-3xl pointer-events-none" />

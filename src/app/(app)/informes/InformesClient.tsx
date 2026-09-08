@@ -52,7 +52,6 @@ export default function InformesClient() {
   const [logs, setLogs] = useState<TimeLog[]>([])
   const [ingresos, setIngresos] = useState<Ingreso[]>([])
   const [sueldos, setSueldos] = useState<SueldoAgg[]>([])
-  const [dedicacion, setDedicacion] = useState<DedicacionRow[]>([])
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('todo')
   const [selectedId, setSelectedId] = useState<string>('')
@@ -63,24 +62,17 @@ export default function InformesClient() {
   async function fetchData() {
     setLoading(true)
     try {
-      const hastaDate = new Date(hasta + 'T12:00:00')
-      const hastaMes = hastaDate.getMonth() + 1
-      const hastaAnio = hastaDate.getFullYear()
-
-      const [logsRes, ingresosRes, sueldosRes, dedicacionRes] = await Promise.all([
+      const [logsRes, ingresosRes, sueldosRes] = await Promise.all([
         fetch(`/api/time-logs?desde=${desde}&hasta=${hasta}`),
         fetch(`/api/ingresos?desde=${desde}&hasta=${hasta}`),
         fetch(`/api/sueldos?desde=${desde}&hasta=${hasta}`),
-        fetch(`/api/dedicacion?mes=${hastaMes}&anio=${hastaAnio}`),
       ])
       const logsData = await logsRes.json()
       const ingresosData = await ingresosRes.json()
       const sueldosData = await sueldosRes.json()
-      const dedicacionData = await dedicacionRes.json()
       setLogs(Array.isArray(logsData) ? logsData : [])
       setIngresos(Array.isArray(ingresosData) ? ingresosData : [])
       setSueldos(Array.isArray(sueldosData) ? sueldosData : [])
-      setDedicacion(Array.isArray(dedicacionData) ? dedicacionData : [])
     } finally { setLoading(false) }
   }
 
@@ -119,18 +111,32 @@ export default function InformesClient() {
     return m
   }, [sueldos])
 
+  // Dedicación calculada del periodo completo a partir de los fichajes cargados
   const dedicacionMap = useMemo(() => {
+    const totalByEmp = new Map<string, number>()
+    const byEmpDept = new Map<string, { empId: string; deptId: string; deptNombre: string; minutos: number }>()
+    for (const l of logs) {
+      totalByEmp.set(l.id_empleado, (totalByEmp.get(l.id_empleado) ?? 0) + l.minutos)
+      if (l.departamento?.id) {
+        const key = `${l.id_empleado}||${l.departamento.id}`
+        const existing = byEmpDept.get(key)
+        if (existing) existing.minutos += l.minutos
+        else byEmpDept.set(key, { empId: l.id_empleado, deptId: l.departamento.id, deptNombre: l.departamento.nombre, minutos: l.minutos })
+      }
+    }
     const m = new Map<string, { id_departamento: string; nombre: string; porcentaje: number }[]>()
-    for (const d of dedicacion) {
-      if (!m.has(d.id_empleado)) m.set(d.id_empleado, [])
-      m.get(d.id_empleado)!.push({
-        id_departamento: d.id_departamento,
-        nombre: d.departamento?.nombre ?? d.id_departamento,
-        porcentaje: d.porcentaje,
+    for (const { empId, deptId, deptNombre, minutos } of byEmpDept.values()) {
+      const total = totalByEmp.get(empId) ?? 0
+      if (total === 0) continue
+      if (!m.has(empId)) m.set(empId, [])
+      m.get(empId)!.push({
+        id_departamento: deptId,
+        nombre: deptNombre,
+        porcentaje: Math.round((minutos / total) * 1000) / 10,
       })
     }
     return m
-  }, [dedicacion])
+  }, [logs])
 
   const ingresosPorDepartamento = useMemo(() => {
     const m = new Map<string, number>()

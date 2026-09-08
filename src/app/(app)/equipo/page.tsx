@@ -20,7 +20,10 @@ export default async function EquipoPage() {
   // ingreso map: `${id_servicio}_${mes}` → valor
   const ingresoMap = new Map<string, number>()
   for (const ing of ingresos ?? []) {
-    if (ing.id_servicio) ingresoMap.set(`${ing.id_servicio}_${ing.mes}`, Number(ing.valor))
+    if (ing.id_servicio) {
+      const k = `${ing.id_servicio}_${ing.mes}`
+      ingresoMap.set(k, (ingresoMap.get(k) ?? 0) + Number(ing.valor))
+    }
   }
 
   // sueldo map: id_empleado → [{ coste_total, mes }]

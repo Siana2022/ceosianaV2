@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
-import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import HistoricoClient from './HistoricoClient'
 
 export default async function HistoricoPage({
@@ -32,32 +32,47 @@ export default async function HistoricoPage({
     clienteSeleccionado = clientes.find(c => c.id === clienteId) ?? null
 
     if (clienteSeleccionado) {
-      // Fetch all data needed (no year filter — historical)
+      const admin = createAdminClient()
+
       const [
         { data: ingresos },
         { data: gastos },
-        { data: servicios },
-        { data: todosServicios },
-        { data: allResponsables },
         { data: sueldos },
-        dedicaciones,
       ] = await Promise.all([
         supabase.from('ingresos').select('valor, anio').eq('id_cliente', clienteId),
         supabase.from('gastos_fijos').select('valor, anio').eq('id_cliente', clienteId),
-        supabase.from('servicios').select('id, id_departamento').eq('id_cliente', clienteId),
-        supabase.from('servicios').select('id, id_departamento'),
-        supabase.from('servicio_responsables').select('id_servicio, id_empleado, mes, anio'),
-        supabase.from('sueldos').select('id_empleado, coste_total, mes, anio'),
-        getDedicacionCalculada(supabase, {}),
+        admin.from('sueldos').select('id_empleado, coste_total, mes, anio'),
       ])
 
-      const servicioIds = (servicios ?? []).map(s => s.id)
-      const clienteServicioIds = new Set(servicioIds)
+      // Paginate time_logs for THIS client (all years)
+      const clientTimeLogs: { id_empleado: string; minutos: number; fecha: string }[] = []
+      {
+        const PAGE = 1000; let from = 0
+        while (true) {
+          const { data } = await admin.from('time_logs')
+            .select('id_empleado, minutos, fecha')
+            .eq('id_cliente', clienteId)
+            .range(from, from + PAGE - 1)
+          if (!data?.length) break
+          clientTimeLogs.push(...data)
+          if (data.length < PAGE) break
+          from += PAGE
+        }
+      }
 
-      // Global servicioMap: id -> { id_departamento }
-      const globalServicioMap = new Map<string, { id_departamento: string | null }>()
-      for (const s of todosServicios ?? []) {
-        globalServicioMap.set(s.id, { id_departamento: s.id_departamento ?? null })
+      // Paginate ALL time_logs (all employees, all years) — denominator for cost allocation
+      const allTimeLogs: { id_empleado: string; minutos: number; fecha: string }[] = []
+      {
+        const PAGE = 1000; let from = 0
+        while (true) {
+          const { data } = await admin.from('time_logs')
+            .select('id_empleado, minutos, fecha')
+            .range(from, from + PAGE - 1)
+          if (!data?.length) break
+          allTimeLogs.push(...data)
+          if (data.length < PAGE) break
+          from += PAGE
+        }
       }
 
       // sueldoMap: `${id_empleado}_${anio}_${mes}` -> coste_total
@@ -66,39 +81,29 @@ export default async function HistoricoPage({
         sueldoMap.set(`${s.id_empleado}_${s.anio}_${s.mes}`, Number(s.coste_total))
       }
 
-      // dedicacionMap: `${id_empleado}_${id_departamento}_${anio}_${mes}` -> porcentaje
-      const dedicacionMap = new Map<string, number>()
-      for (const d of dedicaciones ?? []) {
-        dedicacionMap.set(`${d.id_empleado}_${d.id_departamento}_${d.anio}_${d.mes}`, Number(d.porcentaje))
+      // totalMinMap: `${id_empleado}_${anio}_${mes}` -> total minutos (all clients)
+      const totalMinMap = new Map<string, number>()
+      for (const t of allTimeLogs) {
+        const anioT = parseInt(t.fecha.slice(0, 4))
+        const mesT = parseInt(t.fecha.slice(5, 7))
+        const key = `${t.id_empleado}_${anioT}_${mesT}`
+        totalMinMap.set(key, (totalMinMap.get(key) ?? 0) + t.minutos)
       }
 
-      // numServiciosMap: `${id_empleado}_${id_departamento}_${anio}_${mes}` -> count (all clients)
-      const numServiciosMap = new Map<string, number>()
-      for (const r of allResponsables ?? []) {
-        const servicio = globalServicioMap.get(r.id_servicio)
-        const deptId = servicio?.id_departamento
-        if (!deptId) continue
-        const key = `${r.id_empleado}_${deptId}_${r.anio}_${r.mes}`
-        numServiciosMap.set(key, (numServiciosMap.get(key) ?? 0) + 1)
-      }
-
-      // Compute coste_personal per year for this client
+      // Compute coste_personal per year: (minutos_cliente / minutos_totales) × sueldo
       const costePersonalByYear = new Map<number, number>()
-      for (const r of allResponsables ?? []) {
-        if (!clienteServicioIds.has(r.id_servicio)) continue
-        const servicio = globalServicioMap.get(r.id_servicio)
-        const deptId = servicio?.id_departamento
-        if (!deptId) continue
-        const sueldo = sueldoMap.get(`${r.id_empleado}_${r.anio}_${r.mes}`) ?? 0
-        const dedicacion = dedicacionMap.get(`${r.id_empleado}_${deptId}_${r.anio}_${r.mes}`) ?? 0
-        const numServicios = numServiciosMap.get(`${r.id_empleado}_${deptId}_${r.anio}_${r.mes}`) ?? 1
-        const coste = sueldo * (dedicacion / 100) / numServicios
-        costePersonalByYear.set(r.anio, (costePersonalByYear.get(r.anio) ?? 0) + coste)
+      for (const t of clientTimeLogs) {
+        const anioT = parseInt(t.fecha.slice(0, 4))
+        const mesT = parseInt(t.fecha.slice(5, 7))
+        const totalMin = totalMinMap.get(`${t.id_empleado}_${anioT}_${mesT}`) ?? 0
+        if (totalMin === 0) continue
+        const sueldo = sueldoMap.get(`${t.id_empleado}_${anioT}_${mesT}`) ?? 0
+        const coste = sueldo * (t.minutos / totalMin)
+        costePersonalByYear.set(anioT, (costePersonalByYear.get(anioT) ?? 0) + coste)
       }
 
       // Group ingresos and gastos by year
       const byYear: Record<number, { facturacion: number; coste_directo: number }> = {}
-
       for (const i of ingresos ?? []) {
         if (!byYear[i.anio]) byYear[i.anio] = { facturacion: 0, coste_directo: 0 }
         byYear[i.anio].facturacion += Number(i.valor ?? 0)
@@ -108,7 +113,6 @@ export default async function HistoricoPage({
         byYear[g.anio].coste_directo += Number(g.valor ?? 0)
       }
 
-      // Collect all years (ingresos + coste_personal years)
       const allYears = new Set([
         ...Object.keys(byYear).map(Number),
         ...costePersonalByYear.keys(),
