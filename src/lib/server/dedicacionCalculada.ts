@@ -39,8 +39,20 @@ export async function getDedicacionCalculada(
   if (idEmpleado) query = query.eq('id_empleado', idEmpleado)
   if (idDepartamento) query = query.eq('id_departamento', idDepartamento)
 
-  const { data, error } = await query
-  if (error) throw error
+  const PAGE = 1000
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allData: any[] = []
+  let from = 0
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data: page, error } = await query.range(from, from + PAGE - 1)
+    if (error) throw error
+    const rows = page ?? []
+    allData.push(...rows)
+    if (rows.length < PAGE) break
+    from += PAGE
+  }
+  const data = allData
 
   // Minutos totales fichados por el empleado ese mes/año (el "100%"), incluyendo fichajes sin depto.
   const totalPorEmpleadoMes = new Map<string, number>()
