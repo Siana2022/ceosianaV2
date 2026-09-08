@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import DepartamentosClient from './DepartamentosClient'
 
@@ -34,7 +35,7 @@ export default async function DepartamentosPage({ searchParams }: { searchParams
     supabase
       .from('departamento_empleados')
       .select('id_departamento, id_empleado, empleado:id_empleado(id,nombre)'),
-    getDedicacionCalculada(supabase, { anio }),
+    getDedicacionCalculada(createAdminClient(), { anio }),
     supabase
       .from('ingresos')
       .select('valor, mes, id_departamento')

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getDedicacionCalculada } from '@/lib/server/dedicacionCalculada'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -54,7 +55,7 @@ export default async function EmpleadoPage({
       .select('id_servicio, porcentaje, mes')
       .eq('id_empleado', id)
       .eq('anio', year),
-    getDedicacionCalculada(supabase, { anio: year, idEmpleado: id }),
+    getDedicacionCalculada(createAdminClient(), { anio: year, idEmpleado: id }),
     supabase
       .from('departamentos')
       .select('id, nombre')
