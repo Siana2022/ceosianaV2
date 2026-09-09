@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { redirect } from 'next/navigation'
 import FicharClient from './FicharClient'
@@ -74,6 +75,17 @@ export default async function FicharPage() {
     .in('estado', ['espera', 'en_curso', 'bloqueado'])
     .order('nombre')
 
+  // Pipeline prospects (admin only; shown as extra "clients" in selector)
+  let pipelineProspectos: { id: string; nombre: string }[] = []
+  if (perfil.rol === 'admin') {
+    const { data: pips } = await createAdminClient()
+      .from('pipeline_prospectos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre')
+    pipelineProspectos = (pips ?? []).map(p => ({ id: String(p.id), nombre: `${p.nombre} (Pipeline)` }))
+  }
+
   return (
     <FicharClient
       perfil={perfilConEmpleado}
@@ -82,6 +94,7 @@ export default async function FicharPage() {
       servicios={(servicios ?? []) as any[]}
       departamentos={departamentos ?? []}
       clientes={clientes ?? []}
+      pipelineProspectos={pipelineProspectos}
       empleados={empleados}
       tareas={(tareas ?? []).map(t => ({ id: String(t.id), nombre: t.nombre as string, idCliente: t.id_cliente ? String(t.id_cliente) : null, idDepartamento: t.id_departamento ? String(t.id_departamento) : null, minutosAcumulados: (t.minutos_acumulados as number) ?? 0, estado: (t.estado as string) ?? 'espera' }))}
     />

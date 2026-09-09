@@ -25,6 +25,7 @@ interface Props {
   servicios: Servicio[]; departamentos: Departamento[]
   clientes: Cliente[]; empleados: Empleado[]
   tareas: TareaFichar[]
+  pipelineProspectos?: Cliente[]
 }
 
 const TIMER_KEY = 'ceosiana_timer_v2'
@@ -52,9 +53,10 @@ function getDepartamentoNombre(s: Servicio): string {
 }
 
 // ─── TIMER TAB ────────────────────────────────────────────────────────────────
-function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes, tareas, onSaved }: {
+function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes, tareas, pipelineProspectos, onSaved }: {
   perfil: Perfil; empleadoNombre: string; servicios: Servicio[]
-  departamentos: Departamento[]; clientes: Cliente[]; tareas: TareaFichar[]; onSaved: () => void
+  departamentos: Departamento[]; clientes: Cliente[]; tareas: TareaFichar[]
+  pipelineProspectos?: Cliente[]; onSaved: () => void
 }) {
   const [modo, setModo] = useState<'timer' | 'manual'>('timer')
   const [descripcion, setDescripcion] = useState('')
@@ -520,6 +522,11 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
                   <option value="">— Ninguno —</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  {pipelineProspectos && pipelineProspectos.length > 0 && (
+                    <optgroup label="── Pipeline ──">
+                      {pipelineProspectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </optgroup>
+                  )}
                   <option value="__otros__">— Otros... —</option>
                 </select>
                 {serviciosDelCliente().length > 0 && (
@@ -1402,7 +1409,7 @@ function AdminAnalysis({ empleados }: { empleados: Empleado[] }) {
 }
 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
-export default function FicharClient({ perfil, empleadoNombre, servicios, departamentos, clientes, empleados, tareas }: Props) {
+export default function FicharClient({ perfil, empleadoNombre, servicios, departamentos, clientes, empleados, tareas, pipelineProspectos }: Props) {
   const [tab, setTab] = useState<'fichar' | 'analisis'>('fichar')
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -1437,6 +1444,7 @@ export default function FicharClient({ perfil, empleadoNombre, servicios, depart
       {tab === 'fichar' && (
         <TabFichar key={refreshKey} perfil={perfil} empleadoNombre={empleadoNombre}
           servicios={servicios} departamentos={departamentos} clientes={clientes} tareas={tareas}
+          pipelineProspectos={pipelineProspectos}
           onSaved={() => setRefreshKey(k => k + 1)} />
       )}
       {tab === 'analisis' && perfil.rol === 'admin' && (
