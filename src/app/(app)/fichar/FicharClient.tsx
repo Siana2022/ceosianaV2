@@ -280,15 +280,17 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         const nombreLower = descParaBusqueda.trim().toLowerCase()
         const tareaStopExiste = tareas.find(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
         if (tareaStopExiste) {
+          // Si ya hay tarea explícita vinculada (finalTareaId), no duplicar minutos; solo actualizar estado
+          const yaContabilizados = finalTareaId === tareaStopExiste.id
           fetch(`/api/tareas?id=${tareaStopExiste.id}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ estado: 'terminado' }),
+            body: JSON.stringify({ estado: 'terminado', ...(!yaContabilizados ? { minutosIncremento: minutos } : {}) }),
           }).catch(() => {})
         } else if (finalDesc.trim() && finalClienteId) {
           const empId = perfil.id_empleado
           fetch('/api/tareas', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'terminado', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
+            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'terminado', tipo: 'tarea', minutosAcumulados: minutos, ...(empId ? { idsResponsables: [empId] } : {}) }),
           }).catch(() => {})
         }
         setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros(''); setTareaId('')
@@ -362,13 +364,13 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (tareaManualExiste) {
         fetch(`/api/tareas?id=${tareaManualExiste.id}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: 'terminado' }),
+          body: JSON.stringify({ estado: 'terminado', minutosIncremento: extra.minutos }),
         }).catch(() => {})
       } else if (finalDesc.trim() && finalClienteId) {
         const empId = perfil.id_empleado
         fetch('/api/tareas', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'terminado', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
+          body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'terminado', tipo: 'tarea', minutosAcumulados: extra.minutos, ...(empId ? { idsResponsables: [empId] } : {}) }),
         }).catch(() => {})
       }
       setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual('')
