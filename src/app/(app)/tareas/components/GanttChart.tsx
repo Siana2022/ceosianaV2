@@ -127,7 +127,7 @@ export default function GanttChart({ filas, onConflictoClick }: Props) {
                 {mostrarGrupo && (
                   <div className="flex bg-blue-500/10 border-y border-blue-500/30">
                     <div
-                      className="flex-shrink-0 text-blue-300 text-xs font-bold uppercase tracking-wide px-2 py-2 truncate sticky left-0 bg-blue-950 flex items-center gap-1.5"
+                      className="flex-shrink-0 text-blue-300 text-xs font-bold uppercase tracking-wide px-2 py-2 break-words sticky left-0 bg-blue-950 flex items-center gap-1.5"
                       style={{ width: LABEL_WIDTH }}
                     >
                       🏢 {f.grupo}
@@ -135,11 +135,10 @@ export default function GanttChart({ filas, onConflictoClick }: Props) {
                     <div style={{ width: totalWidth }} />
                   </div>
                 )}
-                <div className="flex items-center h-8">
+                <div className="flex items-center min-h-[2rem] py-0.5">
                   <div
-                    className="flex-shrink-0 text-xs text-gray-300 truncate px-2 sticky left-0 bg-gray-900"
+                    className="flex-shrink-0 text-xs text-gray-300 px-2 py-0.5 sticky left-0 bg-gray-900 leading-tight break-words"
                     style={{ width: LABEL_WIDTH }}
-                    title={f.label}
                   >
                     {f.conflicto && '⚠️ '}{f.label}
                   </div>
