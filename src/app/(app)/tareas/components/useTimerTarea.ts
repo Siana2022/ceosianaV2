@@ -37,6 +37,7 @@ export function useTimerTarea() {
         }).catch(err => console.error('[timer] PATCH error', err))
       }
       localStorage.removeItem(TIMER_KEY)
+      window.dispatchEvent(new Event('ceosiana_timer_stopped'))
       actions.actualizarTarea(tarea.id, {
         timerActivo: false,
         minutosAcumulados: tarea.minutosAcumulados + minutosElapsed,

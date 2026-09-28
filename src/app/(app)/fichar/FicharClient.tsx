@@ -660,6 +660,12 @@ function HistorialPersonal({ onDelete, clientes, departamentos }: {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, []) // eslint-disable-line
 
+  useEffect(() => {
+    const onTimerStop = () => fetchLogs()
+    window.addEventListener('ceosiana_timer_stopped', onTimerStop)
+    return () => window.removeEventListener('ceosiana_timer_stopped', onTimerStop)
+  }, []) // eslint-disable-line
+
   async function fetchLogs() {
     setLoading(true)
     try {

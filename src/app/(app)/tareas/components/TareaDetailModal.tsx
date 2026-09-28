@@ -225,6 +225,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
       minutosAcumulados: draft.minutosAcumulados + minutosElapsed,
     })
     localStorage.removeItem('ceosiana_timer_v2')
+    window.dispatchEvent(new Event('ceosiana_timer_stopped'))
     setTimerStartedAt(null)
     setActiveTimerId(null)
     setTimerStatus('idle')
@@ -318,7 +319,11 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             <ResponsablesMultiSelect
               empleados={state.empleados}
               seleccionados={draft.idsResponsables}
-              onChange={ids => set('idsResponsables', ids)}
+              onChange={ids => {
+                set('idsResponsables', ids)
+                actions.actualizarTarea(tarea.id, { idsResponsables: ids })
+                savedRef.current = true
+              }}
             />
           </div>
 
