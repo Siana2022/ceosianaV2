@@ -28,6 +28,7 @@ const menuAdmin = [
 const menuEmpleado = [
   { href: '/fichar', label: 'Fichar', icon: '🕐' },
   { href: '/tareas', label: 'Tareas', icon: '🗂️' },
+  { href: '/alertas', label: 'Notificaciones', icon: '🔔' },
   { href: '/perfil', label: 'Mi perfil', icon: '👤' },
 ]
 
@@ -41,14 +42,23 @@ export default function Sidebar({ rol }: Props) {
   const [alertCount, setAlertCount] = useState(0)
 
   useEffect(() => {
-    if (rol !== 'admin') return
-    fetch('/api/alertas')
-      .then(async r => {
-        if (!r.ok) return
-        const data = await r.json()
-        if (Array.isArray(data)) setAlertCount(data.length)
-      })
-      .catch(() => {})
+    if (rol === 'admin') {
+      fetch('/api/alertas')
+        .then(async r => {
+          if (!r.ok) return
+          const data = await r.json()
+          if (Array.isArray(data)) setAlertCount(data.length)
+        })
+        .catch(() => {})
+    } else {
+      fetch('/api/notificaciones/count')
+        .then(async r => {
+          if (!r.ok) return
+          const data = await r.json()
+          if (typeof data.count === 'number') setAlertCount(data.count)
+        })
+        .catch(() => {})
+    }
   }, [pathname, rol])
 
   const handleLogout = async () => {
@@ -82,20 +92,29 @@ export default function Sidebar({ rol }: Props) {
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
-        {menu.map(item => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-              pathname === item.href || pathname.startsWith(item.href + '/')
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-            }`}
-          >
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        ))}
+        {menu.map(item => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const showBadge = item.href === '/alertas' && alertCount > 0
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              }`}
+            >
+              <span>{item.icon}</span>
+              <span className="flex-1">{item.label}</span>
+              {showBadge && (
+                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none">
+                  {alertCount > 9 ? '9+' : alertCount}
+                </span>
+              )}
+            </Link>
+          )
+        })}
 
         {rol === 'admin' && alertCount > 0 && (
           <Link

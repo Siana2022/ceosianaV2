@@ -4,6 +4,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { syncTareaToAllResponsables } from '@/lib/google/syncTarea'
 import { sendSlackMessage, emailsToMenciones } from '@/lib/slack'
 
+async function notificarNuevosResponsables(
+  idTarea: string, nombreTarea: string, nuevos: string[], antiguos: string[]
+) {
+  const admin = createAdminClient()
+  const realmNuevos = nuevos.filter(id => !antiguos.includes(id))
+  if (!realmNuevos.length) return
+  const inserts = realmNuevos.map(idEmpleado => ({
+    id_empleado: idEmpleado,
+    tipo: 'tarea_asignada',
+    titulo: `Nueva tarea asignada: "${nombreTarea}"`,
+    mensaje: null as string | null,
+    id_tarea: idTarea,
+    leida: false,
+  }))
+  await admin.from('notificaciones_empleado').insert(inserts)
+}
+
 // camelCase (JS) → snake_case (DB)
 const CAMINO: Record<string, string> = {
   nombre: 'nombre',
@@ -204,6 +221,11 @@ export async function PATCH(req: NextRequest) {
             await syncTareaToAllResponsables(id, respIds, null)
           }
         }
+        // Notificaciones en app para responsables recién añadidos
+        if (newResponsables && newResponsables.length > 0) {
+          notificarNuevosResponsables(id, tarea.nombre as string, newResponsables, oldResponsables).catch(() => {})
+        }
+
         // Slack notifications
         const [clienteInfo, depNombre] = await Promise.all([
           infoCliente(tarea.id_cliente as string | null),
