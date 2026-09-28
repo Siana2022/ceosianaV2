@@ -654,6 +654,12 @@ function HistorialPersonal({ onDelete, clientes, departamentos }: {
 
   useEffect(() => { fetchLogs() }, [periodo, customDesde, customHasta]) // eslint-disable-line
 
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchLogs() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, []) // eslint-disable-line
+
   async function fetchLogs() {
     setLoading(true)
     try {

@@ -77,12 +77,14 @@ interface TareasActions {
   addChatMensajeFase: (idProceso: string, idFase: string, texto: string, mencionesIds: string[]) => void
 
   // Tareas sueltas
-  crearTarea: (tarea: Omit<Tarea, 'id' | 'chat' | 'minutosAcumulados' | 'timerActivo'>) => string
+  crearTarea: (tarea: Omit<Tarea, 'id' | 'chat' | 'checklist' | 'minutosAcumulados' | 'timerActivo'>) => string
   actualizarTarea: (idTarea: string, cambios: Partial<Tarea>) => void
   notificarBloqueoTarea: (idTarea: string, explicacion: string) => void
   toggleTimerTarea: (idTarea: string) => void
   setMinutosTarea: (idTarea: string, minutos: number) => void
   addChatMensajeTarea: (idTarea: string, texto: string, mencionesIds: string[]) => void
+  editChatMensajeTarea: (idTarea: string, idMensaje: string, texto: string) => void
+  deleteChatMensajeTarea: (idTarea: string, idMensaje: string) => void
   addAdjuntoTarea: (idTarea: string, adjunto: Omit<Adjunto, 'id'>) => void
   eliminarAdjuntoTarea: (idTarea: string, idAdjunto: string) => void
   addImagenTarea: (idTarea: string, imagen: Omit<ImagenAdjunta, 'id'>) => void
@@ -498,9 +500,9 @@ export function TareasProvider({
   }, [pushToast, nombreEmpleado])
 
   // ── Tareas sueltas ──────────────────────────────────────────────────────
-  const crearTarea = useCallback((tarea: Omit<Tarea, 'id' | 'chat' | 'minutosAcumulados' | 'timerActivo'>) => {
+  const crearTarea = useCallback((tarea: Omit<Tarea, 'id' | 'chat' | 'checklist' | 'minutosAcumulados' | 'timerActivo'>) => {
     const id = crypto.randomUUID()
-    const nueva: Tarea = { ...tarea, id, chat: [], minutosAcumulados: 0, timerActivo: false }
+    const nueva: Tarea = { ...tarea, id, chat: [], checklist: [], minutosAcumulados: 0, timerActivo: false }
     setTareas(prev => [...prev, nueva])
     const { imagenes: _img, ...toPost } = nueva as Tarea & { imagenes?: unknown }
     dbPost('/api/tareas', toPost)
@@ -593,6 +595,24 @@ export function TareasProvider({
       }
     }
   }, [nombreEmpleado, tareas])
+
+  const editChatMensajeTarea = useCallback((idTarea: string, idMensaje: string, texto: string) => {
+    setTareas(prev => prev.map(t => {
+      if (t.id !== idTarea) return t
+      const nuevoChat = t.chat.map(m => m.id === idMensaje ? { ...m, texto } : m)
+      dbPatch(`/api/tareas?id=${idTarea}`, { chat: nuevoChat })
+      return { ...t, chat: nuevoChat }
+    }))
+  }, [])
+
+  const deleteChatMensajeTarea = useCallback((idTarea: string, idMensaje: string) => {
+    setTareas(prev => prev.map(t => {
+      if (t.id !== idTarea) return t
+      const nuevoChat = t.chat.filter(m => m.id !== idMensaje)
+      dbPatch(`/api/tareas?id=${idTarea}`, { chat: nuevoChat })
+      return { ...t, chat: nuevoChat }
+    }))
+  }, [])
 
   const addAdjuntoTarea = useCallback((idTarea: string, adjunto: Omit<Adjunto, 'id'>) => {
     const nuevo = { ...adjunto, id: nextId('adj') }
@@ -698,6 +718,8 @@ export function TareasProvider({
       toggleTimerTarea,
       setMinutosTarea,
       addChatMensajeTarea,
+      editChatMensajeTarea,
+      deleteChatMensajeTarea,
       addAdjuntoTarea,
       eliminarAdjuntoTarea,
       addImagenTarea,
@@ -718,7 +740,7 @@ export function TareasProvider({
     crearCliente,
     crearPlantilla, eliminarPlantilla, toggleActivaPlantilla, agregarFasePlantilla, actualizarFasePlantilla, eliminarFasePlantilla, moverFasePlantilla,
     importarPlantilla, agregarFaseProceso, actualizarFaseProceso, moverFaseProceso, marcarFaseTerminada, volverFaseAnterior, addAdjuntoFase, eliminarAdjuntoFase, toggleTimerFase, setMinutosFase, addChatMensajeFase,
-    crearTarea, actualizarTarea, notificarBloqueoTarea, toggleTimerTarea, setMinutosTarea, addChatMensajeTarea, addAdjuntoTarea, eliminarAdjuntoTarea, addImagenTarea, eliminarImagenTarea, eliminarTarea,
+    crearTarea, actualizarTarea, notificarBloqueoTarea, toggleTimerTarea, setMinutosTarea, addChatMensajeTarea, editChatMensajeTarea, deleteChatMensajeTarea, addAdjuntoTarea, eliminarAdjuntoTarea, addImagenTarea, eliminarImagenTarea, eliminarTarea,
     addEnlaceCliente, eliminarEnlaceCliente, setSlackCliente, toggleConflictoResuelto, nombreEmpleado, nombreDepartamento, nombreCliente, nombresEmpleados,
   ])
 

@@ -72,6 +72,12 @@ export interface ChatMensaje {
   fecha: string
 }
 
+export interface ChecklistItem {
+  id: string
+  texto: string
+  hecho: boolean
+}
+
 export interface ProcesoFase {
   id: string
   nombre: string
@@ -118,6 +124,7 @@ export interface Tarea {
   minutosAcumulados: number
   timerActivo: boolean
   chat: ChatMensaje[]
+  checklist: ChecklistItem[]
   adjuntos: Adjunto[]
   imagenes: ImagenAdjunta[]
 }

@@ -88,7 +88,9 @@ export async function PATCH(req: NextRequest) {
     patch.activo = false
   }
 
-  const { data, error } = await createAdminClient()
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
     .from('pipeline_prospectos')
     .update(patch)
     .eq('id', id)
@@ -96,6 +98,34 @@ export async function PATCH(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // When prospect moves to "ganado": auto-create client and migrate time_logs
+  if (body.estado === 'ganado' && data) {
+    const nombreProspecto = (data as Record<string, unknown>).nombre as string
+    const { data: existingCliente } = await admin
+      .from('clientes')
+      .select('id')
+      .eq('nombre', nombreProspecto)
+      .maybeSingle()
+
+    let clienteId = existingCliente?.id as string | undefined
+    if (!clienteId) {
+      const { data: nuevoCliente } = await admin
+        .from('clientes')
+        .insert({ nombre: nombreProspecto, activo: true })
+        .select('id')
+        .single()
+      clienteId = nuevoCliente?.id as string | undefined
+    }
+
+    if (clienteId) {
+      await admin
+        .from('time_logs')
+        .update({ id_cliente: clienteId })
+        .eq('id_cliente', id)
+    }
+  }
+
   return NextResponse.json(data)
 }
 

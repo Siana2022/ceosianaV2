@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTareas } from '../store'
 import { ESTADO_TAREA_LABEL, RECURRENCIA_DIAS, RECURRENCIA_LABEL, TIPO_TAREA_ICONO, TIPO_TAREA_LABEL } from '../mockData'
 import { addDays, formatFecha } from '../dateUtils'
-import type { EstadoTarea, Recurrencia, Tarea, TipoTarea } from '../types'
+import type { ChecklistItem, EstadoTarea, Recurrencia, Tarea, TipoTarea } from '../types'
 import EstadoBadge from './EstadoBadge'
 import ChatMock from './ChatMock'
 import ResponsablesMultiSelect from './ResponsablesMultiSelect'
@@ -44,7 +44,9 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
     explicacionBloqueo: tarea.explicacionBloqueo ?? '',
     minutosAcumulados: tarea.minutosAcumulados,
     syncCalendar: tarea.syncCalendar,
+    checklist: tarea.checklist ?? [] as ChecklistItem[],
   })
+  const [nuevoChecklistItem, setNuevoChecklistItem] = useState('')
   const [savedMsg, setSavedMsg] = useState(false)
 
   const cerrar = () => {
@@ -99,6 +101,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
       descripcion: draft.descripcion,
       explicacionBloqueo: draft.estado === 'bloqueada' ? draft.explicacionBloqueo : null,
       syncCalendar: draft.syncCalendar,
+      checklist: draft.checklist,
     })
     if (draft.minutosAcumulados !== tarea.minutosAcumulados) {
       actions.setMinutosTarea(tarea.id, draft.minutosAcumulados)
@@ -320,7 +323,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           </div>
 
           {/* Fecha + Hora */}
-          <div className={draft.tipo === 'tarea' ? '' : 'grid grid-cols-2 gap-4'}>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-400 text-sm mb-1">Fecha límite</label>
               <input
@@ -330,17 +333,15 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                 className={inputCls}
               />
             </div>
-            {draft.tipo !== 'tarea' && (
-              <div>
-                <label className="block text-gray-400 text-sm mb-1">Hora</label>
-                <input
-                  type="time"
-                  value={draft.hora ?? ''}
-                  onChange={e => set('hora', e.target.value || null)}
-                  className={inputCls}
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">Hora</label>
+              <input
+                type="time"
+                value={draft.hora ?? ''}
+                onChange={e => set('hora', e.target.value || null)}
+                className={inputCls}
+              />
+            </div>
           </div>
 
           {/* Lugar (solo reunión/visita) */}
@@ -570,6 +571,54 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             </div>
           </div>
 
+          {/* Checklist */}
+          <div className="border-t border-gray-800 pt-4">
+            <label className="block text-gray-400 text-sm mb-2">✅ Checklist</label>
+            <div className="space-y-1.5 mb-2">
+              {draft.checklist.map(item => (
+                <div key={item.id} className="flex items-center gap-2 group">
+                  <input
+                    type="checkbox"
+                    checked={item.hecho}
+                    onChange={e => setDraft(d => ({
+                      ...d,
+                      checklist: d.checklist.map(c => c.id === item.id ? { ...c, hecho: e.target.checked } : c),
+                    }))}
+                    className="accent-blue-500 w-4 h-4 flex-shrink-0"
+                  />
+                  <span className={`flex-1 text-sm ${item.hecho ? 'line-through text-gray-500' : 'text-gray-200'}`}>{item.texto}</span>
+                  <button
+                    onClick={() => setDraft(d => ({ ...d, checklist: d.checklist.filter(c => c.id !== item.id) }))}
+                    className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 text-xs transition-opacity"
+                  >✕</button>
+                </div>
+              ))}
+              {draft.checklist.length === 0 && <p className="text-gray-600 text-xs">Sin elementos.</p>}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={nuevoChecklistItem}
+                onChange={e => setNuevoChecklistItem(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && nuevoChecklistItem.trim()) {
+                    setDraft(d => ({ ...d, checklist: [...d.checklist, { id: crypto.randomUUID(), texto: nuevoChecklistItem.trim(), hecho: false }] }))
+                    setNuevoChecklistItem('')
+                  }
+                }}
+                placeholder="Añadir elemento..."
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={() => {
+                  if (!nuevoChecklistItem.trim()) return
+                  setDraft(d => ({ ...d, checklist: [...d.checklist, { id: crypto.randomUUID(), texto: nuevoChecklistItem.trim(), hecho: false }] }))
+                  setNuevoChecklistItem('')
+                }}
+                className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm"
+              >+</button>
+            </div>
+          </div>
+
           {/* Chat */}
           <div className="border-t border-gray-800 pt-4">
             <label className="block text-gray-400 text-sm mb-2">Chat de la tarea</label>
@@ -578,6 +627,8 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
               empleados={state.empleados}
               nombreEmpleado={actions.nombreEmpleado}
               onSend={(texto, menciones) => actions.addChatMensajeTarea(tarea.id, texto, menciones)}
+              onEdit={(idMsg, texto) => actions.editChatMensajeTarea(tarea.id, idMsg, texto)}
+              onDelete={idMsg => actions.deleteChatMensajeTarea(tarea.id, idMsg)}
             />
           </div>
         </div>

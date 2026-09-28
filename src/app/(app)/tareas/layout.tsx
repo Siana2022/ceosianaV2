@@ -75,6 +75,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     minutosAcumulados: (r.minutos_acumulados as number) ?? 0,
     timerActivo: false,
     chat: (r.chat as Tarea['chat']) ?? [],
+    checklist: (r.checklist as Tarea['checklist']) ?? [],
     adjuntos: (r.adjuntos as Tarea['adjuntos']) ?? [],
     imagenes: (r.imagenes as Tarea['imagenes']) ?? [],
     syncCalendar: (r.sync_calendar as boolean) ?? false,

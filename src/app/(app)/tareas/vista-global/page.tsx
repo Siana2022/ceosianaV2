@@ -118,22 +118,31 @@ export default function VistaGlobalPage() {
   const procesosCliente = state.procesos.filter(p => p.idCliente === idCliente)
   const tareasCliente = state.tareas.filter(t => t.idCliente === idCliente && t.tipo === 'tarea')
   const tareasActivasCliente = tareasCliente.filter(t => t.estado !== 'terminado')
-  const tareasTerminadasCliente = tareasCliente.filter(t => t.estado === 'terminado')
-  const reunionesVisitasCliente = state.tareas.filter(t => t.idCliente === idCliente && t.tipo !== 'tarea')
+  const tareasTerminadasCliente = [
+    ...tareasCliente.filter(t => t.estado === 'terminado'),
+    ...state.tareas.filter(t => t.idCliente === idCliente && t.tipo !== 'tarea' && t.estado === 'terminado'),
+  ]
+  const reunionesVisitasCliente = state.tareas.filter(t => t.idCliente === idCliente && t.tipo !== 'tarea' && t.estado !== 'terminado')
 
   // ── Por persona ──────────────────────────────────────────────────────────
   const procesosPersona = state.procesos.filter(p => p.fases.some(f => f.idsResponsables.includes(idEmpleado)))
   const tareasPersona = state.tareas.filter(t => t.idsResponsables.includes(idEmpleado) && t.tipo === 'tarea')
   const tareasActivasPersona = tareasPersona.filter(t => t.estado !== 'terminado')
-  const tareasTerminadasPersona = tareasPersona.filter(t => t.estado === 'terminado')
-  const reunionesVisitasPersona = state.tareas.filter(t => t.idsResponsables.includes(idEmpleado) && t.tipo !== 'tarea')
+  const tareasTerminadasPersona = [
+    ...tareasPersona.filter(t => t.estado === 'terminado'),
+    ...state.tareas.filter(t => t.idsResponsables.includes(idEmpleado) && t.tipo !== 'tarea' && t.estado === 'terminado'),
+  ]
+  const reunionesVisitasPersona = state.tareas.filter(t => t.idsResponsables.includes(idEmpleado) && t.tipo !== 'tarea' && t.estado !== 'terminado')
 
   // ── Por departamento ─────────────────────────────────────────────────────
   const procesosDepartamento = state.procesos.filter(p => p.fases.some(f => f.idDepartamento === idDepartamento))
   const tareasDepartamento = state.tareas.filter(t => t.idDepartamento === idDepartamento && t.tipo === 'tarea')
   const tareasActivasDepartamento = tareasDepartamento.filter(t => t.estado !== 'terminado')
-  const tareasTerminadasDepartamento = tareasDepartamento.filter(t => t.estado === 'terminado')
-  const reunionesVisitasDepartamento = state.tareas.filter(t => t.idDepartamento === idDepartamento && t.tipo !== 'tarea')
+  const tareasTerminadasDepartamento = [
+    ...tareasDepartamento.filter(t => t.estado === 'terminado'),
+    ...state.tareas.filter(t => t.idDepartamento === idDepartamento && t.tipo !== 'tarea' && t.estado === 'terminado'),
+  ]
+  const reunionesVisitasDepartamento = state.tareas.filter(t => t.idDepartamento === idDepartamento && t.tipo !== 'tarea' && t.estado !== 'terminado')
 
   const filasEmpleadoGantt = detectarConflictos(
     filasGanttEmpleado(state.procesos, state.tareas, idEmpleado, actions.nombreCliente),

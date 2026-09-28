@@ -23,6 +23,7 @@ const CAMINO: Record<string, string> = {
   minutosAcumulados: 'minutos_acumulados',
   syncCalendar: 'sync_calendar',
   chat: 'chat',
+  checklist: 'checklist',
   adjuntos: 'adjuntos',
   imagenes: 'imagenes',
 }
@@ -49,6 +50,7 @@ function rowToTarea(row: Record<string, unknown>) {
     syncCalendar: row.sync_calendar ?? false,
     timerActivo: false,
     chat: row.chat ?? [],
+    checklist: row.checklist ?? [],
     adjuntos: row.adjuntos ?? [],
     imagenes: (row.imagenes as unknown[]) ?? [],
   }

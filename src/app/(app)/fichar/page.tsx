@@ -75,16 +75,13 @@ export default async function FicharPage() {
     .in('estado', ['espera', 'en_curso', 'bloqueado'])
     .order('nombre')
 
-  // Pipeline prospects (admin only; shown as extra "clients" in selector)
-  let pipelineProspectos: { id: string; nombre: string }[] = []
-  if (perfil.rol === 'admin') {
-    const { data: pips } = await createAdminClient()
-      .from('pipeline_prospectos')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre')
-    pipelineProspectos = (pips ?? []).map(p => ({ id: String(p.id), nombre: `${p.nombre} (Pipeline)` }))
-  }
+  // Pipeline prospects — visible to all employees as extra "clients" in selector
+  const { data: pips } = await createAdminClient()
+    .from('pipeline_prospectos')
+    .select('id, nombre')
+    .eq('activo', true)
+    .order('nombre')
+  const pipelineProspectos = (pips ?? []).map(p => ({ id: String(p.id), nombre: `${p.nombre} (Pipeline)` }))
 
   return (
     <FicharClient

@@ -24,7 +24,7 @@ const COLORES: Record<GanttRow['color'], string> = {
 const NOMBRES_MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 const DAY_WIDTH = 28
-const LABEL_WIDTH = 176
+const LABEL_WIDTH = 220
 const DIAS_FUTURO = 365 // ≈ 12 meses de margen para poder deslizar hacia la derecha
 
 interface Segmento {
