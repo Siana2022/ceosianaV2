@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const { nombre } = await request.json()
   const { data, error } = await supabase
     .from('tipos_servicio')
-    .insert({ nombre })
+    .insert({ nombre, activo: true })
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

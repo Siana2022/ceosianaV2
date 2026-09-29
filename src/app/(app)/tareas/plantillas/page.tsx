@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useTareas } from '../store'
-import type { PlantillaFase } from '../types'
+import type { Plantilla, PlantillaFase } from '../types'
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 
@@ -96,6 +96,49 @@ function FilaFase({ idPlantilla, fase, esPrimera, esUltima }: { idPlantilla: str
   )
 }
 
+function NombrePlantillaEditable({ plantilla }: { plantilla: Plantilla }) {
+  const { actions } = useTareas()
+  const [editando, setEditando] = useState(false)
+  const [nombre, setNombre] = useState(plantilla.nombre)
+
+  const guardar = () => {
+    const trimmed = nombre.trim()
+    if (trimmed && trimmed !== plantilla.nombre) actions.renombrarPlantilla(plantilla.id, trimmed)
+    else setNombre(plantilla.nombre)
+    setEditando(false)
+  }
+
+  if (editando) {
+    return (
+      <input
+        value={nombre}
+        onChange={e => setNombre(e.target.value)}
+        onBlur={guardar}
+        onKeyDown={e => {
+          if (e.key === 'Enter') guardar()
+          if (e.key === 'Escape') { setNombre(plantilla.nombre); setEditando(false) }
+        }}
+        className="bg-gray-800 border border-blue-500 rounded px-2 py-0.5 text-white font-medium text-sm focus:outline-none"
+        autoFocus
+        onClick={e => e.stopPropagation()}
+      />
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <h3 className="text-white font-medium">{plantilla.nombre}</h3>
+      <button
+        onClick={() => setEditando(true)}
+        className="text-gray-600 hover:text-gray-400 text-xs px-1"
+        title="Renombrar plantilla"
+      >
+        ✏️
+      </button>
+    </div>
+  )
+}
+
 function EditorFases({ idPlantilla }: { idPlantilla: string }) {
   const { state, actions } = useTareas()
   const plantilla = state.plantillas.find(p => p.id === idPlantilla)
@@ -168,7 +211,7 @@ export default function PlantillasPage() {
                 <button onClick={() => setExpandidaId(expandida ? null : p.id)} className="flex-1 text-left">
                   <div className="flex items-center gap-2">
                     <span className="text-gray-500 text-xs">{expandida ? '▾' : '▸'}</span>
-                    <h3 className="text-white font-medium">{p.nombre}</h3>
+                    <NombrePlantillaEditable plantilla={p} />
                     {p.tipoServicio && (
                       <span className="bg-purple-500/20 text-purple-300 text-[11px] px-2 py-0.5 rounded-full">{p.tipoServicio}</span>
                     )}

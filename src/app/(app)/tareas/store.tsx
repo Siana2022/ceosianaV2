@@ -57,8 +57,12 @@ interface TareasActions {
   eliminarFasePlantilla: (idPlantilla: string, idFase: string) => void
   moverFasePlantilla: (idPlantilla: string, idFase: string, direccion: -1 | 1) => void
 
+  // Plantillas (extra)
+  renombrarPlantilla: (idPlantilla: string, nombre: string) => void
+
   // Procesos (kanban por cliente)
   importarPlantilla: (idCliente: string, idServicio: string | null, idPlantilla: string) => void
+  eliminarProceso: (idProceso: string) => void
   agregarFaseProceso: (idProceso: string, fase: {
     nombre: string
     idDepartamento: string | null
@@ -150,6 +154,7 @@ interface TareasProviderProps {
   initialTareas?: Tarea[]
   initialProcesos?: Proceso[]
   initialPlantillas?: Plantilla[]
+  initialSlackCliente?: Record<string, string>
 }
 
 export function TareasProvider({
@@ -161,6 +166,7 @@ export function TareasProvider({
   initialTareas,
   initialProcesos,
   initialPlantillas,
+  initialSlackCliente,
 }: TareasProviderProps) {
   const [clientes, setClientes] = useState<Cliente[]>(initialClientes ?? MOCK_CLIENTES)
   const [empleados] = useState<Empleado[]>(initialEmpleados ?? MOCK_EMPLEADOS)
@@ -170,7 +176,7 @@ export function TareasProvider({
   const [procesos, setProcesos] = useState<Proceso[]>(initialProcesos ?? [])
   const [tareas, setTareas] = useState<Tarea[]>(initialTareas ?? [])
   const [enlacesCliente, setEnlacesCliente] = useState<Record<string, Adjunto[]>>(MOCK_ENLACES_CLIENTE)
-  const [slackCliente, setSlackClienteState] = useState<Record<string, string>>(MOCK_SLACK_CLIENTE)
+  const [slackCliente, setSlackClienteState] = useState<Record<string, string>>(initialSlackCliente ?? MOCK_SLACK_CLIENTE)
   const [conflictosResueltos, setConflictosResueltos] = useState<Set<string>>(new Set())
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
@@ -279,7 +285,17 @@ export function TareasProvider({
     dbPatch(`/api/plantillas?id=${idPlantilla}`, { fases: ordenadas })
   }, [plantillas])
 
+  const renombrarPlantilla = useCallback((idPlantilla: string, nombre: string) => {
+    setPlantillas(prev => prev.map(p => p.id !== idPlantilla ? p : { ...p, nombre }))
+    dbPatch(`/api/plantillas?id=${idPlantilla}`, { nombre })
+  }, [])
+
   // ── Procesos (kanban) ───────────────────────────────────────────────────
+  const eliminarProceso = useCallback((idProceso: string) => {
+    setProcesos(prev => prev.filter(p => p.id !== idProceso))
+    fetch(`/api/procesos?id=${idProceso}`, { method: 'DELETE' }).catch(e => console.error('[procesos] DELETE error', e))
+  }, [])
+
   const importarPlantilla = useCallback((idCliente: string, idServicio: string | null, idPlantilla: string) => {
     const plantilla = plantillas.find(p => p.id === idPlantilla)
     if (!plantilla) return
@@ -663,6 +679,11 @@ export function TareasProvider({
 
   const setSlackCliente = useCallback((idCliente: string, url: string) => {
     setSlackClienteState(prev => ({ ...prev, [idCliente]: url }))
+    fetch('/api/clientes', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: idCliente, slack_canal: url }),
+    }).catch(e => console.error('[clientes] PUT slack error', e))
   }, [])
 
   // ── Conflictos de carga de trabajo (Gantt por empleado) ────────────────
@@ -701,7 +722,9 @@ export function TareasProvider({
       actualizarFasePlantilla,
       eliminarFasePlantilla,
       moverFasePlantilla,
+      renombrarPlantilla,
       importarPlantilla,
+      eliminarProceso,
       agregarFaseProceso,
       actualizarFaseProceso,
       moverFaseProceso,
@@ -738,8 +761,8 @@ export function TareasProvider({
   }), [
     clientes, empleados, departamentos, servicios, plantillas, procesos, tareas, toasts, enlacesCliente, slackCliente, conflictosResueltos,
     crearCliente,
-    crearPlantilla, eliminarPlantilla, toggleActivaPlantilla, agregarFasePlantilla, actualizarFasePlantilla, eliminarFasePlantilla, moverFasePlantilla,
-    importarPlantilla, agregarFaseProceso, actualizarFaseProceso, moverFaseProceso, marcarFaseTerminada, volverFaseAnterior, addAdjuntoFase, eliminarAdjuntoFase, toggleTimerFase, setMinutosFase, addChatMensajeFase,
+    crearPlantilla, eliminarPlantilla, toggleActivaPlantilla, agregarFasePlantilla, actualizarFasePlantilla, eliminarFasePlantilla, moverFasePlantilla, renombrarPlantilla,
+    importarPlantilla, eliminarProceso, agregarFaseProceso, actualizarFaseProceso, moverFaseProceso, marcarFaseTerminada, volverFaseAnterior, addAdjuntoFase, eliminarAdjuntoFase, toggleTimerFase, setMinutosFase, addChatMensajeFase,
     crearTarea, actualizarTarea, notificarBloqueoTarea, toggleTimerTarea, setMinutosTarea, addChatMensajeTarea, editChatMensajeTarea, deleteChatMensajeTarea, addAdjuntoTarea, eliminarAdjuntoTarea, addImagenTarea, eliminarImagenTarea, eliminarTarea,
     addEnlaceCliente, eliminarEnlaceCliente, setSlackCliente, toggleConflictoResuelto, nombreEmpleado, nombreDepartamento, nombreCliente, nombresEmpleados,
   ])

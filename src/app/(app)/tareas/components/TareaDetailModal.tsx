@@ -84,7 +84,15 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
     setDraft(d => ({ ...d, [key]: value }))
 
   // ── Guardar ──────────────────────────────────────────────────────────
-  const guardar = () => {
+  const guardar = async () => {
+    const timerEstuvoRunning = timerStatus === 'running'
+    if (timerEstuvoRunning) {
+      await pausarTimer()
+    }
+
+    const esReunion = draft.tipo === 'reunion' || draft.tipo === 'visita'
+    const minutosManual = draft.minutosAcumulados - tarea.minutosAcumulados
+
     actions.actualizarTarea(tarea.id, {
       nombre: draft.nombre.trim() || tarea.nombre,
       tipo: draft.tipo,
@@ -106,6 +114,20 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
     if (draft.minutosAcumulados !== tarea.minutosAcumulados) {
       actions.setMinutosTarea(tarea.id, draft.minutosAcumulados)
     }
+
+    // Propagate manual time to all responsables if no timer was used this session
+    if (esReunion && draft.estado === 'terminado' && !timerEstuvoRunning && minutosManual > 0) {
+      fetch('/api/time-logs/propagar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_tarea: tarea.id,
+          minutos: minutosManual,
+          fecha: new Date().toISOString().slice(0, 10),
+        }),
+      }).catch(() => {})
+    }
+
     savedRef.current = true
     setSavedMsg(true)
     setTimeout(() => onClose(), 1000)

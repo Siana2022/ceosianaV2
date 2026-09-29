@@ -20,7 +20,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     { data: rawProcesos, error: errProcesos },
     { data: rawPlantillas, error: errPlantillas },
   ] = await Promise.all([
-    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('clientes').select('id, nombre, slack_canal').eq('activo', true).order('nombre'),
     supabase.from('empleados').select('id, nombre, email').eq('activo', true).order('nombre'),
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
     supabase
@@ -37,6 +37,10 @@ export default async function TareasLayout({ children }: { children: ReactNode }
   Object.entries(errs).forEach(([k, e]) => { if (e) console.error(`[tareas/layout] Error loading ${k}:`, e.message) })
 
   const clientes: Cliente[] = (rawClientes ?? []).map(c => ({ id: String(c.id), nombre: c.nombre }))
+  const slackClienteInit: Record<string, string> = {}
+  ;(rawClientes ?? []).forEach(c => {
+    if (c.slack_canal) slackClienteInit[String(c.id)] = c.slack_canal as string
+  })
   const empleados: Empleado[] = (rawEmpleados ?? []).map(e => ({
     id: String(e.id),
     nombre: e.nombre,
@@ -108,6 +112,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       initialTareas={tareas}
       initialProcesos={procesos}
       initialPlantillas={plantillas}
+      initialSlackCliente={slackClienteInit}
       isAdmin={isAdmin}
     >
       {children}

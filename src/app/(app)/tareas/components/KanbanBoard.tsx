@@ -18,7 +18,19 @@ export default function KanbanBoard({ proceso }: { proceso: Proceso }) {
     <div className="bg-gray-900/40 border border-gray-800 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-white font-semibold text-sm">{proceso.nombre}</h3>
-        <span className="text-gray-500 text-xs">{actions.nombreCliente(proceso.idCliente)}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-gray-500 text-xs">{actions.nombreCliente(proceso.idCliente)}</span>
+          <button
+            onClick={() => {
+              if (!confirm(`¿Eliminar el proceso "${proceso.nombre}"? Se borrarán todas sus fases.`)) return
+              actions.eliminarProceso(proceso.id)
+            }}
+            className="text-gray-600 hover:text-red-400 text-xs transition-colors"
+            title="Eliminar proceso"
+          >
+            🗑
+          </button>
+        </div>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2">
         {fases.map((f, idx) => (
