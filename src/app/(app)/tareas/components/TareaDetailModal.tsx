@@ -8,6 +8,7 @@ import type { ChecklistItem, EstadoTarea, Recurrencia, Tarea, TipoTarea } from '
 import EstadoBadge from './EstadoBadge'
 import ChatMock from './ChatMock'
 import ResponsablesMultiSelect from './ResponsablesMultiSelect'
+import RichTextEditor from './RichTextEditor'
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 const ESTADOS: EstadoTarea[] = ['espera', 'proceso', 'bloqueada', 'terminado']
@@ -470,11 +471,9 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           {/* Descripción */}
           <div>
             <label className="block text-gray-400 text-sm mb-1">Descripción</label>
-            <textarea
+            <RichTextEditor
               value={draft.descripcion}
-              onChange={e => set('descripcion', e.target.value)}
-              rows={3}
-              className={`${inputCls} resize-none`}
+              onChange={html => set('descripcion', html)}
               placeholder="Explica aquí lo que haga falta..."
             />
           </div>
