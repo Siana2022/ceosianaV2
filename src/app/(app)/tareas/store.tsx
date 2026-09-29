@@ -521,9 +521,24 @@ export function TareasProvider({
     const nueva: Tarea = { ...tarea, id, chat: [], checklist: [], minutosAcumulados: 0, timerActivo: false }
     setTareas(prev => [...prev, nueva])
     const { imagenes: _img, ...toPost } = nueva as Tarea & { imagenes?: unknown }
-    dbPost('/api/tareas', toPost)
+    ;(async () => {
+      try {
+        const res = await fetch('/api/tareas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(toPost),
+        })
+        if (!res.ok) {
+          setTareas(prev => prev.filter(t => t.id !== id))
+          pushToast('❌ Error al guardar la tarea. Vuelve a crearla.')
+        }
+      } catch {
+        setTareas(prev => prev.filter(t => t.id !== id))
+        pushToast('❌ Sin conexión. La tarea no se ha guardado.')
+      }
+    })()
     return id
-  }, [])
+  }, [pushToast])
 
   const actualizarTarea = useCallback((idTarea: string, cambios: Partial<Tarea>) => {
     const original = tareas.find(t => t.id === idTarea)
@@ -552,12 +567,22 @@ export function TareasProvider({
     const SKIP = new Set(['timerActivo', 'imagenes'])
     const persistibles = Object.fromEntries(Object.entries(cambios).filter(([k]) => !SKIP.has(k)))
     if (Object.keys(persistibles).length > 0) {
-      dbPatch(`/api/tareas?id=${idTarea}`, persistibles)
+      fetch(`/api/tareas?id=${idTarea}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(persistibles),
+      }).then(res => {
+        if (!res.ok) pushToast('❌ Error al guardar cambios. Recarga y vuelve a intentarlo.')
+      }).catch(() => pushToast('❌ Sin conexión. Cambios no guardados.'))
     }
     if (nuevaTareaRecurrente) {
       const r = nuevaTareaRecurrente as unknown as Record<string, unknown>
       const { timerActivo: _ta, imagenes: _img, ...toPost } = r
-      dbPost('/api/tareas', toPost)
+      fetch('/api/tareas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toPost),
+      }).catch(() => {})
     }
 
     if (cambios.estado === 'bloqueada') {

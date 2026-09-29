@@ -147,31 +147,37 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from('tareas').insert(row).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const tarea = rowToTarea(data as Record<string, unknown>)
-    if (tarea.syncCalendar && tarea.fechaLimite && (tarea.idsResponsables as string[]).length > 0) {
-      await syncTareaToAllResponsables(tarea.id as string, tarea.idsResponsables as string[], {
-        summary: tarea.nombre as string,
-        description: tarea.descripcion as string,
-        date: tarea.fechaLimite as string,
-        time: tarea.hora as string | null,
-      })
-    }
-    // Slack: nueva tarea asignada
-    const responsableIds = tarea.idsResponsables as string[]
-    if (responsableIds.length > 0 && tarea.idCliente) {
-      const [clienteInfo, depNombre] = await Promise.all([
-        infoCliente(tarea.idCliente as string),
-        nombreDepartamento(tarea.idDepartamento as string | null),
-      ])
-      if (clienteInfo.canal) {
-        const menciones = await mencionesResponsables(responsableIds)
-        const fecha = tarea.fechaLimite ? new Date(tarea.fechaLimite as string).toLocaleDateString('es-ES') : '—'
-        await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
-          nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
-          menciones, fecha, tareaId: tarea.id as string, base,
-          cliente: clienteInfo.nombre, departamento: depNombre,
-        }))
-      }
-    }
+    // Calendar + Slack son side-effects: nunca deben romper la respuesta al cliente
+    ;(async () => {
+      try {
+        if (tarea.syncCalendar && tarea.fechaLimite && (tarea.idsResponsables as string[]).length > 0) {
+          await syncTareaToAllResponsables(tarea.id as string, tarea.idsResponsables as string[], {
+            summary: tarea.nombre as string,
+            description: tarea.descripcion as string,
+            date: tarea.fechaLimite as string,
+            time: tarea.hora as string | null,
+          })
+        }
+      } catch (e) { console.error('[tareas POST] calendar sync error:', e) }
+      try {
+        const responsableIds = tarea.idsResponsables as string[]
+        if (responsableIds.length > 0 && tarea.idCliente) {
+          const [clienteInfo, depNombre] = await Promise.all([
+            infoCliente(tarea.idCliente as string),
+            nombreDepartamento(tarea.idDepartamento as string | null),
+          ])
+          if (clienteInfo.canal) {
+            const menciones = await mencionesResponsables(responsableIds)
+            const fecha = tarea.fechaLimite ? new Date(tarea.fechaLimite as string).toLocaleDateString('es-ES') : '—'
+            await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
+              nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
+              menciones, fecha, tareaId: tarea.id as string, base,
+              cliente: clienteInfo.nombre, departamento: depNombre,
+            }))
+          }
+        }
+      } catch (e) { console.error('[tareas POST] slack error:', e) }
+    })()
     return NextResponse.json(tarea)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
@@ -202,56 +208,57 @@ export async function PATCH(req: NextRequest) {
     }
     const { error } = await supabase.from('tareas').update(row).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    // Fetch tarea for calendar sync and Slack notifications when needed
+    // Calendar + Slack son side-effects: se ejecutan en background, nunca bloquean la respuesta
     const needsTareaFetch = body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined || body.estado === 'bloqueada' || body.estado === 'terminado' || (newResponsables && newResponsables.length > 0)
     if (needsTareaFetch) {
-      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente, id_departamento').eq('id', id).maybeSingle()
-      if (tarea) {
-        // Calendar sync
-        const respIds = (tarea.ids_responsables as string[]) ?? []
-        if (respIds.length > 0 && (body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined)) {
-          if (tarea.sync_calendar && tarea.fecha_limite) {
-            await syncTareaToAllResponsables(id, respIds, {
-              summary: tarea.nombre as string,
-              description: (tarea.descripcion as string) ?? '',
-              date: tarea.fecha_limite as string,
-              time: tarea.hora as string | null,
-            })
-          } else if (body.syncCalendar === false) {
-            await syncTareaToAllResponsables(id, respIds, null)
+      ;(async () => {
+        try {
+          const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente, id_departamento').eq('id', id).maybeSingle()
+          if (!tarea) return
+          const respIds = (tarea.ids_responsables as string[]) ?? []
+          try {
+            if (respIds.length > 0 && (body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined)) {
+              if (tarea.sync_calendar && tarea.fecha_limite) {
+                await syncTareaToAllResponsables(id, respIds, {
+                  summary: tarea.nombre as string,
+                  description: (tarea.descripcion as string) ?? '',
+                  date: tarea.fecha_limite as string,
+                  time: tarea.hora as string | null,
+                })
+              } else if (body.syncCalendar === false) {
+                await syncTareaToAllResponsables(id, respIds, null)
+              }
+            }
+          } catch (e) { console.error('[tareas PATCH] calendar sync error:', e) }
+          if (newResponsables && newResponsables.length > 0) {
+            notificarNuevosResponsables(id, tarea.nombre as string, newResponsables, oldResponsables).catch(() => {})
           }
-        }
-        // Notificaciones en app para responsables recién añadidos
-        if (newResponsables && newResponsables.length > 0) {
-          notificarNuevosResponsables(id, tarea.nombre as string, newResponsables, oldResponsables).catch(() => {})
-        }
-
-        // Slack notifications
-        const [clienteInfo, depNombre] = await Promise.all([
-          infoCliente(tarea.id_cliente as string | null),
-          nombreDepartamento(tarea.id_departamento as string | null),
-        ])
-        if (clienteInfo.canal) {
-          // Nueva tarea asignada: responsables added where there were none before
-          if (newResponsables && newResponsables.length > 0 && oldResponsables.length === 0) {
-            const menciones = await mencionesResponsables(respIds)
-            const fecha = tarea.fecha_limite ? new Date(tarea.fecha_limite as string).toLocaleDateString('es-ES') : '—'
-            await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
-              nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
-              menciones, fecha, tareaId: id, base,
-              cliente: clienteInfo.nombre, departamento: depNombre,
-            }))
-          }
-          // Estado changes
-          if (body.estado === 'bloqueada' || body.estado === 'terminado') {
-            const link = `<${base}/tareas/vista-global?tarea=${id}|Ver tarea →>`
-            const msg = body.estado === 'terminado'
-              ? `✅ *Tarea completada*\n*${tarea.nombre}*\n🔗 ${link}\n---`
-              : `🔴 *Tarea bloqueada*\n*${tarea.nombre}*${body.explicacionBloqueo ? `\n> ${body.explicacionBloqueo}` : ''}\n🔗 ${link}\n---`
-            await sendSlackMessage(clienteInfo.canal, msg)
-          }
-        }
-      }
+          try {
+            const [clienteInfo, depNombre] = await Promise.all([
+              infoCliente(tarea.id_cliente as string | null),
+              nombreDepartamento(tarea.id_departamento as string | null),
+            ])
+            if (clienteInfo.canal) {
+              if (newResponsables && newResponsables.length > 0 && oldResponsables.length === 0) {
+                const menciones = await mencionesResponsables(respIds)
+                const fecha = tarea.fecha_limite ? new Date(tarea.fecha_limite as string).toLocaleDateString('es-ES') : '—'
+                await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
+                  nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
+                  menciones, fecha, tareaId: id, base,
+                  cliente: clienteInfo.nombre, departamento: depNombre,
+                }))
+              }
+              if (body.estado === 'bloqueada' || body.estado === 'terminado') {
+                const link = `<${base}/tareas/vista-global?tarea=${id}|Ver tarea →>`
+                const msg = body.estado === 'terminado'
+                  ? `✅ *Tarea completada*\n*${tarea.nombre}*\n🔗 ${link}\n---`
+                  : `🔴 *Tarea bloqueada*\n*${tarea.nombre}*${body.explicacionBloqueo ? `\n> ${body.explicacionBloqueo}` : ''}\n🔗 ${link}\n---`
+                await sendSlackMessage(clienteInfo.canal, msg)
+              }
+            }
+          } catch (e) { console.error('[tareas PATCH] slack error:', e) }
+        } catch (e) { console.error('[tareas PATCH] side-effects error:', e) }
+      })()
     }
     return NextResponse.json({ ok: true })
   } catch (e) {
