@@ -211,10 +211,15 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
     const horaFin = ahora.toTimeString().slice(0, 5)
     if (activeTimerId) {
       try {
+        const esReunion = tarea.tipo === 'reunion' || tarea.tipo === 'visita'
         await fetch(`/api/time-logs?id=${activeTimerId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hora_fin: horaFin, minutos: minutosElapsed }),
+          body: JSON.stringify({
+            hora_fin: horaFin,
+            minutos: minutosElapsed,
+            ...(esReunion && { propagate: true, id_tarea: tarea.id }),
+          }),
         })
       } catch {
         // no blocking — timer se para de todas formas

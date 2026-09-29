@@ -166,7 +166,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { descripcion, id_cliente, id_departamento, id_servicio, minutos, hora_fin, hora_inicio } = body
+  const { descripcion, id_cliente, id_departamento, id_servicio, minutos, hora_fin, hora_inicio, propagate, id_tarea } = body
   const updatePayload: Record<string, unknown> = {}
   if (descripcion !== undefined) updatePayload.descripcion = descripcion
   if (id_cliente !== undefined) updatePayload.id_cliente = id_cliente || null
@@ -179,12 +179,62 @@ export async function PATCH(req: NextRequest) {
   }
   if (hora_fin !== undefined) updatePayload.hora_fin = hora_fin || null
   if (hora_inicio !== undefined) updatePayload.hora_inicio = hora_inicio || null
+
   const { data, error } = await supabase.from('time_logs')
     .update(updatePayload)
     .eq('id', id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Reunión/visita: propagar el tiempo a todos los demás responsables
+  if (propagate && id_tarea) {
+    propagarTiempoReunion({
+      idTarea: id_tarea,
+      idEmpleadoActual: resolved.id,
+      logBase: data as Record<string, unknown>,
+      minutos: updatePayload.minutos as number,
+      horaFin: updatePayload.hora_fin as string | null,
+    }).catch(() => {})
+  }
+
   return NextResponse.json(data)
+}
+
+async function propagarTiempoReunion(opts: {
+  idTarea: string
+  idEmpleadoActual: string
+  logBase: Record<string, unknown>
+  minutos: number
+  horaFin: string | null
+}) {
+  const { idTarea, idEmpleadoActual, logBase, minutos, horaFin } = opts
+  const admin = createAdminClient()
+
+  const { data: tarea } = await admin
+    .from('tareas')
+    .select('tipo, ids_responsables')
+    .eq('id', idTarea)
+    .maybeSingle()
+
+  if (!tarea) return
+  if (tarea.tipo !== 'reunion' && tarea.tipo !== 'visita') return
+
+  const otros = ((tarea.ids_responsables as string[]) ?? []).filter(id => id !== idEmpleadoActual)
+  if (!otros.length) return
+
+  const inserts = otros.map(idEmpleado => ({
+    id_empleado: idEmpleado,
+    id_cliente: logBase.id_cliente ?? null,
+    id_servicio: logBase.id_servicio ?? null,
+    id_departamento: logBase.id_departamento ?? null,
+    descripcion: logBase.descripcion as string,
+    fecha: logBase.fecha as string,
+    hora_inicio: logBase.hora_inicio ?? null,
+    hora_fin: horaFin ?? null,
+    minutos,
+  }))
+
+  await admin.from('time_logs').insert(inserts)
 }
 
 export async function DELETE(req: NextRequest) {

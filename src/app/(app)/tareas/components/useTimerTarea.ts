@@ -30,10 +30,15 @@ export function useTimerTarea() {
       } catch {}
       if (dbId) {
         const ahora = new Date()
+        const esReunion = tarea.tipo === 'reunion' || tarea.tipo === 'visita'
         fetch(`/api/time-logs?id=${dbId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hora_fin: ahora.toTimeString().slice(0, 5), minutos: minutosElapsed }),
+          body: JSON.stringify({
+            hora_fin: ahora.toTimeString().slice(0, 5),
+            minutos: minutosElapsed,
+            ...(esReunion && { propagate: true, id_tarea: tarea.id }),
+          }),
         }).catch(err => console.error('[timer] PATCH error', err))
       }
       localStorage.removeItem(TIMER_KEY)
