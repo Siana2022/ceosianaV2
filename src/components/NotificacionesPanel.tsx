@@ -59,9 +59,10 @@ function tiempoRelativo(iso: string) {
 
 interface Props {
   rol: 'admin' | 'empleado'
+  onCountUpdate?: (n: number) => void
 }
 
-export default function NotificacionesPanel({ rol }: Props) {
+export default function NotificacionesPanel({ rol, onCountUpdate }: Props) {
   const [open, setOpen] = useState(false)
   const [notifs, setNotifs] = useState<Notif[]>([])
   const [tareas, setTareas] = useState<TareaPanel[]>([])
@@ -96,6 +97,7 @@ export default function NotificacionesPanel({ rol }: Props) {
       // Badge: notifs no leídas + tareas vencidas o de hoy
       const urgentes = t.filter(ta => ta.fecha_limite <= h).length
       setCount(n.length + urgentes)
+      onCountUpdate?.(n.length + urgentes)
     } catch { /* ignore */ } finally {
       setLoading(false)
     }

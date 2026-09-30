@@ -42,6 +42,7 @@ interface TareasState {
   enlacesCliente: Record<string, Adjunto[]>
   slackCliente: Record<string, string>
   conflictosResueltos: Set<string>
+  idEmpleadoActual: string | null
 }
 
 interface TareasActions {
@@ -155,6 +156,7 @@ interface TareasProviderProps {
   initialProcesos?: Proceso[]
   initialPlantillas?: Plantilla[]
   initialSlackCliente?: Record<string, string>
+  initialIdEmpleadoActual?: string | null
 }
 
 export function TareasProvider({
@@ -167,6 +169,7 @@ export function TareasProvider({
   initialProcesos,
   initialPlantillas,
   initialSlackCliente,
+  initialIdEmpleadoActual,
 }: TareasProviderProps) {
   const [clientes, setClientes] = useState<Cliente[]>(initialClientes ?? MOCK_CLIENTES)
   const [empleados] = useState<Empleado[]>(initialEmpleados ?? MOCK_EMPLEADOS)
@@ -179,6 +182,7 @@ export function TareasProvider({
   const [slackCliente, setSlackClienteState] = useState<Record<string, string>>(initialSlackCliente ?? MOCK_SLACK_CLIENTE)
   const [conflictosResueltos, setConflictosResueltos] = useState<Set<string>>(new Set())
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  const idEmpleadoActual = initialIdEmpleadoActual ?? null
 
   // Restaurar timerActivo desde localStorage al montar (no se persiste en DB)
   useEffect(() => {
@@ -737,6 +741,7 @@ export function TareasProvider({
       enlacesCliente,
       slackCliente,
       conflictosResueltos,
+      idEmpleadoActual,
     },
     actions: {
       crearCliente,
@@ -784,7 +789,7 @@ export function TareasProvider({
     },
     toasts,
   }), [
-    clientes, empleados, departamentos, servicios, plantillas, procesos, tareas, toasts, enlacesCliente, slackCliente, conflictosResueltos,
+    clientes, empleados, departamentos, servicios, plantillas, procesos, tareas, toasts, enlacesCliente, slackCliente, conflictosResueltos, idEmpleadoActual,
     crearCliente,
     crearPlantilla, eliminarPlantilla, toggleActivaPlantilla, agregarFasePlantilla, actualizarFasePlantilla, eliminarFasePlantilla, moverFasePlantilla, renombrarPlantilla,
     importarPlantilla, eliminarProceso, agregarFaseProceso, actualizarFaseProceso, moverFaseProceso, marcarFaseTerminada, volverFaseAnterior, addAdjuntoFase, eliminarAdjuntoFase, toggleTimerFase, setMinutosFase, addChatMensajeFase,

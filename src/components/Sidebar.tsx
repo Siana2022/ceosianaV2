@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import NotificacionesPanel from './NotificacionesPanel'
@@ -39,6 +40,7 @@ interface Props {
 export default function Sidebar({ rol }: Props) {
   const pathname = usePathname()
   const router = useRouter()
+  const [notifCount, setNotifCount] = useState(0)
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -60,7 +62,7 @@ export default function Sidebar({ rol }: Props) {
             {rol === 'empleado' ? 'Control de tiempos' : 'Panel de dirección'}
           </p>
         </div>
-        <NotificacionesPanel rol={rol} />
+        <NotificacionesPanel rol={rol} onCountUpdate={setNotifCount} />
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
@@ -78,6 +80,11 @@ export default function Sidebar({ rol }: Props) {
             >
               <span>{item.icon}</span>
               <span className="flex-1">{item.label}</span>
+              {item.href === '/alertas' && notifCount > 0 && (
+                <span className="min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+                  {notifCount > 9 ? '9+' : notifCount}
+                </span>
+              )}
             </Link>
           )
         })}

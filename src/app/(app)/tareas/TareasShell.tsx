@@ -70,6 +70,7 @@ interface TareasShellProps {
   initialPlantillas: Plantilla[]
   initialSlackCliente?: Record<string, string>
   isAdmin: boolean
+  idEmpleadoActual?: string | null
 }
 
 export default function TareasShell({
@@ -83,6 +84,7 @@ export default function TareasShell({
   initialPlantillas,
   initialSlackCliente,
   isAdmin,
+  idEmpleadoActual,
 }: TareasShellProps) {
   return (
     <TareasProvider
@@ -94,6 +96,7 @@ export default function TareasShell({
       initialProcesos={initialProcesos}
       initialPlantillas={initialPlantillas}
       initialSlackCliente={initialSlackCliente}
+      initialIdEmpleadoActual={idEmpleadoActual}
     >
       <ShellInner isAdmin={isAdmin}>{children}</ShellInner>
     </TareasProvider>

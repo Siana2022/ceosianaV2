@@ -114,6 +114,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       initialPlantillas={plantillas}
       initialSlackCliente={slackClienteInit}
       isAdmin={isAdmin}
+      idEmpleadoActual={perfil?.id_empleado ? String(perfil.id_empleado) : null}
     >
       {children}
     </TareasShell>

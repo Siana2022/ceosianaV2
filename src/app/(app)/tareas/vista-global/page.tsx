@@ -29,13 +29,13 @@ type Metrica = 'horas' | 'tareas'
 export default function VistaGlobalPage() {
   const { state, actions } = useTareas()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<Tab>('cliente')
+  const [tab, setTab] = useState<Tab>(() => state.idEmpleadoActual ? 'empleado' : 'cliente')
   const [visualizacion, setVisualizacion] = useState<Visualizacion>('kanban')
   const [vistaTareas, setVistaTareas] = useState<VistaTareas>('tarjeta')
   const [metrica, setMetrica] = useState<Metrica>('horas')
   const [rango, setRango] = useState(() => ({ desde: inicioMes(hoyISO()), hasta: finMes(hoyISO()) }))
   const [idCliente, setIdCliente] = useState(state.clientes[0]?.id ?? '')
-  const [idEmpleado, setIdEmpleado] = useState(state.empleados[0]?.id ?? '')
+  const [idEmpleado, setIdEmpleado] = useState(state.idEmpleadoActual ?? state.empleados[0]?.id ?? '')
   const [idDepartamento, setIdDepartamento] = useState(state.departamentos[0]?.id ?? '')
   const [tareaAbiertaId, setTareaAbiertaId] = useState<string | null>(null)
 
