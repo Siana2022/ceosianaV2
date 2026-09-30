@@ -35,6 +35,37 @@ export async function GET(req: NextRequest) {
     : { data: [] }
   const clienteMap = Object.fromEntries((clientes ?? []).map(c => [c.id, c.nombre as string]))
 
+  const SLACK_API = 'https://slack.com/api'
+  const tok = process.env.SLACK_BOT_TOKEN ?? ''
+
+  async function sendSlackDMDebug(email: string, text: string): Promise<{ ok: boolean; error?: string; userId?: string }> {
+    if (!tok) return { ok: false, error: 'no SLACK_BOT_TOKEN' }
+    const lookupRes = await fetch(`${SLACK_API}/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
+      headers: { Authorization: `Bearer ${tok}` },
+    })
+    const lookupData = await lookupRes.json() as { ok: boolean; user?: { id: string }; error?: string }
+    if (!lookupData.ok) return { ok: false, error: `lookupByEmail: ${lookupData.error}` }
+    const userId = lookupData.user?.id
+    if (!userId) return { ok: false, error: 'no userId' }
+    const dmRes = await fetch(`${SLACK_API}/conversations.open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+      body: JSON.stringify({ users: userId }),
+    })
+    const dmData = await dmRes.json() as { ok: boolean; channel?: { id: string }; error?: string }
+    if (!dmData.ok) return { ok: false, error: `conversations.open: ${dmData.error}`, userId }
+    const channel = dmData.channel?.id
+    if (!channel) return { ok: false, error: 'no channel', userId }
+    const msgRes = await fetch(`${SLACK_API}/chat.postMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+      body: JSON.stringify({ channel, text, unfurl_links: false }),
+    })
+    const msgData = await msgRes.json() as { ok: boolean; error?: string }
+    return msgData.ok ? { ok: true, userId } : { ok: false, error: `postMessage: ${msgData.error}`, userId }
+  }
+
+  const log: object[] = []
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   let sent = 0
@@ -91,13 +122,10 @@ export async function GET(req: NextRequest) {
       sinFecha.slice(0, 5).forEach(t => lineas.push(fmtTarea(t)))
     }
 
-    try {
-      await sendSlackDM(email, lineas.join('\n'))
-      sent++
-    } catch (e) {
-      console.error(`[daily-tasks] error enviando DM a ${emp.nombre}:`, e)
-    }
+    const result = await sendSlackDMDebug(email, lineas.join('\n'))
+    if (result.ok) sent++
+    log.push({ nombre: emp.nombre, email, ...result })
   }
 
-  return NextResponse.json({ ok: true, sent })
+  return NextResponse.json({ ok: true, sent, log: testEmail ? log : undefined })
 }
