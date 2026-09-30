@@ -13,11 +13,11 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
   const base = new URL(req.url).origin
+  const testEmail = new URL(req.url).searchParams.get('email')
 
-  const { data: empleados } = await admin
-    .from('empleados')
-    .select('id, nombre, email, slack_email')
-    .eq('activo', true)
+  let query = admin.from('empleados').select('id, nombre, email, slack_email').eq('activo', true)
+  if (testEmail) query = query.eq('email', testEmail)
+  const { data: empleados } = await query
 
   if (!empleados?.length) return NextResponse.json({ ok: true, sent: 0 })
 
