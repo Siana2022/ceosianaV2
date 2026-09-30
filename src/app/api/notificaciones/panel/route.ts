@@ -9,6 +9,11 @@ export async function GET() {
   const admin = createAdminClient()
   const hoy = new Date().toISOString().slice(0, 10)
 
+  // Próximos 7 días
+  const en7dias = new Date()
+  en7dias.setDate(en7dias.getDate() + 7)
+  const hasta = en7dias.toISOString().slice(0, 10)
+
   const [notifResult, tareasResult] = await Promise.all([
     admin
       .from('notificaciones_empleado')
@@ -19,15 +24,16 @@ export async function GET() {
       .limit(20),
     admin
       .from('tareas')
-      .select('id, nombre, tipo, estado, hora, id_cliente, ids_responsables')
-      .eq('fecha_limite', hoy)
+      .select('id, nombre, tipo, estado, hora, fecha_limite, id_cliente')
       .neq('estado', 'terminado')
+      .lte('fecha_limite', hasta)
       .contains('ids_responsables', [perfil.id_empleado])
-      .order('hora', { ascending: true, nullsFirst: false }),
+      .order('fecha_limite', { ascending: true }),
   ])
 
   return NextResponse.json({
     notificaciones: notifResult.data ?? [],
     tareasHoy: tareasResult.data ?? [],
+    hoy,
   })
 }

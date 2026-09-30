@@ -14,12 +14,13 @@ interface Notif {
   created_at: string
 }
 
-interface TareaHoy {
+interface TareaPanel {
   id: string
   nombre: string
   tipo: string
   estado: string
   hora: string | null
+  fecha_limite: string
   id_cliente: string | null
 }
 
@@ -30,10 +31,21 @@ const TIPO_ICON: Record<string, string> = {
   mencion: '💬',
 }
 
-const ESTADO_STYLE: Record<string, string> = {
-  espera: 'text-gray-400',
-  en_curso: 'text-green-400',
-  bloqueada: 'text-red-400',
+function urgenciaTarea(fechaLimite: string, hoy: string): 'vencida' | 'hoy' | 'proxima' {
+  if (fechaLimite < hoy) return 'vencida'
+  if (fechaLimite === hoy) return 'hoy'
+  return 'proxima'
+}
+
+function labelFecha(fechaLimite: string, hoy: string): string {
+  if (fechaLimite < hoy) {
+    const d = new Date(fechaLimite)
+    const diff = Math.floor((new Date(hoy).getTime() - d.getTime()) / 86400000)
+    return `Vencida hace ${diff}d`
+  }
+  if (fechaLimite === hoy) return 'Hoy'
+  const d = new Date(fechaLimite)
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
 }
 
 function tiempoRelativo(iso: string) {
@@ -52,7 +64,8 @@ interface Props {
 export default function NotificacionesPanel({ rol }: Props) {
   const [open, setOpen] = useState(false)
   const [notifs, setNotifs] = useState<Notif[]>([])
-  const [tareas, setTareas] = useState<TareaHoy[]>([])
+  const [tareas, setTareas] = useState<TareaPanel[]>([])
+  const [hoy, setHoy] = useState('')
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -73,12 +86,16 @@ export default function NotificacionesPanel({ rol }: Props) {
     try {
       const r = await fetch('/api/notificaciones/panel')
       if (!r.ok) return
-      const data = await r.json() as { notificaciones: Notif[]; tareasHoy: TareaHoy[] }
+      const data = await r.json() as { notificaciones: Notif[]; tareasHoy: TareaPanel[]; hoy: string }
       const n = data.notificaciones ?? []
       const t = data.tareasHoy ?? []
+      const h = data.hoy ?? new Date().toISOString().slice(0, 10)
       setNotifs(n)
       setTareas(t)
-      setCount(n.length + t.length)
+      setHoy(h)
+      // Badge: notifs no leídas + tareas vencidas o de hoy
+      const urgentes = t.filter(ta => ta.fecha_limite <= h).length
+      setCount(n.length + urgentes)
     } catch { /* ignore */ } finally {
       setLoading(false)
     }
@@ -107,7 +124,8 @@ export default function NotificacionesPanel({ rol }: Props) {
   async function marcarLeida(id: string) {
     setNotifs(prev => {
       const next = prev.filter(n => n.id !== id)
-      setCount(tareas.length + next.length)
+      const urgentes = tareas.filter(ta => ta.fecha_limite <= hoy).length
+      setCount(next.length + urgentes)
       return next
     })
     await fetch('/api/notificaciones', {
@@ -119,7 +137,7 @@ export default function NotificacionesPanel({ rol }: Props) {
 
   async function marcarTodas() {
     setNotifs([])
-    setCount(tareas.length)
+    setCount(tareas.filter(ta => ta.fecha_limite <= hoy).length)
     await fetch('/api/notificaciones', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -183,34 +201,39 @@ export default function NotificacionesPanel({ rol }: Props) {
             <div className="px-4 py-8 text-center text-gray-500 text-xs">Cargando...</div>
           ) : (
             <div className="max-h-96 overflow-y-auto">
-              {/* Tareas de hoy */}
+              {/* Tareas activas */}
               {tareas.length > 0 && (
                 <div>
                   <div className="px-4 py-2 bg-gray-800/50">
                     <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">
-                      Tareas de hoy ({tareas.length})
+                      Mis tareas ({tareas.length})
                     </span>
                   </div>
-                  {tareas.map(t => (
-                    <Link
-                      key={t.id}
-                      href={`/tareas/vista-global?tarea=${t.id}`}
-                      onClick={() => setOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/60 transition-colors border-b border-gray-800/40"
-                    >
-                      <span className="text-sm">
-                        {t.tipo === 'reunion' ? '🤝' : t.tipo === 'visita' ? '📍' : '📋'}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate leading-tight">{t.nombre}</p>
-                        {t.hora && (
-                          <p className={`text-[11px] ${ESTADO_STYLE[t.estado] ?? 'text-gray-500'}`}>
-                            {t.hora.slice(0, 5)} · {t.estado === 'en_curso' ? 'en proceso' : t.estado === 'bloqueada' ? 'bloqueada' : 'pendiente'}
+                  {tareas.map(t => {
+                    const urgencia = urgenciaTarea(t.fecha_limite, hoy)
+                    const fechaLabel = labelFecha(t.fecha_limite, hoy)
+                    return (
+                      <Link
+                        key={t.id}
+                        href={`/tareas/vista-global?tarea=${t.id}`}
+                        onClick={() => setOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/60 transition-colors border-b border-gray-800/40"
+                      >
+                        <span className="text-sm flex-shrink-0">
+                          {t.tipo === 'reunion' ? '🤝' : t.tipo === 'visita' ? '📍' : '📋'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate leading-tight">{t.nombre}</p>
+                          <p className={`text-[11px] ${urgencia === 'vencida' ? 'text-red-400' : urgencia === 'hoy' ? 'text-yellow-400' : 'text-gray-500'}`}>
+                            {fechaLabel}{t.hora ? ` · ${t.hora.slice(0, 5)}` : ''}
+                            {t.estado === 'bloqueada' ? ' · bloqueada' : t.estado === 'en_curso' ? ' · en proceso' : ''}
                           </p>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
+                        </div>
+                        {urgencia === 'vencida' && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />}
+                        {urgencia === 'hoy' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" />}
+                      </Link>
+                    )
+                  })}
                 </div>
               )}
 
