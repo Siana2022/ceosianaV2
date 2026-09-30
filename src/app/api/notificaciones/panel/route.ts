@@ -22,7 +22,7 @@ export async function GET() {
       .select('id, nombre, tipo, estado, hora, id_cliente, ids_responsables')
       .eq('fecha_limite', hoy)
       .neq('estado', 'terminado')
-      .contains('ids_responsables', JSON.stringify([perfil.id_empleado]))
+      .contains('ids_responsables', [perfil.id_empleado])
       .order('hora', { ascending: true, nullsFirst: false }),
   ])
 

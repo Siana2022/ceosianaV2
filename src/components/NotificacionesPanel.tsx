@@ -60,7 +60,6 @@ export default function NotificacionesPanel({ rol }: Props) {
 
   const fetchPanel = useCallback(async () => {
     if (rol === 'admin') {
-      // Para admin: solo el count de alertas
       try {
         const r = await fetch('/api/alertas')
         if (r.ok) {
@@ -75,15 +74,17 @@ export default function NotificacionesPanel({ rol }: Props) {
       const r = await fetch('/api/notificaciones/panel')
       if (!r.ok) return
       const data = await r.json() as { notificaciones: Notif[]; tareasHoy: TareaHoy[] }
-      setNotifs(data.notificaciones ?? [])
-      setTareas(data.tareasHoy ?? [])
-      setCount((data.notificaciones ?? []).length)
+      const n = data.notificaciones ?? []
+      const t = data.tareasHoy ?? []
+      setNotifs(n)
+      setTareas(t)
+      setCount(n.length + t.length)
     } catch { /* ignore */ } finally {
       setLoading(false)
     }
   }, [rol])
 
-  // Initial count fetch
+  // Load on mount to show badge count
   useEffect(() => { fetchPanel() }, [fetchPanel])
 
   // Close on outside click
@@ -104,8 +105,11 @@ export default function NotificacionesPanel({ rol }: Props) {
   }
 
   async function marcarLeida(id: string) {
-    setNotifs(prev => prev.filter(n => n.id !== id))
-    setCount(c => Math.max(0, c - 1))
+    setNotifs(prev => {
+      const next = prev.filter(n => n.id !== id)
+      setCount(tareas.length + next.length)
+      return next
+    })
     await fetch('/api/notificaciones', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -115,7 +119,7 @@ export default function NotificacionesPanel({ rol }: Props) {
 
   async function marcarTodas() {
     setNotifs([])
-    setCount(0)
+    setCount(tareas.length)
     await fetch('/api/notificaciones', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
