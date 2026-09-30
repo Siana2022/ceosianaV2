@@ -4,6 +4,60 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import NotificacionesEmpleado from '@/components/NotificacionesEmpleado'
 
+interface TareaPanel { id: string; nombre: string; tipo: string; estado: string; hora: string | null; fecha_limite: string }
+
+function TareasActivasEmpleado() {
+  const [tareas, setTareas] = useState<TareaPanel[]>([])
+  const [hoy, setHoy] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/notificaciones/panel')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) { setTareas(data.tareasHoy ?? []); setHoy(data.hoy ?? '') }
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading || tareas.length === 0) return null
+
+  function urgencia(f: string) { return f < hoy ? 'vencida' : f === hoy ? 'hoy' : 'proxima' }
+  function labelFecha(f: string) {
+    if (f < hoy) { const d = Math.floor((new Date(hoy).getTime() - new Date(f).getTime()) / 86400000); return `Vencida hace ${d}d` }
+    if (f === hoy) return 'Hoy'
+    return new Date(f).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-800">
+        <h3 className="text-white font-semibold">Mis tareas activas</h3>
+        <p className="text-gray-500 text-xs mt-0.5">{tareas.length} tarea{tareas.length !== 1 ? 's' : ''} pendiente{tareas.length !== 1 ? 's' : ''}</p>
+      </div>
+      <div className="divide-y divide-gray-800/50">
+        {tareas.map(t => {
+          const u = urgencia(t.fecha_limite)
+          return (
+            <Link key={t.id} href={`/tareas/vista-global?tarea=${t.id}`}
+              className="flex items-center gap-3 px-6 py-3.5 hover:bg-gray-800/40 transition-colors">
+              <span className="text-base">{t.tipo === 'reunion' ? '🤝' : t.tipo === 'visita' ? '📍' : '📋'}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm truncate">{t.nombre}</p>
+                <p className={`text-xs mt-0.5 ${u === 'vencida' ? 'text-red-400' : u === 'hoy' ? 'text-yellow-400' : 'text-gray-500'}`}>
+                  {labelFecha(t.fecha_limite)}{t.hora ? ` · ${t.hora.slice(0, 5)}` : ''}
+                  {t.estado === 'bloqueada' ? ' · bloqueada' : t.estado === 'en_curso' ? ' · en proceso' : ''}
+                </p>
+              </div>
+              <span className="text-gray-600 text-xs">Ver →</span>
+            </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 interface AlertaItem { nombre: string; detalle?: string }
 interface Alerta {
   tipo: string
@@ -44,7 +98,7 @@ export default function AlertasPageClient() {
     )
   }
 
-  // EMPLEADO: solo notificaciones personales
+  // EMPLEADO: notificaciones personales + tareas activas
   if (!isAdmin) {
     return (
       <div className="p-6 max-w-2xl space-y-4">
@@ -52,6 +106,7 @@ export default function AlertasPageClient() {
           <h2 className="text-2xl font-bold text-white">Notificaciones</h2>
           <p className="text-gray-400 text-sm mt-1">Tareas y avisos asignados a ti</p>
         </div>
+        <TareasActivasEmpleado />
         <NotificacionesEmpleado />
       </div>
     )
