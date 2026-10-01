@@ -5,6 +5,7 @@ export interface Empleado {
   id: string
   nombre: string
   email: string
+  avatarUrl?: string | null
 }
 
 export interface Departamento {

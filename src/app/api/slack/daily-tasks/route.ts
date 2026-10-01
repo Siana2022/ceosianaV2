@@ -77,7 +77,10 @@ export async function GET(req: NextRequest) {
     const misTareas = tareas.filter(t =>
       Array.isArray(t.ids_responsables) && t.ids_responsables.includes(emp.id)
     )
-    if (!misTareas.length) continue
+    if (!misTareas.length) {
+      if (testEmail) log.push({ nombre: emp.nombre, email, ok: false, error: 'sin_tareas_asignadas' })
+      continue
+    }
 
     const vencidas = misTareas.filter(t => {
       if (!t.fecha_limite) return false

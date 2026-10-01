@@ -605,15 +605,8 @@ export function TareasProvider({
     pushToast(`🔔 Notificación simulada (Slack + email) al responsable del proyecto: "${t?.nombre ?? 'Tarea'}" está bloqueada — ${explicacion.trim() || 'sin detalle todavía'}.`)
   }, [tareas, pushToast])
 
-  const toggleTimerTarea = useCallback((idTarea: string) => {
-    let activado = false
-    setTareas(prev => prev.map(t => {
-      if (t.id !== idTarea) return t
-      activado = !t.timerActivo
-      return { ...t, timerActivo: !t.timerActivo, minutosAcumulados: t.timerActivo ? t.minutosAcumulados + 1 : t.minutosAcumulados }
-    }))
-    pushToast(activado ? '⏱️ Fichaje iniciado para esta tarea (simulado, se vincularía con /fichar).' : '⏱️ Fichaje pausado.')
-  }, [pushToast])
+  // Stub mantenido por compatibilidad — el timer real lo gestiona useTimerTarea.ts
+  const toggleTimerTarea = useCallback((_idTarea: string) => {}, [])
 
   const setMinutosTarea = useCallback((idTarea: string, minutos: number) => {
     const validMinutos = Math.max(0, minutos)
@@ -627,6 +620,21 @@ export function TareasProvider({
     dbPatch(`/api/tareas?id=${idTarea}`, { chat: [...(tareas.find(t => t.id === idTarea)?.chat ?? []), msg] })
     if (mencionesIds.length > 0) {
       const tarea = tareas.find(t => t.id === idTarea)
+      // Notificación in-app para cada mencionado
+      mencionesIds.forEach(idEmpleado => {
+        fetch('/api/notificaciones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idEmpleado,
+            tipo: 'mencion',
+            titulo: `Te mencionaron en "${tarea?.nombre ?? 'una tarea'}"`,
+            mensaje: texto.slice(0, 120),
+            idTarea,
+          }),
+        }).catch(console.error)
+      })
+      // Notificación Slack al canal del cliente
       if (tarea?.idCliente) {
         const menciones = mencionesIds.map(id => nombreEmpleado(id)).join(', ')
         fetch('/api/slack/notify', {

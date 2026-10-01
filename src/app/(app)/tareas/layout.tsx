@@ -21,7 +21,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     { data: rawPlantillas, error: errPlantillas },
   ] = await Promise.all([
     supabase.from('clientes').select('id, nombre, slack_canal').eq('activo', true).order('nombre'),
-    supabase.from('empleados').select('id, nombre, email').eq('activo', true).order('nombre'),
+    supabase.from('empleados').select('id, nombre, email, avatar_url').eq('activo', true).order('nombre'),
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
     supabase
       .from('servicios')
@@ -45,6 +45,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     id: String(e.id),
     nombre: e.nombre,
     email: (e.email as string | null) ?? '',
+    avatarUrl: (e.avatar_url as string | null) ?? null,
   }))
   const departamentos: Departamento[] = (rawDepartamentos ?? []).map((d, i) => ({
     id: String(d.id),

@@ -75,6 +75,28 @@ export async function crearNotificacion(opts: {
   })
 }
 
+// POST /api/notificaciones — crear notificación para un empleado específico (desde cliente)
+export async function POST(req: NextRequest) {
+  const perfil = await getPerfil()
+  if (!perfil?.id_empleado) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const body = await req.json() as { idEmpleado: string; tipo: string; titulo: string; mensaje?: string; idTarea?: string }
+  if (!body.idEmpleado || !body.tipo || !body.titulo) {
+    return NextResponse.json({ error: 'Faltan campos' }, { status: 400 })
+  }
+  const admin = createAdminClient()
+  const { error } = await admin.from('notificaciones_empleado').insert({
+    id_empleado: body.idEmpleado,
+    tipo: body.tipo,
+    titulo: body.titulo,
+    mensaje: body.mensaje ?? null,
+    id_tarea: body.idTarea ?? null,
+    leida: false,
+  })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 // GET /api/notificaciones/count — solo el conteo de no leídas (para el sidebar)
 export async function HEAD() {
   return NextResponse.json({})

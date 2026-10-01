@@ -59,6 +59,15 @@ export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+  const { data: procesos } = await supabase.from('procesos').select('id').eq('id_plantilla', id).limit(1)
+  if (procesos?.length) {
+    return NextResponse.json(
+      { error: 'Esta plantilla está en uso por uno o más clientes. Elimina primero los procesos asociados.' },
+      { status: 409 }
+    )
+  }
+
   const { error } = await supabase.from('plantillas').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

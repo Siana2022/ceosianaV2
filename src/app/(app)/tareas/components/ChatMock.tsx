@@ -56,8 +56,18 @@ export default function ChatMock({ mensajes, empleados, nombreEmpleado, onSend, 
     <div className="space-y-3">
       <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
         {mensajes.length === 0 && <p className="text-gray-600 text-xs">Sin mensajes todavía.</p>}
-        {mensajes.map(m => (
+        {mensajes.map(m => {
+          const autor = empleados.find(e => e.id === m.autorId)
+          return (
           <div key={m.id} className="group bg-gray-800/60 rounded-lg px-3 py-2 relative">
+            <div className="flex items-start gap-2.5">
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-700 overflow-hidden flex items-center justify-center text-xs text-gray-400 mt-0.5">
+                {autor?.avatarUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={autor.avatarUrl} alt={autor.nombre} className="w-full h-full object-cover" />
+                  : (autor?.nombre?.[0] ?? '?')}
+              </div>
+            <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500 mb-0.5">{nombreEmpleado(m.autorId)} · {formatFecha(m.fecha)}</p>
@@ -96,8 +106,10 @@ export default function ChatMock({ mensajes, empleados, nombreEmpleado, onSend, 
                 </div>
               )}
             </div>
+            </div>
+            </div>
           </div>
-        ))}
+        )})}
       </div>
       <div className="relative">
         {mostrarMenciones && sugeridos.length > 0 && (

@@ -10,6 +10,7 @@ interface Perfil {
   slack_username: string | null
   google_calendar_id: string | null
   googleConnected: boolean
+  avatarUrl: string | null
 }
 
 export default function PerfilPage() {
@@ -18,6 +19,7 @@ export default function PerfilPage() {
   const [slack, setSlack] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   // Configuración de agencia (solo admin)
   const [umbral, setUmbral] = useState('')
@@ -67,6 +69,22 @@ export default function PerfilPage() {
     if (params.get('error') === 'token_failed') setMsg('❌ Error al conectar con Google')
   }, [params])
 
+  async function uploadAvatar(file: File) {
+    setAvatarUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/avatares', { method: 'POST', body: fd })
+    setAvatarUploading(false)
+    if (res.ok) {
+      const { url } = await res.json() as { url: string }
+      setPerfil(p => p ? { ...p, avatarUrl: url } : p)
+      setMsg('✅ Foto actualizada')
+      setTimeout(() => setMsg(''), 2000)
+    } else {
+      setMsg('❌ Error al subir la foto')
+    }
+  }
+
   async function saveSlack() {
     setSaving(true)
     await fetch('/api/perfil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slack_username: slack }) })
@@ -106,9 +124,34 @@ export default function PerfilPage() {
 
   return (
     <div className="p-8 max-w-lg space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Mi perfil</h1>
-        <p className="text-gray-500 text-sm mt-1">{perfil.email} · <span className="capitalize">{perfil.rol}</span></p>
+      <div className="flex items-center gap-5">
+        <label className="relative cursor-pointer group flex-shrink-0">
+          <div className="w-20 h-20 rounded-full bg-gray-700 overflow-hidden flex items-center justify-center border-2 border-gray-600 group-hover:border-blue-500 transition-colors">
+            {perfil.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={perfil.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-3xl text-gray-500">👤</span>
+            )}
+          </div>
+          {avatarUploading && (
+            <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+              <span className="text-white text-xs">...</span>
+            </div>
+          )}
+          <div className="absolute bottom-0 right-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow">✏️</div>
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f) }}
+          />
+        </label>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Mi perfil</h1>
+          <p className="text-gray-500 text-sm mt-1">{perfil.email} · <span className="capitalize">{perfil.rol}</span></p>
+          <p className="text-gray-600 text-xs mt-1">Haz clic en la foto para cambiarla</p>
+        </div>
       </div>
 
       {msg && <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white">{msg}</div>}

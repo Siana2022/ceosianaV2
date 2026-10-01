@@ -606,7 +606,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           <div className="border-t border-gray-800 pt-4">
             <label className="block text-gray-400 text-sm mb-2">✅ Checklist</label>
             <div className="space-y-1.5 mb-2">
-              {draft.checklist.map(item => (
+              {draft.checklist.map((item, idx) => (
                 <div key={item.id} className="flex items-center gap-2 group">
                   <input
                     type="checkbox"
@@ -617,11 +617,41 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                     }))}
                     className="accent-blue-500 w-4 h-4 flex-shrink-0"
                   />
-                  <span className={`flex-1 text-sm ${item.hecho ? 'line-through text-gray-500' : 'text-gray-200'}`}>{item.texto}</span>
-                  <button
-                    onClick={() => setDraft(d => ({ ...d, checklist: d.checklist.filter(c => c.id !== item.id) }))}
-                    className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 text-xs transition-opacity"
-                  >✕</button>
+                  <input
+                    type="text"
+                    value={item.texto}
+                    onChange={e => setDraft(d => ({
+                      ...d,
+                      checklist: d.checklist.map(c => c.id === item.id ? { ...c, texto: e.target.value } : c),
+                    }))}
+                    className={`flex-1 text-sm bg-transparent border-none outline-none focus:bg-gray-800 focus:px-2 focus:rounded ${item.hecho ? 'line-through text-gray-500' : 'text-gray-200'}`}
+                  />
+                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => setDraft(d => {
+                        const list = [...d.checklist]
+                        if (idx === 0) return d
+                        ;[list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]
+                        return { ...d, checklist: list }
+                      })}
+                      className="text-gray-600 hover:text-gray-300 text-xs px-0.5"
+                      title="Subir"
+                    >↑</button>
+                    <button
+                      onClick={() => setDraft(d => {
+                        const list = [...d.checklist]
+                        if (idx === list.length - 1) return d
+                        ;[list[idx], list[idx + 1]] = [list[idx + 1], list[idx]]
+                        return { ...d, checklist: list }
+                      })}
+                      className="text-gray-600 hover:text-gray-300 text-xs px-0.5"
+                      title="Bajar"
+                    >↓</button>
+                    <button
+                      onClick={() => setDraft(d => ({ ...d, checklist: d.checklist.filter(c => c.id !== item.id) }))}
+                      className="text-gray-600 hover:text-red-400 text-xs px-0.5"
+                    >✕</button>
+                  </div>
                 </div>
               ))}
               {draft.checklist.length === 0 && <p className="text-gray-600 text-xs">Sin elementos.</p>}

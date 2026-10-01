@@ -10,14 +10,25 @@ export async function GET() {
   const admin = createAdminClient()
   const { data } = await admin
     .from('perfiles')
-    .select('id, rol, slack_username, google_calendar_id, google_refresh_token')
+    .select('id, rol, slack_username, google_calendar_id, google_refresh_token, id_empleado')
     .eq('id', user.id)
     .maybeSingle()
+
+  let avatarUrl: string | null = null
+  if (data?.id_empleado) {
+    const { data: emp } = await admin
+      .from('empleados')
+      .select('avatar_url')
+      .eq('id', data.id_empleado)
+      .maybeSingle()
+    avatarUrl = (emp as Record<string, unknown> | null)?.avatar_url as string | null ?? null
+  }
 
   return NextResponse.json({
     ...data,
     email: user.email,
     googleConnected: !!data?.google_refresh_token,
+    avatarUrl,
   })
 }
 
