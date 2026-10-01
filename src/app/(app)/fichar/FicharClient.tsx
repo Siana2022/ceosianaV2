@@ -69,6 +69,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   const [manualHoras, setManualHoras] = useState('')
   const [manualMin, setManualMin] = useState('30')
   const [tareaId, setTareaId] = useState('')           // tarea seleccionada de procesos
+  const [timerTareaId, setTimerTareaId] = useState<string | null>(null)  // ID de la tarea creada/marcada al iniciar
   const [timerRunning, setTimerRunning] = useState(false)
   const [timerStart, setTimerStart] = useState<number | null>(null)
   const [timerDbId, setTimerDbId] = useState<string | null>(null)
@@ -84,10 +85,10 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     const saved = localStorage.getItem(TIMER_KEY)
     if (saved) {
       try {
-        const { startTs, d, c, dep, srv, tid, dbId } = JSON.parse(saved)
+        const { startTs, d, c, dep, srv, tid, dbId, ttid } = JSON.parse(saved)
         setTimerStart(startTs); setTimerRunning(true)
         setDescripcion(d ?? ''); setClienteId(c ?? ''); setDepartamentoId(dep ?? ''); setProyectoOtrosId(srv ?? ''); setTareaId(tid ?? '')
-        setTimerDbId(dbId ?? null)
+        setTimerDbId(dbId ?? null); setTimerTareaId(ttid ?? null)
         const elapsedSecs = Math.floor((Date.now() - startTs) / 1000)
         setElapsed(elapsedSecs)
         // Aviso si el timer lleva más de 8h abierto (posible olvido)
@@ -196,25 +197,32 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (res.ok) { const d = await res.json(); dbId = d.id ?? null }
     } catch { /* non-critical */ }
 
-    // Marcar tarea como en_curso si existe, o crearla si no existe
+    // Marcar tarea como en_curso si existe, o crearla si no existe; capturar su ID
     const cliParaTimer = clienteId && clienteId !== '__otros__' ? clienteId : null
     const tareaActivaExiste = tareas.find(t => t.nombre.trim().toLowerCase() === descripcion.trim().toLowerCase() && t.idCliente === cliParaTimer)
-    if (tareaActivaExiste && tareaActivaExiste.estado !== 'en_curso') {
-      fetch(`/api/tareas?id=${tareaActivaExiste.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'en_curso' }),
-      }).catch(() => {})
-    } else if (!tareaActivaExiste && descripcion.trim() && cliParaTimer) {
+    let capturedTareaId: string | null = null
+    if (tareaActivaExiste) {
+      capturedTareaId = tareaActivaExiste.id
+      if (tareaActivaExiste.estado !== 'en_curso') {
+        fetch(`/api/tareas?id=${tareaActivaExiste.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'en_curso' }),
+        }).catch(() => {})
+      }
+    } else if (descripcion.trim() && cliParaTimer) {
       const empId = perfil.id_empleado
       const deptParaTimer = departamentoId && departamentoId !== '__otros__' ? departamentoId : null
-      fetch('/api/tareas', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: descripcion.trim(), idCliente: cliParaTimer, idDepartamento: deptParaTimer, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
-      }).catch(() => {})
+      try {
+        const tareaRes = await fetch('/api/tareas', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre: descripcion.trim(), idCliente: cliParaTimer, idDepartamento: deptParaTimer, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
+        })
+        if (tareaRes.ok) { const td = await tareaRes.json(); capturedTareaId = td.id ?? null }
+      } catch { /* non-critical */ }
     }
 
-    setTimerStart(now); setTimerRunning(true); setElapsed(0); setTimerDbId(dbId)
-    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, srv: proyectoOtrosId, tid: tareaId, dbId }))
+    setTimerStart(now); setTimerRunning(true); setElapsed(0); setTimerDbId(dbId); setTimerTareaId(capturedTareaId)
+    localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs: now, d: descripcion, c: clienteId, dep: departamentoId, srv: proyectoOtrosId, tid: tareaId, dbId, ttid: capturedTareaId }))
     startingRef.current = false
   }
 
@@ -258,12 +266,13 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (departamentoId === '__otros__' && departamentoOtros.trim()) finalDesc = `[Tipo: ${departamentoOtros.trim()}] ${finalDesc}`
       // Now clear state + localStorage and persist
       const savedTareaId = tareaId
-      setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
+      const savedTimerTareaId = timerTareaId  // tarea creada/marcada al iniciar el timer
+      setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null); setTimerTareaId(null)
       localStorage.removeItem(TIMER_KEY)
       setSaving(true)
       try {
-        // Resolve tarea vinculada
-        let finalTareaId: string | null = savedTareaId || null
+        // Resolve tarea vinculada: prioridad al dropdown explícito, luego la capturada al iniciar
+        let finalTareaId: string | null = savedTareaId || savedTimerTareaId || null
         // Sumar minutos a la tarea (delta atómico: el servidor lee el valor actual y suma)
         if (finalTareaId) {
           await fetch(`/api/tareas?id=${finalTareaId}`, {
@@ -276,28 +285,30 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
           body: JSON.stringify({ descripcion: finalDesc, id_cliente: finalClienteId, id_departamento: finalDeptId, id_servicio: finalServicioId, minutos, hora_inicio: hi, hora_fin: hf }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error al guardar'); return }
-        // Marcar tarea como terminado al guardar el timer (buscar por desc original, sin prefijos)
-        const nombreLower = descParaBusqueda.trim().toLowerCase()
-        const tareaStopExiste = tareas.find(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
-        if (tareaStopExiste) {
-          // Si ya hay tarea explícita vinculada (finalTareaId), no duplicar minutos; solo actualizar estado
-          const yaContabilizados = finalTareaId === tareaStopExiste.id
-          fetch(`/api/tareas?id=${tareaStopExiste.id}`, {
+        // Marcar tarea como terminado
+        if (finalTareaId) {
+          // Ya tenemos el ID exacto — solo actualizamos estado (los minutos ya se sumaron arriba)
+          fetch(`/api/tareas?id=${finalTareaId}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ estado: 'terminado', ...(!yaContabilizados ? { minutosIncremento: minutos } : {}) }),
+            body: JSON.stringify({ estado: 'terminado' }),
           }).catch(() => {})
-        } else if (finalDesc.trim() && finalClienteId) {
-          const empId = perfil.id_empleado
-          fetch('/api/tareas', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre: finalDesc.trim(), idCliente: finalClienteId, idDepartamento: finalDeptId, estado: 'terminado', tipo: 'tarea', minutosAcumulados: minutos, ...(empId ? { idsResponsables: [empId] } : {}) }),
-          }).catch(() => {})
+        } else {
+          // Sin tarea vinculada: buscar por nombre en la lista cargada al SSR como fallback
+          const nombreLower = descParaBusqueda.trim().toLowerCase()
+          const tareaStopExiste = tareas.find(t => t.nombre.trim().toLowerCase() === nombreLower && t.idCliente === finalClienteId)
+          if (tareaStopExiste) {
+            fetch(`/api/tareas?id=${tareaStopExiste.id}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ estado: 'terminado', minutosIncremento: minutos }),
+            }).catch(() => {})
+          }
+          // Si no existe tampoco en SSR, no crear duplicado — el time_log ya está guardado
         }
         setDescripcion(''); setClienteId(''); setProyectoOtrosId(''); setProyectoOtrosManual(''); setDepartamentoId(''); setDepartamentoOtros(''); setTareaId('')
         onSaved()
       } finally { setSaving(false) }
     } else {
-      setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null)
+      setTimerRunning(false); setTimerStart(null); setElapsed(0); setTimerDbId(null); setTimerTareaId(null)
       localStorage.removeItem(TIMER_KEY)
       await save({ minutos, hora_inicio: hi, hora_fin: hf, fecha: todayStr() })
     }
