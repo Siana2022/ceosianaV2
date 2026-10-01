@@ -23,6 +23,7 @@ export interface Servicio {
   id: string
   idCliente: string
   nombre: string
+  notas?: string | null
   tipoServicio: string
 }
 

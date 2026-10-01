@@ -28,7 +28,7 @@ export default async function IngresosPage({
       .order('concepto'),
     supabase
       .from('servicios')
-      .select('id, id_cliente, nombre, precio_base, id_departamento, id_responsable, tipo')
+      .select('id, id_cliente, nombre, notas, precio_base, id_departamento, id_responsable, tipo')
       .eq('activo', true)
       .eq('tipo', 'recurrente'),
     supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),

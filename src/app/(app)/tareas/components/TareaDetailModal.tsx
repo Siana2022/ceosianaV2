@@ -462,7 +462,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
               >
                 <option value="">Sin servicio específico</option>
                 {serviciosDelCliente.map(s => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                  <option key={s.id} value={s.id}>{s.notas ? `${s.nombre} · ${s.notas}` : s.nombre}</option>
                 ))}
               </select>
             </div>

@@ -53,7 +53,7 @@ export default function ImportarPlantillaModal({ idCliente, onClose }: { idClien
                 <label className="block text-gray-400 text-sm mb-1.5">Servicio contratado</label>
                 <select value={idServicio} onChange={e => setIdServicio(e.target.value)} className={inputCls}>
                   <option value="">Sin vincular a un servicio concreto</option>
-                  {serviciosCliente.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  {serviciosCliente.map(s => <option key={s.id} value={s.id}>{s.notas ? `${s.nombre} · ${s.notas}` : s.nombre}</option>)}
                 </select>
                 {serviciosCliente.length === 0 && (
                   <p className="text-gray-600 text-xs mt-1">Este cliente no tiene servicios contratados (mock).</p>

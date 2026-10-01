@@ -25,7 +25,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     supabase.from('departamentos').select('id, nombre').eq('activo', true).order('nombre'),
     supabase
       .from('servicios')
-      .select('id, nombre, id_cliente, tipo_servicio:id_tipo_servicio(nombre)')
+      .select('id, nombre, notas, id_cliente, tipo_servicio:id_tipo_servicio(nombre)')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('tareas').select('*').order('created_at', { ascending: false }),
@@ -58,6 +58,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       ? String((s as { id_cliente: unknown }).id_cliente)
       : '',
     nombre: s.nombre,
+    notas: (s as { notas?: string | null }).notas ?? null,
     tipoServicio: ((s.tipo_servicio as unknown as { nombre: string } | null)?.nombre) ?? '',
   }))
 
