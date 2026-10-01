@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createAdminClient()
-  const base = new URL(req.url).origin
+  // VERCEL_PROJECT_PRODUCTION_URL es la URL canónica de producción sin https://
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : new URL(req.url).origin
   const testEmail = new URL(req.url).searchParams.get('email')
 
   let query = admin.from('empleados').select('id, nombre, email, slack_email').eq('activo', true)
