@@ -81,7 +81,10 @@ export async function GET(req: NextRequest) {
       Array.isArray(t.ids_responsables) && t.ids_responsables.includes(emp.id)
     )
     if (!misTareas.length) {
-      if (testEmail) log.push({ nombre: emp.nombre, email, ok: false, error: 'sin_tareas_asignadas' })
+      const texto = `🌅 *Buenos días, ${emp.nombre}* — hoy no tienes ninguna tarea activa asignada. Habla con ANAIS que lo arregla enseguida 😊`
+      const result = await sendSlackDMDebug(email, texto)
+      if (result.ok) sent++
+      if (testEmail) log.push({ nombre: emp.nombre, email, sin_tareas: true, ...result })
       continue
     }
 
