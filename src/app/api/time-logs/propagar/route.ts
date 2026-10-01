@@ -31,8 +31,19 @@ export async function POST(req: NextRequest) {
   if (!responsables.length) return NextResponse.json({ ok: true })
 
   const fechaLogs = fecha ?? new Date().toISOString().slice(0, 10)
-  const inserts = responsables.map(idEmpleado => ({
+
+  // Evitar duplicados: si ya existe algún time_log con id_tarea para estos responsables, no reinsertar
+  const { data: existing } = await admin
+    .from('time_logs')
+    .select('id_empleado')
+    .eq('id_tarea', id_tarea)
+  const yaFichados = new Set((existing ?? []).map((r: { id_empleado: string }) => r.id_empleado))
+  const pendientes = responsables.filter(id => !yaFichados.has(id))
+  if (!pendientes.length) return NextResponse.json({ ok: true, skipped: true })
+
+  const inserts = pendientes.map(idEmpleado => ({
     id_empleado: idEmpleado,
+    id_tarea,
     id_cliente: tarea.id_cliente ?? null,
     id_servicio: tarea.id_servicio ?? null,
     id_departamento: tarea.id_departamento ?? null,

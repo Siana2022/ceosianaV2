@@ -179,6 +179,7 @@ export async function PATCH(req: NextRequest) {
   }
   if (hora_fin !== undefined) updatePayload.hora_fin = hora_fin || null
   if (hora_inicio !== undefined) updatePayload.hora_inicio = hora_inicio || null
+  if (id_tarea !== undefined) updatePayload.id_tarea = id_tarea || null
 
   const { data, error } = await supabase.from('time_logs')
     .update(updatePayload)
@@ -222,8 +223,16 @@ async function propagarTiempoReunion(opts: {
   const otros = ((tarea.ids_responsables as string[]) ?? []).filter(id => id !== idEmpleadoActual)
   if (!otros.length) return
 
-  const inserts = otros.map(idEmpleado => ({
+  // Evitar duplicados: no reinsertar si ya hay log con id_tarea para este empleado
+  const { data: existentes } = await admin
+    .from('time_logs').select('id_empleado').eq('id_tarea', idTarea)
+  const yaFichados = new Set((existentes ?? []).map((r: { id_empleado: string }) => r.id_empleado))
+  const pendientes = otros.filter(id => !yaFichados.has(id))
+  if (!pendientes.length) return
+
+  const inserts = pendientes.map(idEmpleado => ({
     id_empleado: idEmpleado,
+    id_tarea: idTarea,
     id_cliente: logBase.id_cliente ?? null,
     id_servicio: logBase.id_servicio ?? null,
     id_departamento: logBase.id_departamento ?? null,

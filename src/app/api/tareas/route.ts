@@ -2,7 +2,7 @@ import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { syncTareaToAllResponsables } from '@/lib/google/syncTarea'
-import { sendSlackMessage, emailsToMenciones } from '@/lib/slack'
+import { sendSlackMessage, sendSlackDM, emailsToMenciones } from '@/lib/slack'
 
 async function notificarNuevosResponsables(
   idTarea: string, nombreTarea: string, nuevos: string[], antiguos: string[]
@@ -174,6 +174,16 @@ export async function POST(req: NextRequest) {
             cliente: clienteInfo.nombre, departamento: depNombre,
           }))
         }
+        // DM individual a cada responsable nuevo
+        const adminDm = createAdminClient()
+        const { data: empRows } = await adminDm
+          .from('empleados').select('id, email, slack_email').in('id', responsableIds)
+        ;(empRows ?? []).forEach((emp: { id: string; email: string | null; slack_email: string | null }) => {
+          const dmEmail = (emp.slack_email || emp.email) ?? ''
+          if (dmEmail) {
+            sendSlackDM(dmEmail, `📋 *Nueva tarea asignada*\n*${tarea.nombre}*\n🔗 <${base}/tareas/vista-global?tarea=${tarea.id}|Ver tarea →>`).catch(() => {})
+          }
+        })
       }
     } catch (e) { console.error('[tareas POST] slack error:', e) }
     return NextResponse.json(tarea)
@@ -209,7 +219,7 @@ export async function PATCH(req: NextRequest) {
     // Calendar + Slack: awaited (Vercel kills background IIFEs) pero con try/catch individuales
     const needsTareaFetch = body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined || body.estado === 'bloqueada' || body.estado === 'terminado' || (newResponsables && newResponsables.length > 0)
     if (needsTareaFetch) {
-      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente, id_departamento').eq('id', id).maybeSingle()
+      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente, id_departamento, id_servicio, tipo, minutos_acumulados').eq('id', id).maybeSingle()
       if (tarea) {
         const respIds = (tarea.ids_responsables as string[]) ?? []
         try {
@@ -235,14 +245,27 @@ export async function PATCH(req: NextRequest) {
             nombreDepartamento(tarea.id_departamento as string | null),
           ])
           if (clienteInfo.canal) {
-            if (newResponsables && newResponsables.length > 0 && oldResponsables.length === 0) {
-              const menciones = await mencionesResponsables(respIds)
-              const fecha = tarea.fecha_limite ? new Date(tarea.fecha_limite as string).toLocaleDateString('es-ES') : '—'
-              await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
-                nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
-                menciones, fecha, tareaId: id, base,
-                cliente: clienteInfo.nombre, departamento: depNombre,
-              }))
+            if (newResponsables && newResponsables.length > 0) {
+              const realmenteNuevos = newResponsables.filter((rid: string) => !oldResponsables.includes(rid))
+              if (realmenteNuevos.length > 0) {
+                const menciones = await mencionesResponsables(respIds)
+                const fecha = tarea.fecha_limite ? new Date(tarea.fecha_limite as string).toLocaleDateString('es-ES') : '—'
+                await sendSlackMessage(clienteInfo.canal, slackMsgNuevaTarea({
+                  nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
+                  menciones, fecha, tareaId: id, base,
+                  cliente: clienteInfo.nombre, departamento: depNombre,
+                }))
+                // DM individual a cada nuevo responsable
+                const admin = createAdminClient()
+                const { data: empRows } = await admin
+                  .from('empleados').select('id, email, slack_email').in('id', realmenteNuevos)
+                ;(empRows ?? []).forEach((emp: { id: string; email: string | null; slack_email: string | null }) => {
+                  const dmEmail = (emp.slack_email || emp.email) ?? ''
+                  if (dmEmail) {
+                    sendSlackDM(dmEmail, `📋 *Nueva tarea asignada*\n*${tarea.nombre}*\n🔗 <${base}/tareas/vista-global?tarea=${id}|Ver tarea →>`).catch(() => {})
+                  }
+                })
+              }
             }
             if (body.estado === 'bloqueada' || body.estado === 'terminado') {
               const link = `<${base}/tareas/vista-global?tarea=${id}|Ver tarea →>`
@@ -253,6 +276,32 @@ export async function PATCH(req: NextRequest) {
             }
           }
         } catch (e) { console.error('[tareas PATCH] slack error:', e) }
+
+        // Fichaje automático: al marcar reunión/visita como terminada con minutos > 0
+        if (body.estado === 'terminado' && (tarea.tipo === 'reunion' || tarea.tipo === 'visita')) {
+          const minutos = Number(tarea.minutos_acumulados ?? 0)
+          if (minutos > 0 && respIds.length > 0) {
+            const admin = createAdminClient()
+            // Comprobar si ya hay fichajes para esta tarea (creados por el timer)
+            const { data: logsExistentes } = await admin.from('time_logs').select('id_empleado').eq('id_tarea', id)
+            const yaFichados = new Set((logsExistentes ?? []).map((r: { id_empleado: string }) => r.id_empleado))
+            const pendientes = respIds.filter((empId: string) => !yaFichados.has(empId))
+            if (pendientes.length > 0) {
+              const fecha = (tarea.fecha_limite as string | null) ?? new Date().toISOString().slice(0, 10)
+              const inserts = pendientes.map((idEmpleado: string) => ({
+                id_empleado: idEmpleado,
+                id_tarea: id,
+                id_cliente: tarea.id_cliente ?? null,
+                id_servicio: (tarea as Record<string, unknown>).id_servicio ?? null,
+                id_departamento: tarea.id_departamento ?? null,
+                descripcion: tarea.nombre as string,
+                fecha,
+                minutos,
+              }))
+              admin.from('time_logs').insert(inserts).then(({ error: e }) => { if (e) console.error('[tareas PATCH] auto-fichaje error:', e) })
+            }
+          }
+        }
       }
     }
     return NextResponse.json({ ok: true })
