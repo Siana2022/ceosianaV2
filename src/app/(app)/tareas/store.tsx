@@ -615,7 +615,7 @@ export function TareasProvider({
   }, [])
 
   const addChatMensajeTarea = useCallback((idTarea: string, texto: string, mencionesIds: string[]) => {
-    const msg: ChatMensaje = { id: nextId('chat'), autorId: 'emp-1', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
+    const msg: ChatMensaje = { id: nextId('chat'), autorId: idEmpleadoActual ?? '', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
     setTareas(prev => prev.map(t => t.id === idTarea ? { ...t, chat: [...t.chat, msg] } : t))
     dbPatch(`/api/tareas?id=${idTarea}`, { chat: [...(tareas.find(t => t.id === idTarea)?.chat ?? []), msg] })
     if (mencionesIds.length > 0) {
@@ -633,6 +633,15 @@ export function TareasProvider({
             idTarea,
           }),
         }).catch(console.error)
+        // Slack DM al mencionado
+        fetch('/api/slack/dm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idEmpleado,
+            text: `💬 *Te han mencionado en "${tarea?.nombre ?? 'una tarea'}"*\n"${texto.slice(0, 200)}"`,
+          }),
+        }).catch(console.error)
       })
       // Notificación Slack al canal del cliente
       if (tarea?.idCliente) {
@@ -647,7 +656,7 @@ export function TareasProvider({
         }).catch(console.error)
       }
     }
-  }, [nombreEmpleado, tareas])
+  }, [nombreEmpleado, tareas, idEmpleadoActual])
 
   const editChatMensajeTarea = useCallback((idTarea: string, idMensaje: string, texto: string) => {
     setTareas(prev => prev.map(t => {
