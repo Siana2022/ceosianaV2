@@ -116,8 +116,8 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
       actions.setMinutosTarea(tarea.id, draft.minutosAcumulados)
     }
 
-    // Propagate manual time to all responsables if no timer was used this session
-    if (esReunion && draft.estado === 'terminado' && !timerEstuvoRunning && minutosManual > 0) {
+    // Propagate manual time to time_logs if no timer was used this session
+    if (!timerEstuvoRunning && minutosManual > 0) {
       fetch('/api/time-logs/propagar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,6 +125,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           id_tarea: tarea.id,
           minutos: minutosManual,
           fecha: new Date().toISOString().slice(0, 10),
+          id_empleado_actual: state.idEmpleadoActual ?? null,
         }),
       }).catch(() => {})
     }

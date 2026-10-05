@@ -9,7 +9,9 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { id_tarea, minutos, fecha } = body as { id_tarea: string; minutos: number; fecha: string }
+  const { id_tarea, minutos, fecha, id_empleado_actual } = body as {
+    id_tarea: string; minutos: number; fecha: string; id_empleado_actual?: string | null
+  }
 
   if (!id_tarea || !minutos || minutos <= 0) {
     return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 })
@@ -23,11 +25,19 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!tarea) return NextResponse.json({ error: 'Tarea no encontrada' }, { status: 404 })
-  if (tarea.tipo !== 'reunion' && tarea.tipo !== 'visita') {
-    return NextResponse.json({ ok: true })
+
+  const esReunion = tarea.tipo === 'reunion' || tarea.tipo === 'visita'
+
+  // For regular tasks: only log for the person saving (id_empleado_actual)
+  // For reunions/visitas: log for all responsables
+  let responsables: string[]
+  if (esReunion) {
+    responsables = (tarea.ids_responsables as string[]) ?? []
+  } else {
+    if (!id_empleado_actual) return NextResponse.json({ ok: true })
+    responsables = [id_empleado_actual]
   }
 
-  const responsables = (tarea.ids_responsables as string[]) ?? []
   if (!responsables.length) return NextResponse.json({ ok: true })
 
   const fechaLogs = fecha ?? new Date().toISOString().slice(0, 10)
