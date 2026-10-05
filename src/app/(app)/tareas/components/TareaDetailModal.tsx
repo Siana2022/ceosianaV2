@@ -126,6 +126,9 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           minutos: minutosManual,
           fecha: new Date().toISOString().slice(0, 10),
           id_empleado_actual: state.idEmpleadoActual ?? null,
+          id_cliente: draft.idCliente ?? null,
+          id_servicio: draft.idServicio ?? null,
+          id_departamento: draft.idDepartamento ?? null,
         }),
       }).catch(() => {})
     }

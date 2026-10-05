@@ -9,8 +9,9 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { id_tarea, minutos, fecha, id_empleado_actual } = body as {
+  const { id_tarea, minutos, fecha, id_empleado_actual, id_cliente, id_servicio, id_departamento } = body as {
     id_tarea: string; minutos: number; fecha: string; id_empleado_actual?: string | null
+    id_cliente?: string | null; id_servicio?: string | null; id_departamento?: string | null
   }
 
   if (!id_tarea || !minutos || minutos <= 0) {
@@ -58,9 +59,9 @@ export async function POST(req: NextRequest) {
   const inserts = pendientes.map(idEmpleado => ({
     id_empleado: idEmpleado,
     id_tarea,
-    id_cliente: tarea.id_cliente ?? null,
-    id_servicio: tarea.id_servicio ?? null,
-    id_departamento: tarea.id_departamento ?? null,
+    id_cliente: id_cliente ?? tarea.id_cliente ?? null,
+    id_servicio: id_servicio ?? tarea.id_servicio ?? null,
+    id_departamento: id_departamento ?? tarea.id_departamento ?? null,
     descripcion: tarea.nombre as string,
     fecha: fechaLogs,
     minutos: Math.round(minutos),
