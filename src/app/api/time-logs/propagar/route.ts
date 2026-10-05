@@ -42,14 +42,18 @@ export async function POST(req: NextRequest) {
 
   const fechaLogs = fecha ?? new Date().toISOString().slice(0, 10)
 
-  // Evitar duplicados: si ya existe algún time_log con id_tarea para estos responsables, no reinsertar
-  const { data: existing } = await admin
-    .from('time_logs')
-    .select('id_empleado')
-    .eq('id_tarea', id_tarea)
-  const yaFichados = new Set((existing ?? []).map((r: { id_empleado: string }) => r.id_empleado))
-  const pendientes = responsables.filter(id => !yaFichados.has(id))
-  if (!pendientes.length) return NextResponse.json({ ok: true, skipped: true })
+  // Para reuniones/visitas: evitar duplicados (la reunión solo se registra una vez por persona)
+  // Para tareas normales: siempre insertar (el delta de minutos puede crecer en varias sesiones)
+  let pendientes = responsables
+  if (esReunion) {
+    const { data: existing } = await admin
+      .from('time_logs')
+      .select('id_empleado')
+      .eq('id_tarea', id_tarea)
+    const yaFichados = new Set((existing ?? []).map((r: { id_empleado: string }) => r.id_empleado))
+    pendientes = responsables.filter(id => !yaFichados.has(id))
+    if (!pendientes.length) return NextResponse.json({ ok: true, skipped: true })
+  }
 
   const inserts = pendientes.map(idEmpleado => ({
     id_empleado: idEmpleado,
