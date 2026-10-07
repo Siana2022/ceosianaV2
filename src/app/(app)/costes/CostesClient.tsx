@@ -32,6 +32,7 @@ interface SueldoRow {
   coste_total: number | null
   mes: number
   anio: number
+  fecha_baja: string | null
 }
 
 interface Props {
@@ -423,10 +424,10 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
   const matrizClientes = buildMatriz(gastosClientes)
 
   // Sueldos: empleado → (mes → coste_total)
-  const sueldosAnualesMap = new Map<string, { nombre: string; meses: Map<number, number | null> }>()
+  const sueldosAnualesMap = new Map<string, { nombre: string; fechaBaja: string | null; meses: Map<number, number | null> }>()
   for (const s of sueldos) {
     if (!sueldosAnualesMap.has(s.id_empleado))
-      sueldosAnualesMap.set(s.id_empleado, { nombre: s.nombre, meses: new Map() })
+      sueldosAnualesMap.set(s.id_empleado, { nombre: s.nombre, fechaBaja: s.fecha_baja ?? null, meses: new Map() })
     sueldosAnualesMap.get(s.id_empleado)!.meses.set(s.mes, s.coste_total)
   }
   const empAnuales = Array.from(sueldosAnualesMap.entries())
@@ -739,23 +740,40 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                   {empAnuales.length === 0 && (
                     <tr><td colSpan={14} className="text-center text-gray-500 py-10">Sin empleados</td></tr>
                   )}
-                  {empAnuales.map(([empId, { nombre, meses }]) => {
-                    const rowTotal = Array.from(meses.values()).reduce((a: number, v) => a + Number(v ?? 0), 0)
+                  {empAnuales.map(([empId, { nombre, fechaBaja, meses }]) => {
+                    // Determine from which month the employee is on baja (same year)
+                    let bajaDesdesMes: number | null = null
+                    if (fechaBaja) {
+                      const [bajaAnio, bajaMes] = fechaBaja.split('-').map(Number)
+                      if (bajaAnio === anio) bajaDesdesMes = bajaMes + 1
+                      else if (bajaAnio < anio) bajaDesdesMes = 1
+                    }
+                    const rowTotal = Array.from(meses.entries()).reduce((a, [m, v]) => {
+                      if (bajaDesdesMes != null && m >= bajaDesdesMes) return a
+                      return a + Number(v ?? 0)
+                    }, 0)
                     return (
                       <tr key={empId} className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                        <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium">{nombre}</td>
+                        <td className="py-2 px-4 sticky left-0 bg-gray-900 z-10 text-white font-medium">
+                          {nombre}
+                          {fechaBaja && <span className="ml-2 text-gray-500 font-normal text-xs">baja {fechaBaja.slice(0, 7)}</span>}
+                        </td>
                         {Array.from({ length: 12 }, (_, i) => {
-                          const v = meses.get(i + 1)
-                          const isEditingSueldo = editingAnnualSueldoCell?.empId === empId && editingAnnualSueldoCell?.mes === i + 1
+                          const mes = i + 1
+                          const afterBaja = bajaDesdesMes != null && mes >= bajaDesdesMes
+                          const v = meses.get(mes)
+                          const isEditingSueldo = !afterBaja && editingAnnualSueldoCell?.empId === empId && editingAnnualSueldoCell?.mes === mes
                           return (
                             <td key={i} className="py-1 px-1 text-center">
-                              {isEditingSueldo ? (
+                              {afterBaja ? (
+                                <span className="block w-full min-w-[60px] py-1 text-gray-800 bg-gray-800/20 rounded text-center select-none" title="Empleado de baja">✕</span>
+                              ) : isEditingSueldo ? (
                                 <input
                                   ref={annualSueldoCellRef}
                                   type="number"
                                   value={annualSueldoCellValue}
                                   onChange={e => setAnnualSueldoCellValue(e.target.value)}
-                                  onBlur={() => saveAnnualSueldoCell(empId, i + 1)}
+                                  onBlur={() => saveAnnualSueldoCell(empId, mes)}
                                   onKeyDown={e => {
                                     if (e.key === 'Enter') e.currentTarget.blur()
                                     if (e.key === 'Escape') setEditingAnnualSueldoCell(null)
@@ -765,7 +783,7 @@ export default function CostesClient({ gastos, sueldos, departamentos, clientes,
                               ) : (
                                 <button
                                   onClick={() => {
-                                    setEditingAnnualSueldoCell({ empId, mes: i + 1 })
+                                    setEditingAnnualSueldoCell({ empId, mes })
                                     setAnnualSueldoCellValue(v != null ? String(v) : '')
                                   }}
                                   title={v != null ? 'Clic para editar' : 'Clic para añadir'}

@@ -20,8 +20,8 @@ export default async function CostesPage({
 
   // Include ALL employees with salary records that year (active OR inactive)
   const sueldosQuery = vistaAnual
-    ? supabase.from('sueldos').select('id, id_empleado, coste_total, mes, anio, empleado:id_empleado(id, nombre)').eq('anio', anio)
-    : supabase.from('sueldos').select('id, id_empleado, coste_total, mes, anio, empleado:id_empleado(id, nombre)').eq('mes', mes!).eq('anio', anio)
+    ? supabase.from('sueldos').select('id, id_empleado, coste_total, mes, anio, empleado:id_empleado(id, nombre, fecha_baja)').eq('anio', anio)
+    : supabase.from('sueldos').select('id, id_empleado, coste_total, mes, anio, empleado:id_empleado(id, nombre, fecha_baja)').eq('mes', mes!).eq('anio', anio)
 
   const [
     { data: gastos },
@@ -37,15 +37,16 @@ export default async function CostesPage({
 
   // Build employee list from whoever has salary records this year (active or inactive)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const empleadosMap = new Map<string, string>()
+  const empleadosMap = new Map<string, { nombre: string; fecha_baja: string | null }>()
   for (const s of sueldosRaw ?? []) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const emp = (s as any).empleado
     const nombre = Array.isArray(emp) ? emp[0]?.nombre : emp?.nombre
-    if (s.id_empleado && nombre) empleadosMap.set(s.id_empleado, nombre)
+    const fecha_baja = Array.isArray(emp) ? (emp[0]?.fecha_baja ?? null) : (emp?.fecha_baja ?? null)
+    if (s.id_empleado && nombre) empleadosMap.set(s.id_empleado, { nombre, fecha_baja })
   }
   const empleados = Array.from(empleadosMap.entries())
-    .map(([id, nombre]) => ({ id, nombre }))
+    .map(([id, { nombre, fecha_baja }]) => ({ id, nombre, fecha_baja }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   // Merge sueldos with empleados names
@@ -57,7 +58,7 @@ export default async function CostesPage({
           Array.from({ length: 12 }, (_, i) => {
             const m = i + 1
             const s = byKey.get(`${emp.id}_${m}`)
-            return { id: s?.id ?? null, id_empleado: emp.id, nombre: emp.nombre, coste_total: s?.coste_total ?? null, mes: m, anio }
+            return { id: s?.id ?? null, id_empleado: emp.id, nombre: emp.nombre, fecha_baja: emp.fecha_baja, coste_total: s?.coste_total ?? null, mes: m, anio }
           })
         )
       })()
@@ -65,7 +66,7 @@ export default async function CostesPage({
         const byEmp = new Map((sueldosRaw ?? []).map(s => [s.id_empleado, s]))
         return empleados.map(emp => {
           const s = byEmp.get(emp.id)
-          return { id: s?.id ?? null, id_empleado: emp.id, nombre: emp.nombre, coste_total: s?.coste_total ?? null, mes: mes!, anio }
+          return { id: s?.id ?? null, id_empleado: emp.id, nombre: emp.nombre, fecha_baja: emp.fecha_baja, coste_total: s?.coste_total ?? null, mes: mes!, anio }
         })
       })()
 
