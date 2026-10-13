@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import CalendarView from './CalendarView'
 import {
   DndContext,
   DragEndEvent,
@@ -346,6 +347,7 @@ export default function BoardClient({
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeFicha, setActiveFicha] = useState<Ficha | null>(null)
+  const [view, setView] = useState<'tablero' | 'calendario'>('tablero')
 
   const [fichaModal, setFichaModal] = useState<(Partial<Ficha> & { id_columna: string }) | null>(null)
   const [newColName, setNewColName] = useState('')
@@ -542,8 +544,25 @@ export default function BoardClient({
         </Link>
         <div className="w-px h-4 bg-gray-700" />
         <h1 className="text-white font-semibold">{clienteNombre}</h1>
+
+        {/* View tabs */}
+        <div className="flex items-center bg-gray-800 rounded-lg p-1 border border-gray-700">
+          <button
+            onClick={() => setView('tablero')}
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'tablero' ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white'}`}
+          >
+            🗂️ Tablero
+          </button>
+          <button
+            onClick={() => setView('calendario')}
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'calendario' ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white'}`}
+          >
+            📅 Calendario
+          </button>
+        </div>
+
         <div className="ml-auto">
-          {addingCol ? (
+          {view === 'tablero' && addingCol ? (
             <div className="flex items-center gap-2">
               <input
                 autoFocus
@@ -561,18 +580,31 @@ export default function BoardClient({
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setAddingCol(true)}
-              className="px-4 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 rounded-lg transition-colors"
-            >
-              + Nueva columna
-            </button>
+            view === 'tablero' && (
+              <button
+                onClick={() => setAddingCol(true)}
+                className="px-4 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 rounded-lg transition-colors"
+              >
+                + Nueva columna
+              </button>
+            )
           )}
         </div>
       </div>
 
+      {/* Calendario view */}
+      {view === 'calendario' && (
+        <div className="flex-1 overflow-y-auto">
+          <CalendarView
+            fichas={fichas}
+            columnas={columnas}
+            onEditFicha={f => setFichaModal(f)}
+          />
+        </div>
+      )}
+
       {/* Board */}
-      <div className="flex-1 overflow-x-auto p-6">
+      {view === 'tablero' && <div className="flex-1 overflow-x-auto p-6">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -612,7 +644,7 @@ export default function BoardClient({
             )}
           </DragOverlay>
         </DndContext>
-      </div>
+      </div>}
 
       {/* Ficha modal */}
       {fichaModal && (
