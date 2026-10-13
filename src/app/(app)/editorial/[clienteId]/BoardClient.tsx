@@ -178,11 +178,40 @@ function FichaModal({
     imagen_url: ficha.imagen_url ?? '',
     id_columna: ficha.id_columna,
   })
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/editorial/imagenes', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const d = await res.json()
+        setUploadError(d.error ?? 'Error al subir')
+      } else {
+        const { url } = await res.json()
+        setForm(s => ({ ...s, imagen_url: url }))
+      }
+    } catch {
+      setUploadError('Error de red')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function removeImage() {
+    setForm(s => ({ ...s, imagen_url: '' }))
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
           <h3 className="text-white font-semibold">{ficha.id ? 'Editar ficha' : 'Nueva ficha'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
         </div>
@@ -241,14 +270,48 @@ function FichaModal({
               ))}
             </select>
           </div>
+
+          {/* Image upload */}
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">URL imagen cover</label>
-            <input
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
-              value={form.imagen_url}
-              onChange={e => setForm(s => ({ ...s, imagen_url: e.target.value }))}
-              placeholder="https://..."
-            />
+            <label className="text-xs text-gray-400 mb-2 block">Imagen cover</label>
+            {form.imagen_url ? (
+              <div className="relative rounded-lg overflow-hidden">
+                <img
+                  src={form.imagen_url}
+                  alt="Cover"
+                  className="w-full h-40 object-cover"
+                />
+                <button
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm transition-colors"
+                  title="Eliminar imagen"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${uploading ? 'border-blue-500 bg-blue-900/10' : 'border-gray-600 hover:border-blue-500 hover:bg-gray-800'}`}>
+                {uploading ? (
+                  <span className="text-blue-400 text-sm animate-pulse">Subiendo...</span>
+                ) : (
+                  <>
+                    <span className="text-2xl mb-1">🖼️</span>
+                    <span className="text-sm text-gray-400">Haz clic para subir imagen</span>
+                    <span className="text-xs text-gray-600 mt-0.5">JPG, PNG, GIF, WebP</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  disabled={uploading}
+                />
+              </label>
+            )}
+            {uploadError && (
+              <p className="text-xs text-red-400 mt-1">{uploadError}</p>
+            )}
           </div>
         </div>
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
@@ -257,7 +320,8 @@ function FichaModal({
           </button>
           <button
             onClick={() => onSave(form)}
-            className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+            disabled={uploading}
+            className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors"
           >
             Guardar
           </button>
