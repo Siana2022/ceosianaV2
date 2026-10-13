@@ -599,6 +599,7 @@ export default function BoardClient({
             fichas={fichas}
             columnas={columnas}
             onEditFicha={f => setFichaModal(f)}
+            onAddFicha={(fecha, id_columna) => setFichaModal({ id_columna, canal: 'instagram', fecha_publicacion: fecha })}
           />
         </div>
       )}

@@ -41,10 +41,12 @@ export default function CalendarView({
   fichas,
   columnas,
   onEditFicha,
+  onAddFicha,
 }: {
   fichas: Ficha[]
   columnas: Columna[]
   onEditFicha: (f: Ficha) => void
+  onAddFicha: (fecha: string, id_columna: string) => void
 }) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -87,6 +89,17 @@ export default function CalendarView({
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7
 
   const todayDay = today.getFullYear() === year && today.getMonth() === month ? today.getDate() : null
+  const firstColumnaId = columnas[0]?.id ?? ''
+
+  function handleDayClick(dayNum: number) {
+    setSelectedDay(prev => prev === dayNum ? null : dayNum)
+  }
+
+  function handleAddInDay(e: React.MouseEvent, dayNum: number) {
+    e.stopPropagation()
+    const fecha = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+    onAddFicha(fecha, firstColumnaId)
+  }
 
   const selectedFichas = selectedDay ? (fichasByDay[selectedDay] ?? []) : []
   const colMap = Object.fromEntries(columnas.map(c => [c.id, c]))
@@ -163,19 +176,29 @@ export default function CalendarView({
             return (
               <div
                 key={i}
-                onClick={() => isValid && setSelectedDay(isSelected ? null : dayNum)}
+                onClick={() => isValid && handleDayClick(dayNum)}
                 className={`
-                  min-h-[80px] p-2 border-b border-r border-gray-800 transition-all relative
-                  ${isValid ? 'cursor-pointer hover:bg-gray-800' : 'opacity-0 pointer-events-none'}
+                  min-h-[80px] p-2 border-b border-r border-gray-800 transition-all relative group/day
+                  ${isValid ? 'cursor-pointer hover:bg-gray-800/60' : 'opacity-0 pointer-events-none'}
                   ${isSelected ? 'ring-2 ring-inset ring-blue-500' : ''}
                 `}
                 style={count > 0 ? { background: `rgba(99,102,241,${intensity})` } : undefined}
               >
                 {isValid && (
                   <>
-                    <div className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                      ${isToday ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>
-                      {dayNum}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full
+                        ${isToday ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>
+                        {dayNum}
+                      </div>
+                      {/* Botón + visible en hover */}
+                      <button
+                        onClick={e => handleAddInDay(e, dayNum)}
+                        className="opacity-0 group-hover/day:opacity-100 w-5 h-5 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs transition-all"
+                        title="Añadir post este día"
+                      >
+                        +
+                      </button>
                     </div>
                     {/* Canal dots */}
                     <div className="flex flex-wrap gap-0.5">
@@ -207,9 +230,17 @@ export default function CalendarView({
       {/* Day detail panel */}
       {selectedDay && (
         <div className="bg-gray-900 border border-gray-700 rounded-2xl p-5">
-          <h3 className="text-white font-semibold mb-4">
-            {selectedDay} de {MONTHS[month]} — {selectedFichas.length} {selectedFichas.length === 1 ? 'post' : 'posts'}
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-semibold">
+              {selectedDay} de {MONTHS[month]} — {selectedFichas.length} {selectedFichas.length === 1 ? 'post' : 'posts'}
+            </h3>
+            <button
+              onClick={() => handleAddInDay({ stopPropagation: () => {} } as React.MouseEvent, selectedDay!)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+            >
+              + Añadir post
+            </button>
+          </div>
           {selectedFichas.length === 0 ? (
             <p className="text-gray-500 text-sm">Sin posts programados para este día.</p>
           ) : (
