@@ -185,12 +185,23 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
     // Create open record in DB so admin can see active timers
     let dbId: string | null = null
     try {
+      // Resolve service upfront so the open record already has id_servicio
+      let startServicioId: string | null = null
+      if (proyectoOtrosId && proyectoOtrosId !== '__manual__') {
+        startServicioId = proyectoOtrosId
+      } else if (serviciosDelCliente().length > 0) {
+        const cliNombre = clientes.find(c => c.id === clienteId)?.nombre ?? ''
+        const todos = servicios.filter(s => getClienteNombre(s).toLowerCase() === cliNombre.toLowerCase())
+        const porDepto = todos.find(s => (!Array.isArray(s.departamento) ? s.departamento?.id : s.departamento[0]?.id) === departamentoId) ?? todos[0]
+        if (porDepto) startServicioId = porDepto.id
+      }
       const res = await fetch('/api/time-logs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           descripcion, fecha: todayStr(), hora_inicio: hi, hora_fin: null, minutos: 1,
           id_cliente: clienteId && clienteId !== '__otros__' ? clienteId : null,
           id_departamento: departamentoId && departamentoId !== '__otros__' ? departamentoId : null,
+          id_servicio: startServicioId,
           timer_abierto: true,
         }),
       })
