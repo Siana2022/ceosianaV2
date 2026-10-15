@@ -207,12 +207,15 @@ export async function PATCH(req: NextRequest) {
     }
     const row = bodyToDbRow(body)
     if (Object.keys(row).length === 0) return NextResponse.json({ ok: true })
-    // Fetch BEFORE update to detect responsable changes (for Slack "nueva tarea asignada")
+    // Fetch BEFORE update to detect responsable changes and previous estado
     const newResponsables = body.idsResponsables as string[] | undefined
     let oldResponsables: string[] = []
-    if (newResponsables && newResponsables.length > 0) {
-      const { data: prev } = await supabase.from('tareas').select('ids_responsables').eq('id', id).maybeSingle()
+    let oldEstado: string | null = null
+    const needsPrevFetch = (newResponsables && newResponsables.length > 0) || body.estado === 'terminado' || body.estado === 'bloqueada'
+    if (needsPrevFetch) {
+      const { data: prev } = await supabase.from('tareas').select('ids_responsables, estado').eq('id', id).maybeSingle()
       oldResponsables = (prev?.ids_responsables as string[]) ?? []
+      oldEstado = (prev?.estado as string) ?? null
     }
     const { error } = await supabase.from('tareas').update(row).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -267,7 +270,7 @@ export async function PATCH(req: NextRequest) {
                 })
               }
             }
-            if (body.estado === 'bloqueada' || body.estado === 'terminado') {
+            if ((body.estado === 'bloqueada' || body.estado === 'terminado') && oldEstado !== body.estado) {
               const link = `<${base}/tareas/vista-global?tarea=${id}|Ver tarea →>`
               const msg = body.estado === 'terminado'
                 ? `✅ *Tarea completada*\n*${tarea.nombre}*\n🔗 ${link}\n---`
