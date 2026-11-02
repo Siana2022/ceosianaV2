@@ -396,6 +396,14 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             </div>
           )}
 
+          {/* Creador */}
+          {tarea.idCreador && (
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>Creado por</span>
+              <span className="text-gray-300 font-medium">{state.empleados.find(e => e.id === tarea.idCreador)?.nombre ?? '—'}</span>
+            </div>
+          )}
+
           {/* Recurrencia */}
           <div>
             <label className="block text-gray-400 text-sm mb-1">Recurrencia</label>

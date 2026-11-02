@@ -66,6 +66,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     id: String(r.id),
     nombre: (r.nombre as string) ?? '',
     tipo: (r.tipo as Tarea['tipo']) ?? 'tarea',
+    idCreador: r.id_creador ? String(r.id_creador) : null,
     idCliente: r.id_cliente ? String(r.id_cliente) : null,
     idServicio: r.id_servicio ? String(r.id_servicio) : null,
     idDepartamento: r.id_departamento ? String(r.id_departamento) : null,

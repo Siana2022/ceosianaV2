@@ -522,7 +522,7 @@ export function TareasProvider({
   // ── Tareas sueltas ──────────────────────────────────────────────────────
   const crearTarea = useCallback((tarea: Omit<Tarea, 'id' | 'chat' | 'checklist' | 'minutosAcumulados' | 'timerActivo'>) => {
     const id = crypto.randomUUID()
-    const nueva: Tarea = { ...tarea, id, chat: [], checklist: [], minutosAcumulados: 0, timerActivo: false }
+    const nueva: Tarea = { ...tarea, idCreador: tarea.idCreador ?? idEmpleadoActual ?? null, id, chat: [], checklist: [], minutosAcumulados: 0, timerActivo: false }
     setTareas(prev => [...prev, nueva])
     const { imagenes: _img, ...toPost } = nueva as Tarea & { imagenes?: unknown }
     ;(async () => {

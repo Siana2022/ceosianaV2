@@ -59,6 +59,7 @@ export default function VistaGlobalPage() {
     const id = actions.crearTarea({
       nombre: preset.tipo === 'reunion' ? 'Nueva reunión' : preset.tipo === 'visita' ? 'Nueva visita' : 'Nueva tarea',
       tipo: preset.tipo ?? 'tarea',
+      idCreador: null,
       idCliente: preset.idCliente ?? null,
       idServicio: null,
       idDepartamento: preset.idDepartamento ?? null,

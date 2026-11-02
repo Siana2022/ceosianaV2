@@ -49,6 +49,7 @@ export default function PipelineClient({ initialProspectos, empleados }: {
   const [saving, setSaving] = useState(false)
   const [showInactivos, setShowInactivos] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   const openNew = (estado?: Estado) => {
     setModal({ open: true, prospecto: { ...EMPTY, estado: estado ?? 'descubrimiento' }, isNew: true })
@@ -63,6 +64,7 @@ export default function PipelineClient({ initialProspectos, empleados }: {
   const closeModal = () => setModal({ open: false, prospecto: null, isNew: false })
 
   const moveEstado = useCallback(async (id: string, estado: Estado) => {
+    const nombreProspecto = prospectos.find(p => p.id === id)?.nombre ?? ''
     const res = await fetch(`/api/pipeline?id=${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -71,7 +73,11 @@ export default function PipelineClient({ initialProspectos, empleados }: {
     if (!res.ok) return
     const updated = await res.json()
     setProspectos(ps => ps.map(p => p.id === id ? { ...p, ...updated } : p))
-  }, [])
+    if (estado === 'ganado') {
+      setToast(`✅ Cliente creado: ${nombreProspecto}`)
+      setTimeout(() => setToast(null), 4000)
+    }
+  }, [prospectos])
 
   const handleSave = async () => {
     if (!modal.prospecto?.nombre?.trim()) { setError('El nombre es obligatorio'); return }
@@ -124,6 +130,11 @@ export default function PipelineClient({ initialProspectos, empleados }: {
 
   return (
     <div className="p-6 space-y-6">
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 bg-emerald-900 border border-emerald-700 text-emerald-200 text-sm px-4 py-3 rounded-xl shadow-xl">
+          {toast}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
