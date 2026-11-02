@@ -28,7 +28,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
       .select('id, nombre, notas, id_cliente, tipo_servicio:id_tipo_servicio(nombre)')
       .eq('activo', true)
       .order('nombre'),
-    supabase.from('tareas').select('*').order('fecha_limite', { ascending: true }).order('created_at', { ascending: false }),
+    supabase.from('tareas').select('*').order('created_at', { ascending: false }),
     supabase.from('procesos').select('*').order('created_at', { ascending: true }),
     supabase.from('plantillas').select('*').order('created_at', { ascending: true }),
   ])
