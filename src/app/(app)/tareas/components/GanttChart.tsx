@@ -139,6 +139,7 @@ export default function GanttChart({ filas, onConflictoClick }: Props) {
                   <div
                     className="flex-shrink-0 text-xs text-gray-300 px-2 py-0.5 sticky left-0 bg-gray-900 leading-tight break-words"
                     style={{ width: LABEL_WIDTH }}
+                    title={f.label}
                   >
                     {f.conflicto && '⚠️ '}{f.label}
                   </div>

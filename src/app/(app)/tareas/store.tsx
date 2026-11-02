@@ -505,7 +505,7 @@ export function TareasProvider({
   }, [pushToast])
 
   const addChatMensajeFase = useCallback((idProceso: string, idFase: string, texto: string, mencionesIds: string[]) => {
-    const msg: ChatMensaje = { id: nextId('chat'), autorId: 'emp-1', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
+    const msg: ChatMensaje = { id: nextId('chat'), autorId: idEmpleadoActual ?? '', texto, mencionesIds, fecha: new Date().toISOString().slice(0, 10) }
     let fasesDB: ProcesoFase[] | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
