@@ -113,7 +113,9 @@ function CatalogoTab({ tipos }: { tipos: TipoServicio[] }) {
             )}
             {tipos.map(t => (
               <tr key={t.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="py-3 px-6 text-white font-medium">{t.nombre}</td>
+                <td className="py-3 px-6">
+                  <Link href={`/servicios/${t.id}`} className="text-white font-medium hover:text-blue-400 transition-colors">{t.nombre}</Link>
+                </td>
                 <td className="py-3 px-4 text-center">
                   <span className={`px-2 py-0.5 rounded text-xs ${t.activo ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                     {t.activo ? 'Activo' : 'Inactivo'}
@@ -318,7 +320,10 @@ function ServiciosTab({
             {filtered.map(s => (
               <tr key={s.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                 <td className="py-3 px-4">
-                  <p className="text-white font-medium">{s.tipo_servicio?.nombre ?? s.nombre}</p>
+                  {s.tipo_servicio
+                    ? <Link href={`/servicios/${s.tipo_servicio.id}`} className="text-white font-medium hover:text-blue-400 transition-colors">{s.tipo_servicio.nombre}</Link>
+                    : <span className="text-white font-medium">{s.nombre}</span>
+                  }
                   {!s.tipo_servicio && s.nombre && (
                     <p className="text-gray-600 text-xs mt-0.5">sin tipo asignado</p>
                   )}

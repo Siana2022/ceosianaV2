@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ConfirmModal'
+import HistoricoFacturacionChart from './HistoricoFacturacionChart'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
@@ -132,6 +133,7 @@ interface Props {
     servicio: { id: string; nombre: string | null; notas: string | null } | null
     departamento: { id: string; nombre: string } | null
   }[]
+  facturacionPorAnio?: { anio: number; facturado: number }[]
 }
 
 function isServiceActiveInMonth(s: Servicio, mes: number, year: number): boolean {
@@ -171,6 +173,7 @@ export default function ClienteDetailClient({
   year,
   umbralCostePorHora,
   timeLogsCliente,
+  facturacionPorAnio,
 }: Props) {
   const router = useRouter()
 
@@ -492,6 +495,19 @@ export default function ClienteDetailClient({
   const yearEnd = `${year}-12-31`
   const [horasDesde, setHorasDesde] = useState(yearStart)
   const [horasHasta, setHorasHasta] = useState(yearEnd)
+
+  // Item 12: sync horas date range with the global month filter
+  useEffect(() => {
+    if (kpiMes === 0) {
+      setHorasDesde(`${year}-01-01`)
+      setHorasHasta(`${year}-12-31`)
+    } else {
+      const mesStr = String(kpiMes).padStart(2, '0')
+      const lastDay = new Date(year, kpiMes, 0).getDate()
+      setHorasDesde(`${year}-${mesStr}-01`)
+      setHorasHasta(`${year}-${mesStr}-${String(lastDay).padStart(2, '0')}`)
+    }
+  }, [kpiMes, year])
   const [expandedPersona, setExpandedPersona] = useState<string | null>(null)
 
   // ── Other modals ─────────────────────────────────────────────────────
@@ -979,10 +995,10 @@ export default function ClienteDetailClient({
               <p className="text-gray-400 text-sm">Coste Personal</p>
               <p className={`text-2xl font-bold mt-1 ${costeFiltrado > 0 ? 'text-orange-400' : 'text-gray-500'}`}>{fmt(costeFiltrado)}</p>
             </div>
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-400 text-sm">Margen</p>
-              <p className={`text-2xl font-bold mt-1 ${margen >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(margen)}</p>
-              <p className="text-gray-500 text-xs mt-0.5">{pct.toFixed(1)}% sobre facturado</p>
+            <div className={`border rounded-xl p-5 ${pct >= 50 ? 'bg-green-900/20 border-green-800/40' : pct > 0 ? 'bg-red-900/20 border-red-800/40' : 'bg-gray-900 border-gray-800'}`}>
+              <p className="text-gray-400 text-sm">% Rentabilidad</p>
+              <p className={`text-2xl font-bold mt-1 ${pct >= 50 ? 'text-green-400' : pct > 0 ? 'text-red-400' : 'text-gray-500'}`}>{facturacionFiltrada > 0 ? `${pct.toFixed(1)}%` : '—'}</p>
+              <p className={`text-xs mt-0.5 ${margen >= 0 ? 'text-green-400/70' : 'text-red-400/70'}`}>{fmt(margen)}</p>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Gastos Directos</p>
@@ -1011,6 +1027,19 @@ export default function ClienteDetailClient({
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-sm mb-1">Notas</p>
           <p className="text-gray-300 text-sm whitespace-pre-line">{cliente.notas}</p>
+        </div>
+      )}
+
+      {/* Histórico facturación por año (item 7) */}
+      {facturacionPorAnio && facturacionPorAnio.some(d => d.facturado > 0) && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-800">
+            <h3 className="text-white font-semibold">Histórico facturación por año</h3>
+            <p className="text-gray-500 text-xs mt-0.5">Evolución desde 2023 · año activo en azul brillante</p>
+          </div>
+          <div className="px-4 py-2">
+            <HistoricoFacturacionChart data={facturacionPorAnio} yearActivo={year} />
+          </div>
         </div>
       )}
 
@@ -1523,7 +1552,6 @@ export default function ClienteDetailClient({
               <thead>
                 <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800 bg-gray-800/30">
                   <th className="text-left px-6 py-3">Servicio</th>
-                  <th className="text-left px-4 py-3">Responsables</th>
                   <th className="text-right px-4 py-3">Horas</th>
                   <th className="text-right px-4 py-3">Facturado</th>
                   <th className="text-right px-4 py-3">Coste personal</th>
@@ -1535,8 +1563,10 @@ export default function ClienteDetailClient({
               <tbody>
                 {rentData.map(s => {
                   const margen = s.facturado - s.coste_personal
-                  const pct = s.facturado > 0 ? (margen / s.facturado) * 100 : null
-                  const margenColor = margen > 0 ? 'text-green-400' : margen < 0 ? 'text-red-400' : 'text-gray-400'
+                  // Si hay horas pero coste=0, el % sería 100% engañoso (sueldo no registrado)
+                  const sinDatosCoste = s.coste_personal === 0 && s.totalMin > 0
+                  const pct = s.facturado > 0 && !sinDatosCoste ? (margen / s.facturado) * 100 : (s.facturado > 0 && s.coste_personal === 0 && s.totalMin === 0 ? 100 : null)
+                  const margenColor = pct !== null && pct >= 50 ? 'text-green-400' : 'text-red-400'
                   const multiResp = s.responsables.length > 1
                   const eurHora = s.facturado > 0 ? s.facturado / (Math.max(s.totalMin, 60) / 60) : null
 
@@ -1545,16 +1575,18 @@ export default function ClienteDetailClient({
                       {/* Main service row */}
                       <tr className={`border-b ${multiResp ? 'border-gray-800/30 bg-gray-800/10' : 'border-gray-800/50 hover:bg-gray-800/30'}`}>
                         <td className="px-6 py-3 text-white font-medium">{s.nombre}</td>
-                        <td className="px-4 py-3 text-gray-400 text-xs">
-                          {s.responsables.map(r => r.nombre).join(', ') || '—'}
-                        </td>
                         <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold text-xs">
                           {s.totalMin > 0 ? fmtMin(s.totalMin) : <span className="text-gray-600">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-white">{s.facturado > 0 ? fmt(s.facturado) : <span className="text-gray-600">0 €</span>}</td>
                         <td className="px-4 py-3 text-right text-gray-300">{s.coste_personal > 0 ? fmt(s.coste_personal) : <span className="text-gray-600">—</span>}</td>
                         <td className={`px-4 py-3 text-right font-medium ${margenColor}`}>{fmt(margen)}</td>
-                        <td className={`px-4 py-3 text-right text-sm ${margenColor}`}>{pct !== null ? `${pct.toFixed(1)}%` : '—'}</td>
+                        <td className={`px-4 py-3 text-right text-sm ${margenColor}`}>
+                          {sinDatosCoste
+                            ? <span className="text-yellow-500 text-xs" title="Sin datos de sueldo para este mes">⚠ sin coste</span>
+                            : pct !== null ? `${pct.toFixed(1)}%` : '—'
+                          }
+                        </td>
                         <td className="px-6 py-3 text-right">
                           {eurHora != null ? (
                             <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full ${
@@ -1566,8 +1598,7 @@ export default function ClienteDetailClient({
                       {/* Sub-rows per responsable (only when multiple) */}
                       {multiResp && s.responsables.map(r => (
                         <tr key={r.nombre} className="border-b border-gray-800/20 hover:bg-gray-800/20">
-                          <td className="px-6 py-2 text-gray-500 text-xs pl-10">↳</td>
-                          <td className="px-4 py-2 text-gray-400 text-xs">{r.nombre}</td>
+                          <td className="px-6 py-2 text-gray-500 text-xs pl-10">↳ {r.nombre}</td>
                           <td className="px-4 py-2 text-right font-mono text-blue-400 text-xs">
                             {r.minutos > 0 ? fmtMin(r.minutos) : <span className="text-gray-600">—</span>}
                           </td>
@@ -1584,7 +1615,7 @@ export default function ClienteDetailClient({
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-700 bg-gray-800/30">
-                  <td colSpan={2} className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
+                  <td className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
                   <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold text-xs">
                     {(() => { const t = rentData.reduce((s,r)=>s+r.totalMin,0); return t > 0 ? fmtMin(t) : '—' })()}
                   </td>
