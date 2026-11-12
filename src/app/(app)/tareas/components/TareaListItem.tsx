@@ -39,7 +39,7 @@ export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbri
 
   return (
     <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-lg px-3 py-2 transition-colors">
-      <button onClick={onAbrir} className="flex-1 min-w-0 text-left text-white text-sm truncate hover:text-blue-300">
+      <button onClick={onAbrir} className="flex-1 min-w-0 text-left text-white text-sm hover:text-blue-300 line-clamp-2 leading-snug py-0.5">
         {TIPO_TAREA_ICONO[tarea.tipo]} {tarea.nombre}
         {tarea.recurrencia !== 'ninguna' && <span className="text-purple-400 ml-1.5 text-xs">🔁 {RECURRENCIA_LABEL[tarea.recurrencia]}</span>}
       </button>
