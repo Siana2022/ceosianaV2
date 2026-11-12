@@ -134,6 +134,7 @@ interface Props {
     departamento: { id: string; nombre: string } | null
   }[]
   facturacionPorAnio?: { anio: number; facturado: number }[]
+  sinAsignarPorMes?: Record<number, { minutos: number; coste: number }>
   captaciones?: Captacion[]
 }
 
@@ -175,6 +176,7 @@ export default function ClienteDetailClient({
   umbralCostePorHora,
   timeLogsCliente,
   facturacionPorAnio,
+  sinAsignarPorMes,
   captaciones = [],
 }: Props) {
   const router = useRouter()
@@ -1528,8 +1530,17 @@ export default function ClienteDetailClient({
           return { id: s.id, nombre: s.nombre, facturado, responsables, coste_personal: coste_personal_srv, totalMin }
         }).filter(s => s.facturado > 0 || s.coste_personal > 0)
 
+        const sinAsignar = sinAsignarPorMes
+          ? (rentMes === null
+              ? Object.values(sinAsignarPorMes).reduce(
+                  (acc, v) => ({ minutos: acc.minutos + v.minutos, coste: acc.coste + v.coste }),
+                  { minutos: 0, coste: 0 },
+                )
+              : (sinAsignarPorMes[rentMes] ?? { minutos: 0, coste: 0 }))
+          : { minutos: 0, coste: 0 }
+
         const totalFacturado = rentData.reduce((sum, s) => sum + s.facturado, 0)
-        const totalCoste = rentData.reduce((sum, s) => sum + s.coste_personal, 0)
+        const totalCoste = rentData.reduce((sum, s) => sum + s.coste_personal, 0) + sinAsignar.coste
         const totalMargen = totalFacturado - totalCoste
 
         return (
@@ -1614,12 +1625,25 @@ export default function ClienteDetailClient({
                     </Fragment>
                   )
                 })}
+                {sinAsignar.minutos > 0 && (
+                  <tr className="border-b border-amber-800/40 bg-amber-500/10" title="Tiempo fichado sin servicio: no se imputa a ningún servicio, pero sí cuesta">
+                    <td className="px-6 py-3 text-amber-400 font-medium">
+                      Sin asignar <span className="text-amber-500/70 text-xs">· no imputado</span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-amber-400 text-xs">{fmtMin(sinAsignar.minutos)}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">—</td>
+                    <td className="px-4 py-3 text-right text-amber-400">{fmt(sinAsignar.coste)}</td>
+                    <td className="px-4 py-3 text-right text-amber-400">{fmt(-sinAsignar.coste)}</td>
+                    <td className="px-4 py-3 text-right text-gray-500 text-xs">—</td>
+                    <td className="px-6 py-3 text-right text-gray-600 text-xs">—</td>
+                  </tr>
+                )}
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-700 bg-gray-800/30">
                   <td className="px-6 py-3 text-gray-400 font-semibold text-xs uppercase tracking-wide">Total</td>
                   <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold text-xs">
-                    {(() => { const t = rentData.reduce((s,r)=>s+r.totalMin,0); return t > 0 ? fmtMin(t) : '—' })()}
+                    {(() => { const t = rentData.reduce((s,r)=>s+r.totalMin,0) + sinAsignar.minutos; return t > 0 ? fmtMin(t) : '—' })()}
                   </td>
                   <td className="px-4 py-3 text-right text-white font-bold">{fmt(totalFacturado)}</td>
                   <td className="px-4 py-3 text-right text-gray-300 font-bold">{fmt(totalCoste)}</td>

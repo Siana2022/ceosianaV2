@@ -181,6 +181,8 @@ export default async function ClienteDetailPage({
 
   // costeByServicioMes: Map<servicioId, Map<mes, Map<empId, {nombre, coste}>>>
   const costeByServicioMes = new Map<string, Map<number, Map<string, { nombre: string; coste: number }>>>()
+  // Tiempo fichado que no se puede imputar a ningún servicio (ni directo ni por departamento)
+  const sinAsignarPorMes: Record<number, { minutos: number; coste: number }> = {}
   const empNombreMap = new Map<string, string>()
   for (const e of empleados ?? []) empNombreMap.set(e.id, e.nombre)
 
@@ -194,7 +196,15 @@ export default async function ClienteDetailPage({
       const candidates = deptMonthToServices.get(tl.id_departamento)?.get(mes)
       if (candidates?.length === 1) svcId = candidates[0]
     }
-    if (!svcId) continue
+    if (!svcId) {
+      const keySin = `${tl.id_empleado}_${mes}`
+      const totalSin = totalMinutosByEmpMes.get(keySin) ?? 0
+      const sueldoSin = sueldoMap.get(keySin) ?? 0
+      const costeSin = totalSin > 0 ? sueldoSin * (tl.minutos / totalSin) : 0
+      const acc = sinAsignarPorMes[mes] ?? { minutos: 0, coste: 0 }
+      sinAsignarPorMes[mes] = { minutos: acc.minutos + Number(tl.minutos), coste: acc.coste + costeSin }
+      continue
+    }
 
     const key = `${tl.id_empleado}_${mes}`
     const totalMinutos = totalMinutosByEmpMes.get(key) ?? 0
@@ -316,6 +326,7 @@ export default async function ClienteDetailPage({
       year={year}
       umbralCostePorHora={umbralCostePorHora}
       timeLogsCliente={timeLogsCliente}
+      sinAsignarPorMes={sinAsignarPorMes}
       facturacionPorAnio={facturacionPorAnio}
     />
   )
