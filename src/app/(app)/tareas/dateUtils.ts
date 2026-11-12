@@ -2,6 +2,17 @@ export function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+/** Suma un día saltando sábado y domingo (para recurrencias laborables). */
+export function siguienteLaborable(iso: string): string {
+  let d = addDays(iso, 1)
+  for (let i = 0; i < 7; i++) {
+    const dow = new Date(`${d}T12:00:00`).getDay()
+    if (dow !== 0 && dow !== 6) return d
+    d = addDays(d, 1)
+  }
+  return d
+}
+
 export function addDays(iso: string, dias: number): string {
   const d = new Date(iso)
   d.setDate(d.getDate() + dias)

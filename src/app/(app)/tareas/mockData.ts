@@ -416,6 +416,7 @@ export const TIPO_TAREA_ICONO: Record<TipoTarea, string> = {
 export const RECURRENCIA_LABEL: Record<Recurrencia, string> = {
   ninguna: 'No se repite',
   diaria: 'Diaria',
+  diaria_laborable: 'Diaria (laborables)',
   semanal: 'Semanal',
   quincenal: 'Quincenal',
   mensual: 'Mensual',
@@ -427,6 +428,7 @@ export const RECURRENCIA_LABEL: Record<Recurrencia, string> = {
 export const RECURRENCIA_DIAS: Record<Recurrencia, number> = {
   ninguna: 0,
   diaria: 1,
+  diaria_laborable: 1,
   semanal: 7,
   quincenal: 14,
   mensual: 30,

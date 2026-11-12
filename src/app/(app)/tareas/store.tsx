@@ -13,7 +13,8 @@ import {
   generarFasesDesdeplantilla,
   nombrePorId,
 } from './mockData'
-import { addDays, diffDias, formatFecha } from './dateUtils'
+import { addDays, diffDias, formatFecha, siguienteLaborable } from './dateUtils'
+
 import type {
   Adjunto,
   ChatMensaje,
@@ -27,9 +28,16 @@ import type {
   PlantillaFase,
   Proceso,
   ProcesoFase,
+  Recurrencia,
   Servicio,
   Tarea,
 } from './types'
+
+// Fecha de la siguiente ocurrencia de una tarea recurrente.
+function proximaFecha(iso: string, rec: Recurrencia): string {
+  return rec === 'diaria_laborable' ? siguienteLaborable(iso) : addDays(iso, RECURRENCIA_DIAS[rec])
+}
+
 
 interface TareasState {
   clientes: Cliente[]
@@ -552,7 +560,7 @@ export function TareasProvider({
     const nuevaTareaRecurrente: Tarea | null = debeRegenerar && original ? {
       ...original,
       id: crypto.randomUUID(),
-      fechaLimite: addDays(original.fechaLimite, RECURRENCIA_DIAS[original.recurrencia]),
+      fechaLimite: proximaFecha(original.fechaLimite, original.recurrencia),
       estado: 'espera',
       explicacionBloqueo: null,
       chat: [],
@@ -593,7 +601,7 @@ export function TareasProvider({
       pushToast(`🔔 Notificación simulada al responsable del proyecto: "${original?.nombre ?? 'Tarea'}" se ha bloqueado.`)
     }
     if (debeRegenerar && original) {
-      const proxima = addDays(original.fechaLimite, RECURRENCIA_DIAS[original.recurrencia])
+      const proxima = proximaFecha(original.fechaLimite, original.recurrencia)
       pushToast(`🔁 Tarea recurrente: se generó una nueva "${original.nombre}" con fecha límite ${formatFecha(proxima)}.`)
     }
   }, [tareas, pushToast])

@@ -13,7 +13,7 @@ import ConfirmModal from '@/components/ConfirmModal'
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 const ESTADOS: EstadoTarea[] = ['espera', 'proceso', 'bloqueada', 'terminado']
-const RECURRENCIAS: Recurrencia[] = ['ninguna', 'diaria', 'semanal', 'quincenal', 'mensual', 'trimestral', 'anual']
+const RECURRENCIAS: Recurrencia[] = ['ninguna', 'diaria', 'diaria_laborable', 'semanal', 'quincenal', 'mensual', 'trimestral', 'anual']
 const TIPOS: TipoTarea[] = ['tarea', 'reunion', 'visita']
 
 function formatMinutos(m: number) {

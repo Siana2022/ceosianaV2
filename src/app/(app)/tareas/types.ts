@@ -49,7 +49,7 @@ export type EstadoFase = 'espera' | 'proceso' | 'terminado'
 export type EstadoTarea = 'espera' | 'proceso' | 'bloqueada' | 'terminado'
 
 // 'ninguna' = tarea puntual. El resto marca cada cuánto se regenera al marcarla como terminada.
-export type Recurrencia = 'ninguna' | 'diaria' | 'semanal' | 'quincenal' | 'mensual' | 'trimestral' | 'anual'
+export type Recurrencia = 'ninguna' | 'diaria' | 'diaria_laborable' | 'semanal' | 'quincenal' | 'mensual' | 'trimestral' | 'anual'
 
 // Una reunión/visita es una tarea más (mismos campos, mismo flujo) con hora/lugar y un icono distinto.
 export type TipoTarea = 'tarea' | 'reunion' | 'visita'
