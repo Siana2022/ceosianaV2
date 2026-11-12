@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Custom non-standard shades */
+  --color-gray-750: #F8F6F2;
+  --color-gray-850: #EEE9E2;
+
+  /* Remap dark grays → warm light values (light theme) */
+  --color-gray-950: #E4E2DC;
+  --color-gray-900: #EBE9E3;
+  --color-gray-800: #F5F3EE;
+  --color-gray-700: #FAFAF8;
+  --color-gray-600: #EAE7E1;
+  --color-gray-500: #D8D4CB;
 }
 
 @theme inline {
@@ -12,11 +21,13 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #E4E2DC;
+  --foreground: #111111;
+}
+
+html {
+  font-size: 18px;
 }
 
 body {
@@ -24,3 +35,92 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ================================================
+   LIGHT THEME — Border overrides
+   (bg uses CSS vars from @theme; borders need explicit
+    values so they stay visible on the new light bg)
+   ================================================ */
+.border-gray-950 { border-color: #C8C4BD !important; }
+.border-gray-900, .border-t-gray-900, .border-b-gray-900, .border-l-gray-900, .border-r-gray-900 { border-color: #D0CCC5 !important; }
+.border-gray-850 { border-color: #D0CCC5 !important; }
+.border-gray-800, .border-t-gray-800, .border-b-gray-800, .border-l-gray-800, .border-r-gray-800 { border-color: #D8D4CB !important; }
+.border-gray-750 { border-color: #D8D4CB !important; }
+.border-gray-700, .border-t-gray-700, .border-b-gray-700, .border-l-gray-700, .border-r-gray-700 { border-color: #E0DDD7 !important; }
+.border-gray-600 { border-color: #C9C5BC !important; }
+
+.divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #D8D4CB !important; }
+.divide-gray-700 > :not([hidden]) ~ :not([hidden]) { border-color: #E0DDD7 !important; }
+
+/* ================================================
+   LIGHT THEME — Text color overrides
+   ================================================ */
+
+/* text-white → near-black on light backgrounds.
+   Exceptions: elements that also carry a colored bg class. */
+.text-white:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-black"]):not([class*="bg-pink"]):not([class*="bg-rose"]):not([class*="bg-orange"]):not([class*="bg-violet"]):not([class*="bg-amber"]):not([class*="bg-sky"]):not([class*="bg-cyan"]):not([class*="bg-zinc"]):not([class*="bg-slate"]) {
+  color: #111111 !important;
+}
+
+/* Preserve white text when it's a CHILD of a colored container */
+[class*="bg-blue-"] .text-white,
+[class*="bg-red-"] .text-white,
+[class*="bg-green-"] .text-white,
+[class*="bg-purple-"] .text-white,
+[class*="bg-indigo-"] .text-white,
+[class*="bg-teal-"] .text-white,
+[class*="bg-emerald-"] .text-white,
+[class*="bg-black"] .text-white,
+[class*="bg-pink-"] .text-white,
+[class*="bg-rose-"] .text-white,
+[class*="bg-orange-"] .text-white,
+[class*="bg-violet-"] .text-white,
+[class*="bg-amber-"] .text-white,
+[class*="bg-sky-"] .text-white,
+[class*="bg-cyan-"] .text-white { color: #ffffff !important; }
+
+/* Near-white gray text → dark on light backgrounds */
+.text-gray-100 { color: #1a1816 !important; }
+.text-gray-200 { color: #2c2a26 !important; }
+.text-gray-300 { color: #5a5650 !important; }
+.text-gray-400 { color: #6B6560 !important; }
+.text-gray-500 { color: #857F77 !important; }
+
+/* Input placeholder */
+input::placeholder,
+textarea::placeholder { color: #9B978E; }
+
+/* ================================================
+   SIDEBAR / DARK PANELS — Reset to original dark theme
+   Add data-theme="dark" to any element that should stay dark
+   ================================================ */
+[data-theme="dark"] {
+  --color-gray-950: #030712;
+  --color-gray-900: #111827;
+  --color-gray-850: #17202e;
+  --color-gray-800: #1f2937;
+  --color-gray-750: #252d3a;
+  --color-gray-700: #374151;
+  --color-gray-600: #4b5563;
+  --color-gray-500: #6b7280;
+  --color-gray-400: #9ca3af;
+  --color-gray-300: #d1d5db;
+}
+
+/* Same :not() chain as the light override, plus [data-theme="dark"] ancestor → beats light specificity */
+[data-theme="dark"] .text-white:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-black"]):not([class*="bg-pink"]):not([class*="bg-rose"]):not([class*="bg-orange"]):not([class*="bg-violet"]):not([class*="bg-amber"]):not([class*="bg-sky"]):not([class*="bg-cyan"]):not([class*="bg-zinc"]):not([class*="bg-slate"]) { color: #ffffff !important; }
+[data-theme="dark"] .text-white         { color: #ffffff !important; }
+[data-theme="dark"] .text-gray-100      { color: #f3f4f6 !important; }
+[data-theme="dark"] .text-gray-200      { color: #e5e7eb !important; }
+[data-theme="dark"] .text-gray-300      { color: #d1d5db !important; }
+[data-theme="dark"] .text-gray-400      { color: #9ca3af !important; }
+[data-theme="dark"] .text-gray-500      { color: #6b7280 !important; }
+[data-theme="dark"] .text-gray-600      { color: #4b5563 !important; }
+[data-theme="dark"] .border-gray-900,
+[data-theme="dark"] .border-t-gray-900,
+[data-theme="dark"] .border-b-gray-900  { border-color: #1f2937 !important; }
+[data-theme="dark"] .border-gray-800,
+[data-theme="dark"] .border-t-gray-800,
+[data-theme="dark"] .border-b-gray-800  { border-color: #374151 !important; }
+[data-theme="dark"] .border-gray-700    { border-color: #4b5563 !important; }
+[data-theme="dark"] .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #374151 !important; }

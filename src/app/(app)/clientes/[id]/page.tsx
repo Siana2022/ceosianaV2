@@ -39,8 +39,7 @@ export default async function ClienteDetailPage({
       .from('captacion_clientes')
       .select('*, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)')
       .eq('id_cliente', id)
-      .order('fecha_inicio', { ascending: false })
-      .limit(1),
+      .order('fecha_inicio', { ascending: false }),
     supabase
       .from('ingresos')
       .select('id, concepto, valor, mes, anio, id_servicio, id_departamento, id_responsable, notas')
@@ -254,6 +253,24 @@ export default async function ClienteDetailPage({
     .map(([concepto, data]) => ({ concepto, ...data }))
     .sort((a, b) => a.concepto.localeCompare(b.concepto))
 
+  // Historical facturación by year (item 7) — all years from 2023
+  const { data: ingresosHistoricoRaw } = await supabase
+    .from('ingresos')
+    .select('anio, valor')
+    .eq('id_cliente', id)
+    .gte('anio', 2023)
+
+  // Aggregate by year
+  const historicalByYear = new Map<number, number>()
+  for (const i of ingresosHistoricoRaw ?? []) {
+    historicalByYear.set(i.anio, (historicalByYear.get(i.anio) ?? 0) + Number(i.valor ?? 0))
+  }
+  const currentYear2 = new Date().getFullYear()
+  const facturacionPorAnio: { anio: number; facturado: number }[] = []
+  for (let y = 2023; y <= currentYear2; y++) {
+    facturacionPorAnio.push({ anio: y, facturado: historicalByYear.get(y) ?? 0 })
+  }
+
   const config = await getConfiguracion()
   const umbralCostePorHora = parseFloat(config['coste_hora_umbral'] ?? '300') || 300
 
@@ -283,6 +300,7 @@ export default async function ClienteDetailPage({
       cliente={cliente}
       servicios={servicios ?? []}
       captacion={captacion?.[0] ?? null}
+      captaciones={captacion ?? []}
       ingresos={ingresos ?? []}
       gastos={gastos ?? []}
       empleados={empleados ?? []}
@@ -298,6 +316,7 @@ export default async function ClienteDetailPage({
       year={year}
       umbralCostePorHora={umbralCostePorHora}
       timeLogsCliente={timeLogsCliente}
+      facturacionPorAnio={facturacionPorAnio}
     />
   )
 }

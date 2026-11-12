@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import FiltroPeriodo from './FiltroPeriodo'
+import EvolucionMensualChart from './EvolucionMensualChart'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -559,47 +560,18 @@ export default async function DepartamentoDetailPage({
 
       {/* Evolución mensual */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-800">
-          <h3 className="text-white font-semibold">Evolución mensual — {anio}</h3>
-          <p className="text-gray-500 text-xs mt-0.5">Ingresos, costes y resultado por mes</p>
+        <div className="px-6 py-4 border-b border-gray-800 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-white font-semibold">Evolución mensual — {anio}</h3>
+            <p className="text-gray-500 text-xs mt-0.5">Ingresos, costes y resultado por mes</p>
+          </div>
+          <div className="flex flex-wrap gap-4 text-xs text-gray-400">
+            <span className="font-bold text-green-400">{fmt(ingresosTotal)}</span>
+            <span>Coste: <span className="text-orange-400 font-bold">{fmt(costePersonalTotal + gastosPropiosTotal)}</span></span>
+            <span className={`font-bold ${resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>Resultado: {fmt(resultado)}</span>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800">
-                <th className="text-left px-6 py-3">Mes</th>
-                <th className="text-right px-4 py-3">Ingresos</th>
-                <th className="text-right px-4 py-3">Coste Personal</th>
-                <th className="text-right px-4 py-3">Gastos Propios</th>
-                <th className="text-right px-6 py-3">Resultado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyRows.map(r => (
-                <tr key={r.mes} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="px-6 py-2.5 text-gray-300 font-medium">{MESES[r.mes - 1]}</td>
-                  <td className="px-4 py-2.5 text-right"><span className={r.ingresosMes > 0 ? 'text-green-400 font-medium' : 'text-gray-600'}>{r.ingresosMes > 0 ? fmt(r.ingresosMes) : '—'}</span></td>
-                  <td className="px-4 py-2.5 text-right"><span className={r.costPersonalMes > 0 ? 'text-orange-400' : 'text-gray-600'}>{r.costPersonalMes > 0 ? fmt(r.costPersonalMes) : '—'}</span></td>
-                  <td className="px-4 py-2.5 text-right"><span className={r.gastosMes > 0 ? 'text-orange-400' : 'text-gray-600'}>{r.gastosMes > 0 ? fmt(r.gastosMes) : '—'}</span></td>
-                  <td className="px-6 py-2.5 text-right">
-                    <span className={`font-semibold ${r.ingresosMes === 0 && r.gastosMes === 0 && r.costPersonalMes === 0 ? 'text-gray-600' : r.resultadoMes >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {r.ingresosMes === 0 && r.gastosMes === 0 && r.costPersonalMes === 0 ? '—' : fmt(r.resultadoMes)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-700 bg-gray-800/50">
-                <td className="px-6 py-3 text-white font-bold">Total {anio}</td>
-                <td className="px-4 py-3 text-right text-green-400 font-bold">{fmt(ingresosTotal)}</td>
-                <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(costePersonalTotal)}</td>
-                <td className="px-4 py-3 text-right text-orange-400 font-bold">{fmt(gastosPropiosTotal)}</td>
-                <td className={`px-6 py-3 text-right font-bold ${resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(resultado)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <EvolucionMensualChart rows={monthlyRows} />
       </div>
 
       {/* Gastos propios */}

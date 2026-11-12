@@ -43,10 +43,10 @@ export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbri
         {TIPO_TAREA_ICONO[tarea.tipo]} {tarea.nombre}
         {tarea.recurrencia !== 'ninguna' && <span className="text-purple-400 ml-1.5 text-xs">🔁 {RECURRENCIA_LABEL[tarea.recurrencia]}</span>}
       </button>
-      <span className="text-gray-500 text-xs w-28 truncate hidden sm:inline flex-shrink-0">🏢 {actions.nombreCliente(tarea.idCliente)}</span>
-      <span className="text-gray-500 text-xs w-24 truncate hidden md:inline flex-shrink-0">👤 {actions.nombresEmpleados(tarea.idsResponsables)}</span>
-      <span className="text-gray-500 text-xs w-24 truncate hidden lg:inline flex-shrink-0">🗂️ {actions.nombreDepartamento(tarea.idDepartamento)}</span>
-      <span className="text-gray-500 text-xs w-20 flex-shrink-0">📅 {formatFecha(tarea.fechaLimite)}{tarea.hora && ` ${tarea.hora}`}</span>
+      <span className="text-gray-500 text-xs w-28 truncate hidden sm:inline flex-shrink-0 text-center">🏢 {actions.nombreCliente(tarea.idCliente)}</span>
+      <span className="text-gray-500 text-xs w-24 truncate hidden md:inline flex-shrink-0 text-center">👤 {actions.nombresEmpleados(tarea.idsResponsables)}</span>
+      <span className="text-gray-500 text-xs w-24 truncate hidden lg:inline flex-shrink-0 text-center">🗂️ {actions.nombreDepartamento(tarea.idDepartamento)}</span>
+      <span className="text-gray-500 text-xs w-20 flex-shrink-0 text-center">📅 {formatFecha(tarea.fechaLimite)}{tarea.hora && ` ${tarea.hora}`}</span>
       <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
         <button
           onClick={e => toggleTimer(tarea, e)}

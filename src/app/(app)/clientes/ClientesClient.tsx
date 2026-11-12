@@ -30,6 +30,7 @@ interface Cliente {
   num_servicios: number
   captador_nombre: string
   mantenedor_nombre: string
+  fecha_captacion: string | null
   ingresos_total: number
   gastos_directos: number
   coste_personal: number
@@ -238,11 +239,11 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                 <th className="text-left px-4 py-3">Cliente</th>
                 <th className="text-right px-4 py-3">Facturación Total</th>
                 <th className="text-right px-4 py-3">Coste Personal</th>
+                <th className="text-right px-4 py-3">Coste Real/Hora</th>
                 <th className="text-right px-4 py-3">Margen</th>
                 <th className="text-right px-4 py-3">Gastos Directos</th>
                 <th className="text-right px-4 py-3">Horas Destinadas</th>
                 <th className="text-right px-4 py-3">Ingreso/Hora</th>
-                <th className="text-right px-4 py-3">Coste Real/Hora</th>
                 <th className="text-center px-4 py-3">Estado</th>
                 <th className="text-center px-4 py-3">Acciones</th>
               </tr>
@@ -261,9 +262,16 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                 >
                   <td className="px-4 py-3">
                     <span className="text-white font-medium">{c.nombre}</span>
-                    {c.fecha_alta && (
-                      <span className="block text-gray-500 text-xs mt-0.5">Alta: {c.fecha_alta}</span>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {c.fecha_captacion && (
+                        <span className="text-blue-400 text-xs font-medium">
+                          Captado {c.fecha_captacion.substring(0, 4)}
+                        </span>
+                      )}
+                      {!c.fecha_captacion && c.fecha_alta && (
+                        <span className="text-gray-600 text-xs">Alta: {c.fecha_alta.substring(0, 4)}</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right text-white">
                     {c.ingresos_total > 0 ? fmt(c.ingresos_total) : <span className="text-gray-600">—</span>}
@@ -272,8 +280,17 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                     {c.coste_personal > 0 ? fmt(c.coste_personal) : <span className="text-gray-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
+                    {c.coste_real_por_hora != null ? (
+                      <span className="font-semibold text-orange-400">
+                        {c.coste_real_por_hora.toFixed(0)}€/h
+                      </span>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
                     {c.ingresos_total > 0 ? (
-                      <span className={`font-semibold ${c.resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className={`font-semibold ${c.margen_pct >= 50 ? 'text-green-400' : 'text-red-400'}`}>
                         {fmt(c.resultado)} <span className="text-xs font-normal opacity-70">({c.margen_pct.toFixed(1)}%)</span>
                       </span>
                     ) : (
@@ -290,15 +307,6 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                     {c.ingreso_por_hora != null ? (
                       <span className={`font-semibold ${c.ingreso_por_hora >= umbralCostePorHora ? 'text-green-400' : 'text-red-400'}`}>
                         {c.ingreso_por_hora.toFixed(0)}€/h
-                      </span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {c.coste_real_por_hora != null ? (
-                      <span className="font-semibold text-orange-400">
-                        {c.coste_real_por_hora.toFixed(0)}€/h
                       </span>
                     ) : (
                       <span className="text-gray-600">—</span>

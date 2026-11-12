@@ -25,7 +25,7 @@ export default async function ClientesPage({
     supabase.from('servicios').select('id, id_cliente, id_departamento, tipo, precio_base, activo'),
     supabase
       .from('captacion_clientes')
-      .select('id_cliente, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)')
+      .select('id_cliente, fecha_inicio, captador:id_captador(id,nombre), mantenedor:id_mantenedor(id,nombre)')
       .order('fecha_inicio', { ascending: false }),
     createAdminClient()
       .from('sueldos')
@@ -100,12 +100,15 @@ export default async function ClientesPage({
   }
 
   // Build captacion map (last entry wins)
-  const captacionByCliente = new Map<string, { captador_nombre: string; mantenedor_nombre: string }>()
+  const captacionByCliente = new Map<string, { captador_nombre: string; mantenedor_nombre: string; fecha_captacion: string | null }>()
   for (const c of captacion ?? []) {
-    captacionByCliente.set(c.id_cliente, {
-      captador_nombre: (c.captador as unknown as { nombre: string } | null)?.nombre ?? '',
-      mantenedor_nombre: (c.mantenedor as unknown as { nombre: string } | null)?.nombre ?? '',
-    })
+    if (!captacionByCliente.has(c.id_cliente)) {
+      captacionByCliente.set(c.id_cliente, {
+        captador_nombre: (c.captador as unknown as { nombre: string } | null)?.nombre ?? '',
+        mantenedor_nombre: (c.mantenedor as unknown as { nombre: string } | null)?.nombre ?? '',
+        fecha_captacion: (c as unknown as { fecha_inicio: string | null }).fecha_inicio ?? null,
+      })
+    }
   }
 
   // Ingresos by client
@@ -160,6 +163,7 @@ export default async function ClientesPage({
       num_servicios: serviciosByCliente.get(c.id)?.count ?? 0,
       captador_nombre: captacionByCliente.get(c.id)?.captador_nombre ?? '',
       mantenedor_nombre: captacionByCliente.get(c.id)?.mantenedor_nombre ?? '',
+      fecha_captacion: captacionByCliente.get(c.id)?.fecha_captacion ?? null,
       ingresos_total: ingresosTotal,
       gastos_directos: gastosDirectos,
       coste_personal: costePersonal,

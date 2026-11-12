@@ -134,6 +134,7 @@ interface Props {
     departamento: { id: string; nombre: string } | null
   }[]
   facturacionPorAnio?: { anio: number; facturado: number }[]
+  captaciones?: Captacion[]
 }
 
 function isServiceActiveInMonth(s: Servicio, mes: number, year: number): boolean {
@@ -174,6 +175,7 @@ export default function ClienteDetailClient({
   umbralCostePorHora,
   timeLogsCliente,
   facturacionPorAnio,
+  captaciones = [],
 }: Props) {
   const router = useRouter()
 
@@ -1748,6 +1750,40 @@ export default function ClienteDetailClient({
           </div>
         ) : (
           <p className="text-gray-500 text-sm">Sin captación asignada.</p>
+        )}
+
+        {captaciones.length > 1 && (
+          <div className="mt-4">
+            <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-2">Histórico de captaciones</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-500 text-xs border-b border-gray-800">
+                    <th className="text-left pb-2 pr-4">Año</th>
+                    <th className="text-left pb-2 pr-4">Captador</th>
+                    <th className="text-left pb-2 pr-4">Mantenedor</th>
+                    <th className="text-left pb-2 pr-4">Inicio</th>
+                    <th className="text-left pb-2">Fin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {captaciones
+                    .filter(c => !c.fecha_inicio || parseInt(c.fecha_inicio.substring(0, 4)) >= 2023)
+                    .map(c => (
+                      <tr key={c.id} className="border-b border-gray-800/50 last:border-0">
+                        <td className="py-2 pr-4 text-blue-400 font-medium tabular-nums">
+                          {c.fecha_inicio ? c.fecha_inicio.substring(0, 4) : '—'}
+                        </td>
+                        <td className="py-2 pr-4 text-white">{c.captador?.nombre ?? <span className="text-gray-600">—</span>}</td>
+                        <td className="py-2 pr-4 text-white">{c.mantenedor?.nombre ?? <span className="text-gray-600">—</span>}</td>
+                        <td className="py-2 pr-4 text-gray-400 tabular-nums">{c.fecha_inicio ?? '—'}</td>
+                        <td className="py-2 text-red-400 tabular-nums">{c.fecha_fin ?? '—'}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
 
