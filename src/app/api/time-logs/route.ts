@@ -188,15 +188,28 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Reunión/visita: propagar el tiempo a todos los demás responsables
-  if (propagate && id_tarea) {
-    propagarTiempoReunion({
-      idTarea: id_tarea,
-      idEmpleadoActual: resolved.id,
-      logBase: data as Record<string, unknown>,
-      minutos: updatePayload.minutos as number,
-      horaFin: updatePayload.hora_fin as string | null,
-    }).catch(() => {})
+  // Reunión/visita: propagar el tiempo a todos los demás responsables.
+  // La decisión se toma en servidor (no con un flag del cliente) para que
+  // funcione igual si el cronómetro se para desde /fichar, desde la tarjeta
+  // o desde el modal de la tarea.
+  const logCerrado = updatePayload.hora_fin !== undefined && updatePayload.minutos !== undefined
+  const idTareaFinal =
+    (updatePayload.id_tarea as string | null | undefined) ??
+    (data as { id_tarea?: string | null }).id_tarea ??
+    null
+
+  if ((propagate || logCerrado) && idTareaFinal) {
+    try {
+      await propagarTiempoReunion({
+        idTarea: idTareaFinal,
+        idEmpleadoActual: resolved.id,
+        logBase: data as Record<string, unknown>,
+        minutos: (updatePayload.minutos as number | undefined) ?? Number((data as { minutos?: number }).minutos ?? 0),
+        horaFin: (updatePayload.hora_fin as string | null | undefined) ?? (data as { hora_fin?: string | null }).hora_fin ?? null,
+      })
+    } catch (e) {
+      console.error('[time-logs PATCH] error al propagar tiempo de reunión:', e)
+    }
   }
 
   return NextResponse.json(data)
