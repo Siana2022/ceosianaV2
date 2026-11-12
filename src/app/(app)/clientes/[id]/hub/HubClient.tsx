@@ -5,12 +5,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { confirmDialog } from '@/components/confirmDialog'
 import {
+  ESTADO_CLASE,
+  ESTADO_LABEL,
   PLATAFORMA_ICONO,
   PLATAFORMA_LABEL,
   nombreTipo,
   plataformaDe,
   type HubCuenta,
   type HubServicio,
+  type HubTarea,
   type Plataforma,
 } from './types'
 
@@ -19,13 +22,14 @@ interface Props {
   servicios: HubServicio[]
   cuentas: HubCuenta[]
   esAdmin: boolean
+  tareas: HubTarea[]
   /** Si se pasa, se muestra un selector para cambiar de cliente sin salir del hub. */
   clientes?: { id: string; nombre: string }[]
 }
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 
-export default function HubClient({ cliente, servicios, cuentas, esAdmin, clientes }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas, clientes }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<string>('resumen')
   const [modal, setModal] = useState<{ idServicio: string; plataforma: Plataforma } | null>(null)
@@ -33,6 +37,8 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, client
   const [idExterno, setIdExterno] = useState('')
   const [moneda, setMoneda] = useState('EUR')
   const [guardando, setGuardando] = useState(false)
+  const [nuevaTarea, setNuevaTarea] = useState('')
+  const [creando, setCreando] = useState(false)
   const [error, setError] = useState('')
 
   const cuentasDe = (idServicio: string) => cuentas.filter(c => c.id_servicio === idServicio)
@@ -84,6 +90,39 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, client
     else {
       const d = await res.json().catch(() => ({}))
       setError((d as { error?: string }).error ?? 'No se pudo desvincular')
+    }
+  }
+
+  const tareasDe = (idServicio: string) => tareas.filter(t => t.id_servicio === idServicio)
+  const pendientesDe = (idServicio: string) => tareasDe(idServicio).filter(t => t.estado !== 'terminado').length
+
+  const crearTarea = async (idServicio: string) => {
+    const nombre = nuevaTarea.trim()
+    if (!nombre) return
+    setCreando(true)
+    try {
+      const res = await fetch('/api/tareas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          idCliente: cliente.id,
+          idServicio,
+          tipo: 'tarea',
+          fechaLimite: new Date().toISOString().slice(0, 10),
+          idsResponsables: [],
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error ?? 'No se pudo crear la tarea')
+      }
+      setNuevaTarea('')
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setCreando(false)
     }
   }
 
@@ -171,6 +210,11 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, client
                   </button>
                 </div>
                 <div className="mt-3 text-sm">
+                  {pendientesDe(s.id) > 0 && (
+                    <span className="mr-2 text-xs bg-gray-800 text-gray-300 rounded px-2 py-0.5">
+                      {pendientesDe(s.id)} tarea{pendientesDe(s.id) === 1 ? '' : 's'} pendiente{pendientesDe(s.id) === 1 ? '' : 's'}
+                    </span>
+                  )}
                   {p === null && <span className="text-gray-500 text-xs">Sin plataforma conectada</span>}
                   {p !== null && lista.length === 0 && (
                     <span className="text-amber-400 text-xs">Cuenta sin vincular</span>
@@ -252,6 +296,54 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, client
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Tareas del servicio */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-white font-semibold text-sm">Tareas de este servicio</h3>
+                <span className="text-gray-500 text-xs">
+                  {pendientesDe(servicioActivo.id)} pendientes · {tareasDe(servicioActivo.id).length} en total
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                {tareasDe(servicioActivo.id).length === 0 && (
+                  <p className="text-gray-600 text-xs">Sin tareas todavía.</p>
+                )}
+                {tareasDe(servicioActivo.id).map(t => (
+                  <div key={t.id} className="flex items-center gap-2 text-sm">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${ESTADO_CLASE[t.estado] ?? ESTADO_CLASE.espera}`}>
+                      {ESTADO_LABEL[t.estado] ?? t.estado}
+                    </span>
+                    <span className={`flex-1 truncate ${t.estado === 'terminado' ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
+                      {t.nombre}
+                    </span>
+                    {t.fecha_limite && (
+                      <span className="text-gray-500 text-xs flex-shrink-0">
+                        {new Date(`${t.fecha_limite}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 mt-3">
+                <input
+                  value={nuevaTarea}
+                  onChange={e => setNuevaTarea(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') crearTarea(servicioActivo.id) }}
+                  placeholder="Nueva tarea…"
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={() => crearTarea(servicioActivo.id)}
+                  disabled={creando || !nuevaTarea.trim()}
+                  className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                >
+                  {creando ? '…' : 'Añadir'}
+                </button>
+              </div>
             </div>
           </div>
         )

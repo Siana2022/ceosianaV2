@@ -43,3 +43,26 @@ export function nombreTipo(s: HubServicio): string {
   if (!t) return ''
   return Array.isArray(t) ? (t[0]?.nombre ?? '') : t.nombre
 }
+
+export interface HubTarea {
+  id: string
+  nombre: string
+  estado: string
+  fecha_limite: string | null
+  id_servicio: string | null
+  ids_responsables: string[] | null
+}
+
+export const ESTADO_LABEL: Record<string, string> = {
+  espera: 'En espera',
+  proceso: 'En proceso',
+  bloqueada: 'Bloqueada',
+  terminado: 'Terminada',
+}
+
+export const ESTADO_CLASE: Record<string, string> = {
+  espera: 'bg-gray-700/40 text-gray-300',
+  proceso: 'bg-blue-900/40 text-blue-300',
+  bloqueada: 'bg-red-900/40 text-red-300',
+  terminado: 'bg-green-900/40 text-green-300',
+}

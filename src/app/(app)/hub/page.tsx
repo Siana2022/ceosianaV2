@@ -3,7 +3,7 @@ import { getPerfil } from '@/lib/server/perfil'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import HubClient from '@/app/(app)/clientes/[id]/hub/HubClient'
-import type { HubServicio, HubCuenta } from '@/app/(app)/clientes/[id]/hub/types'
+import type { HubServicio, HubCuenta, HubTarea } from '@/app/(app)/clientes/[id]/hub/types'
 
 export default async function HubIndexPage({
   searchParams,
@@ -76,6 +76,16 @@ export default async function HubIndexPage({
     .order('nombre')
 
   const ids = (servicios ?? []).map(s => s.id)
+
+  // Tareas ligadas a estos servicios (id_servicio es text, se compara tal cual)
+  const { data: tareas } = ids.length
+    ? await supabase
+        .from('tareas')
+        .select('id, nombre, estado, fecha_limite, ids_responsables, id_servicio')
+        .in('id_servicio', ids)
+        .order('fecha_limite', { ascending: true })
+    : { data: [] }
+
   const { data: cuentas } = ids.length
     ? await supabase
         .from('cuenta_plataforma')
@@ -89,6 +99,7 @@ export default async function HubIndexPage({
       cliente={cliente as { id: string; nombre: string; activo: boolean | null }}
       servicios={(servicios ?? []) as unknown as HubServicio[]}
       cuentas={(cuentas ?? []) as unknown as HubCuenta[]}
+      tareas={(tareas ?? []) as unknown as HubTarea[]}
       esAdmin={perfil?.rol === 'admin'}
       clientes={lista}
     />
