@@ -2,7 +2,7 @@ import { createClient } from '@/lib/server/supabase'
 import { getPerfil } from '@/lib/server/perfil'
 import { redirect, notFound } from 'next/navigation'
 import HubClient from './HubClient'
-import type { HubServicio, HubCuenta, HubTarea } from './types'
+import type { HubServicio, HubCuenta, HubTarea, HubAccion } from './types'
 
 export default async function HubPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -38,6 +38,15 @@ export default async function HubPage({ params }: { params: Promise<{ id: string
         .order('fecha_limite', { ascending: true })
     : { data: [] }
 
+  const { data: acciones } = ids.length
+    ? await supabase
+        .from('acciones')
+        .select('id, id_servicio, fecha, tipo, titulo, minutos, empleado:id_empleado(nombre)')
+        .in('id_servicio', ids)
+        .order('fecha', { ascending: false })
+        .limit(100)
+    : { data: [] }
+
   const { data: cuentas } = ids.length
     ? await supabase
         .from('cuenta_plataforma')
@@ -52,6 +61,7 @@ export default async function HubPage({ params }: { params: Promise<{ id: string
       servicios={(servicios ?? []) as unknown as HubServicio[]}
       cuentas={(cuentas ?? []) as unknown as HubCuenta[]}
       tareas={(tareas ?? []) as unknown as HubTarea[]}
+      acciones={(acciones ?? []) as unknown as HubAccion[]}
       esAdmin={perfil?.rol === 'admin'}
     />
   )

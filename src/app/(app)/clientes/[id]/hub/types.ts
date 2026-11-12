@@ -66,3 +66,21 @@ export const ESTADO_CLASE: Record<string, string> = {
   bloqueada: 'bg-red-900/40 text-red-300',
   terminado: 'bg-green-900/40 text-green-300',
 }
+
+export interface HubAccion {
+  id: string
+  id_servicio: string
+  fecha: string
+  tipo: string
+  titulo: string
+  minutos: number | null
+  empleado: { nombre: string } | { nombre: string }[] | null
+}
+
+export const TIPO_ACCION_LABEL: Record<string, string> = {
+  optimizacion: 'Optimización',
+  cambio: 'Cambio',
+  incidencia: 'Incidencia',
+  entrega: 'Entrega',
+  nota: 'Nota',
+}

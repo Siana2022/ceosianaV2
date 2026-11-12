@@ -11,6 +11,8 @@ import {
   PLATAFORMA_LABEL,
   nombreTipo,
   plataformaDe,
+  TIPO_ACCION_LABEL,
+  type HubAccion,
   type HubCuenta,
   type HubServicio,
   type HubTarea,
@@ -23,13 +25,14 @@ interface Props {
   cuentas: HubCuenta[]
   esAdmin: boolean
   tareas: HubTarea[]
+  acciones: HubAccion[]
   /** Si se pasa, se muestra un selector para cambiar de cliente sin salir del hub. */
   clientes?: { id: string; nombre: string }[]
 }
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 
-export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas, clientes }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas, acciones, clientes }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<string>('resumen')
   const [modal, setModal] = useState<{ idServicio: string; plataforma: Plataforma } | null>(null)
@@ -39,6 +42,9 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas
   const [guardando, setGuardando] = useState(false)
   const [nuevaTarea, setNuevaTarea] = useState('')
   const [creando, setCreando] = useState(false)
+  const [tituloAccion, setTituloAccion] = useState('')
+  const [minutosAccion, setMinutosAccion] = useState('30')
+  const [registrando, setRegistrando] = useState(false)
   const [error, setError] = useState('')
 
   const cuentasDe = (idServicio: string) => cuentas.filter(c => c.id_servicio === idServicio)
@@ -123,6 +129,33 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
       setCreando(false)
+    }
+  }
+
+  const accionesDe = (idServicio: string) => acciones.filter(a => a.id_servicio === idServicio)
+  const minutosDe = (idServicio: string) => accionesDe(idServicio).reduce((sum, a) => sum + Number(a.minutos ?? 0), 0)
+
+  const registrarAccion = async (idServicio: string) => {
+    const titulo = tituloAccion.trim()
+    const mins = parseInt(minutosAccion)
+    if (!titulo || isNaN(mins) || mins <= 0) return
+    setRegistrando(true)
+    setError('')
+    try {
+      const res = await fetch('/api/hub/acciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_servicio: idServicio, titulo, minutos: mins, tipo: 'optimizacion' }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((d as { error?: string }).error ?? 'No se pudo registrar')
+      setTituloAccion('')
+      setMinutosAccion('30')
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setRegistrando(false)
     }
   }
 
@@ -344,6 +377,66 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas
                   {creando ? '…' : 'Añadir'}
                 </button>
               </div>
+            </div>
+
+            {/* Registro de trabajo */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-white font-semibold text-sm">Registro de trabajo</h3>
+                <span className="text-gray-500 text-xs">
+                  {(() => {
+                    const m = minutosDe(servicioActivo.id)
+                    const h = Math.floor(m / 60)
+                    return m > 0 ? `${h}h ${m % 60}m registradas` : 'sin horas registradas'
+                  })()}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 mb-3">
+                {accionesDe(servicioActivo.id).length === 0 && (
+                  <p className="text-gray-600 text-xs">Aún no hay trabajo registrado en este servicio.</p>
+                )}
+                {accionesDe(servicioActivo.id).slice(0, 8).map(a => (
+                  <div key={a.id} className="flex items-center gap-2 text-sm">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/40 text-gray-300 flex-shrink-0">
+                      {TIPO_ACCION_LABEL[a.tipo] ?? a.tipo}
+                    </span>
+                    <span className="flex-1 truncate text-gray-200">{a.titulo}</span>
+                    <span className="text-gray-500 text-xs flex-shrink-0">
+                      {a.minutos ? `${a.minutos}m` : '—'}
+                    </span>
+                    <span className="text-gray-600 text-xs flex-shrink-0 w-16 text-right">
+                      {new Date(`${a.fecha}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  value={tituloAccion}
+                  onChange={e => setTituloAccion(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') registrarAccion(servicioActivo.id) }}
+                  placeholder="Qué has hecho (ej: pausé Display por bajo rendimiento)"
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                />
+                <input
+                  value={minutosAccion}
+                  onChange={e => setMinutosAccion(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-500"
+                  title="Minutos"
+                />
+                <button
+                  onClick={() => registrarAccion(servicioActivo.id)}
+                  disabled={registrando || !tituloAccion.trim()}
+                  className="bg-green-600 hover:bg-green-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                >
+                  {registrando ? '…' : 'Registrar'}
+                </button>
+              </div>
+              <p className="text-gray-600 text-[11px] mt-2">
+                Registrar crea también el fichaje de ese tiempo en este servicio.
+              </p>
             </div>
           </div>
         )
