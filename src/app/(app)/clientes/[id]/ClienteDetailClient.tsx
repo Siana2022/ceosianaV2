@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import ConfirmModal from '@/components/ConfirmModal'
 import HistoricoFacturacionChart from './HistoricoFacturacionChart'
 
@@ -945,9 +946,14 @@ export default function ClienteDetailClient({
             {cliente.fecha_alta && <p className="text-gray-500 text-sm mt-0.5">Alta: {cliente.fecha_alta}</p>}
           </div>
         </div>
-        <button onClick={() => { setShowEditCliente(true); setError('') }} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-          Editar cliente
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href={`/clientes/${cliente.id}/hub`} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Abrir hub
+          </Link>
+          <button onClick={() => { setShowEditCliente(true); setError('') }} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Editar cliente
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
