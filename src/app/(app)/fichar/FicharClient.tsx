@@ -208,16 +208,16 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       if (res.ok) { const d = await res.json(); dbId = d.id ?? null }
     } catch { /* non-critical */ }
 
-    // Marcar tarea como en_curso si existe, o crearla si no existe; capturar su ID
+    // Marcar la tarea como en proceso si existe, o crearla si no existe; capturar su ID
     const cliParaTimer = clienteId && clienteId !== '__otros__' ? clienteId : null
     const tareaActivaExiste = tareas.find(t => t.nombre.trim().toLowerCase() === descripcion.trim().toLowerCase() && t.idCliente === cliParaTimer)
     let capturedTareaId: string | null = null
     if (tareaActivaExiste) {
       capturedTareaId = tareaActivaExiste.id
-      if (tareaActivaExiste.estado !== 'en_curso') {
+      if (tareaActivaExiste.estado !== 'proceso') {
         fetch(`/api/tareas?id=${tareaActivaExiste.id}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: 'en_curso' }),
+          body: JSON.stringify({ estado: 'proceso' }),
         }).catch(() => {})
       }
     } else if (descripcion.trim() && cliParaTimer) {
@@ -226,7 +226,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
       try {
         const tareaRes = await fetch('/api/tareas', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre: descripcion.trim(), idCliente: cliParaTimer, idDepartamento: deptParaTimer, estado: 'en_curso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
+          body: JSON.stringify({ nombre: descripcion.trim(), idCliente: cliParaTimer, idDepartamento: deptParaTimer, idServicio: proyectoOtrosId && proyectoOtrosId !== '__manual__' ? proyectoOtrosId : null, estado: 'proceso', tipo: 'tarea', ...(empId ? { idsResponsables: [empId] } : {}) }),
         })
         if (tareaRes.ok) { const td = await tareaRes.json(); capturedTareaId = td.id ?? null }
       } catch { /* non-critical */ }
