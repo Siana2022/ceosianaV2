@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { confirmDialog } from '@/components/confirmDialog'
 
 interface Perfil {
   email: string
@@ -114,7 +115,7 @@ export default function PerfilPage() {
   }
 
   async function disconnectGoogle() {
-    if (!confirm('¿Desconectar Google Calendar?')) return
+    if (!(await confirmDialog({ title: 'Desconectar Google Calendar', message: '¿Seguro que quieres desconectar tu calendario? Dejarás de recibir eventos de tus tareas.', confirmLabel: 'Desconectar', danger: false }))) return
     await fetch('/api/perfil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disconnect_google: true }) })
     await load()
     setMsg('Google Calendar desconectado')

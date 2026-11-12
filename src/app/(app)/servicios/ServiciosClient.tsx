@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { confirmDialog } from '@/components/confirmDialog'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
@@ -78,7 +79,7 @@ function CatalogoTab({ tipos }: { tipos: TipoServicio[] }) {
   }
 
   const handleDelete = async (t: TipoServicio) => {
-    if (!window.confirm(`¿Eliminar "${t.nombre}"? Los servicios ya asignados a clientes no se verán afectados.`)) return
+    if (!(await confirmDialog({ title: 'Eliminar tipo de servicio', message: `¿Seguro que quieres eliminar "${t.nombre}"? Los servicios ya asignados a clientes no se verán afectados.` }))) return
     await fetch(`/api/tipos-servicio?id=${t.id}`, { method: 'DELETE' })
     router.refresh()
   }
@@ -267,7 +268,7 @@ function ServiciosTab({
   }
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('¿Eliminar este servicio?')) return
+    if (!(await confirmDialog({ title: 'Eliminar servicio', message: '¿Seguro que quieres eliminar este servicio?' }))) return
     await fetch(`/api/servicios?id=${id}`, { method: 'DELETE' })
     router.refresh()
   }

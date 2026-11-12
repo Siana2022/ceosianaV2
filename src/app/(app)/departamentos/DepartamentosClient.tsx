@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { confirmDialog } from '@/components/confirmDialog'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
@@ -102,7 +103,7 @@ export default function DepartamentosClient({
   }
 
   const handleDelete = async (d: Departamento) => {
-    if (!window.confirm(`¿Eliminar el departamento "${d.nombre}"? Esta acción no se puede deshacer.`)) return
+    if (!(await confirmDialog({ title: 'Eliminar departamento', message: `¿Seguro que quieres eliminar el departamento "${d.nombre}"? Esta acción no se puede deshacer.` }))) return
     await fetch(`/api/departamentos?id=${d.id}`, { method: 'DELETE' })
     router.refresh()
   }

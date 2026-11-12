@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import { confirmDialog } from '@/components/confirmDialog'
 import CalendarView from './CalendarView'
 import {
   DndContext,
@@ -480,7 +481,7 @@ export default function BoardClient({
   }
 
   async function deleteFicha(id: string) {
-    if (!confirm('¿Eliminar esta ficha?')) return
+    if (!(await confirmDialog({ title: 'Eliminar ficha', message: '¿Seguro que quieres eliminar esta ficha?' }))) return
     const res = await fetch(`/api/editorial/fichas?id=${id}`, { method: 'DELETE' })
     if (res.ok) setFichas(prev => prev.filter(f => f.id !== id))
   }
@@ -518,7 +519,7 @@ export default function BoardClient({
   }
 
   async function deleteColumna(id: string) {
-    if (!confirm('¿Eliminar columna y todas sus fichas?')) return
+    if (!(await confirmDialog({ title: 'Eliminar columna', message: '¿Seguro que quieres eliminar la columna y todas sus fichas? Esta acción no se puede deshacer.' }))) return
     const res = await fetch(`/api/editorial/columnas?id=${id}`, { method: 'DELETE' })
     if (res.ok) {
       setColumnas(prev => prev.filter(c => c.id !== id))

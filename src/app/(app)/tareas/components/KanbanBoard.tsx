@@ -6,6 +6,7 @@ import type { Proceso } from '../types'
 import FaseCard from './FaseCard'
 import FaseDetailModal from './FaseDetailModal'
 import AgregarFaseModal from './AgregarFaseModal'
+import { confirmDialog } from '@/components/confirmDialog'
 
 export default function KanbanBoard({ proceso }: { proceso: Proceso }) {
   const { actions } = useTareas()
@@ -21,8 +22,12 @@ export default function KanbanBoard({ proceso }: { proceso: Proceso }) {
         <div className="flex items-center gap-3">
           <span className="text-gray-500 text-xs">{actions.nombreCliente(proceso.idCliente)}</span>
           <button
-            onClick={() => {
-              if (!confirm(`¿Eliminar el proceso "${proceso.nombre}"? Se borrarán todas sus fases.`)) return
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: 'Eliminar proceso',
+                message: `¿Seguro que quieres eliminar el proceso "${proceso.nombre}"? Se borrarán todas sus fases.`,
+              })
+              if (!ok) return
               actions.eliminarProceso(proceso.id)
             }}
             className="text-gray-600 hover:text-red-400 text-xs transition-colors"

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { confirmDialog } from '@/components/confirmDialog'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v)
@@ -144,7 +145,7 @@ export default function IngresosClient({
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este ingreso?')) return
+    if (!(await confirmDialog({ title: 'Eliminar ingreso', message: '¿Seguro que quieres eliminar este ingreso?' }))) return
     await fetch(`/api/ingresos?id=${id}`, { method: 'DELETE' })
     router.refresh()
   }

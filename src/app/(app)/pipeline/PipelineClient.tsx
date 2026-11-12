@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { confirmDialog } from '@/components/confirmDialog'
 
 type Estado = 'descubrimiento' | 'propuesta' | 'negociacion' | 'ganado' | 'perdido'
 
@@ -113,7 +114,7 @@ export default function PipelineClient({ initialProspectos, empleados }: {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este prospecto?')) return
+    if (!(await confirmDialog({ title: 'Eliminar prospecto', message: '¿Seguro que quieres eliminar este prospecto? Esta acción no se puede deshacer.' }))) return
     const res = await fetch(`/api/pipeline?id=${id}`, { method: 'DELETE' })
     if (res.ok) setProspectos(ps => ps.filter(p => p.id !== id))
   }
