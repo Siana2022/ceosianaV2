@@ -33,6 +33,7 @@ const NAV_SECTIONS: { label: string; items: MenuItem[] }[] = [
     label: 'PRINCIPAL',
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+      { href: '/hub',       label: 'Hub',        icon: '🧭' },
       { href: '/tareas',    label: 'Tareas',     icon: '🗂️' },
       { href: '/fichar',    label: 'Fichar',     icon: '🕐' },
       { href: '/pipeline',  label: 'Pipeline',   icon: '🔮' },

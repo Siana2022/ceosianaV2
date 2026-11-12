@@ -19,11 +19,13 @@ interface Props {
   servicios: HubServicio[]
   cuentas: HubCuenta[]
   esAdmin: boolean
+  /** Si se pasa, se muestra un selector para cambiar de cliente sin salir del hub. */
+  clientes?: { id: string; nombre: string }[]
 }
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 
-export default function HubClient({ cliente, servicios, cuentas, esAdmin }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, esAdmin, clientes }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<string>('resumen')
   const [modal, setModal] = useState<{ idServicio: string; plataforma: Plataforma } | null>(null)
@@ -103,6 +105,17 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin }: Prop
               </span>
             </div>
             <p className="text-gray-500 text-sm mt-0.5">Espacio de trabajo del cliente</p>
+            {clientes && clientes.length > 0 && (
+              <select
+                value={cliente.id}
+                onChange={e => router.push(`/hub?cliente=${e.target.value}`)}
+                className="mt-2 bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 max-w-xs"
+              >
+                {clientes.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       </div>
