@@ -9,6 +9,7 @@ import EstadoBadge from './EstadoBadge'
 import ChatMock from './ChatMock'
 import ResponsablesMultiSelect from './ResponsablesMultiSelect'
 import RichTextEditor from './RichTextEditor'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 const ESTADOS: EstadoTarea[] = ['espera', 'proceso', 'bloqueada', 'terminado']
@@ -26,6 +27,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
   const { state, actions } = useTareas()
 
   const savedRef = useRef(false)
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false)
 
   // ── Local draft state (se persiste al pulsar Guardar) ──────────────────
   const [draft, setDraft] = useState({
@@ -198,6 +200,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           id_cliente: draft.idCliente,
           id_servicio: draft.idServicio,
           id_departamento: draft.idDepartamento,
+          id_tarea: tarea.id,
           descripcion: draft.nombre.trim() || tarea.nombre,
           fecha,
           hora_inicio: horaInicio,
@@ -245,7 +248,8 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           body: JSON.stringify({
             hora_fin: horaFin,
             minutos: minutosElapsed,
-            ...(esReunion && { propagate: true, id_tarea: tarea.id }),
+            id_tarea: tarea.id,
+            ...(esReunion && { propagate: true }),
           }),
         })
       } catch {
@@ -638,7 +642,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                     }))}
                     className={`flex-1 text-sm bg-transparent border-none outline-none focus:bg-gray-800 focus:px-2 focus:rounded ${item.hecho ? 'line-through text-gray-500' : 'text-gray-200'}`}
                   />
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
                     <button
                       onClick={() => setDraft(d => {
                         const list = [...d.checklist]
@@ -646,8 +650,10 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                         ;[list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]
                         return { ...d, checklist: list }
                       })}
-                      className="text-gray-600 hover:text-gray-300 text-xs px-0.5"
+                      disabled={idx === 0}
+                      className="text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-25 disabled:hover:bg-transparent disabled:cursor-default rounded text-sm leading-none px-1.5 py-1 transition-colors"
                       title="Subir"
+                      aria-label="Subir elemento"
                     >↑</button>
                     <button
                       onClick={() => setDraft(d => {
@@ -656,12 +662,16 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                         ;[list[idx], list[idx + 1]] = [list[idx + 1], list[idx]]
                         return { ...d, checklist: list }
                       })}
-                      className="text-gray-600 hover:text-gray-300 text-xs px-0.5"
+                      disabled={idx === draft.checklist.length - 1}
+                      className="text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-25 disabled:hover:bg-transparent disabled:cursor-default rounded text-sm leading-none px-1.5 py-1 transition-colors"
                       title="Bajar"
+                      aria-label="Bajar elemento"
                     >↓</button>
                     <button
                       onClick={() => setDraft(d => ({ ...d, checklist: d.checklist.filter(c => c.id !== item.id) }))}
-                      className="text-gray-600 hover:text-red-400 text-xs px-0.5"
+                      className="text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded text-sm leading-none px-1.5 py-1 transition-colors"
+                      title="Eliminar"
+                      aria-label="Eliminar elemento"
                     >✕</button>
                   </div>
                 </div>
@@ -725,11 +735,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             Cerrar
           </button>
           <button
-            onClick={() => {
-              if (!confirm('¿Eliminar esta tarea? Esta acción no se puede deshacer.')) return
-              actions.eliminarTarea(tarea.id)
-              onClose()
-            }}
+            onClick={() => setConfirmarBorrado(true)}
             className="px-3 py-2 bg-red-900/40 hover:bg-red-800/60 text-red-400 hover:text-red-300 rounded-lg text-sm"
             title="Eliminar tarea"
           >
@@ -737,6 +743,19 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmarBorrado}
+        title="Eliminar tarea"
+        message={`¿Seguro que quieres eliminar "${tarea.nombre}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        onConfirm={() => {
+          setConfirmarBorrado(false)
+          actions.eliminarTarea(tarea.id)
+          onClose()
+        }}
+        onCancel={() => setConfirmarBorrado(false)}
+      />
     </div>
   )
 }

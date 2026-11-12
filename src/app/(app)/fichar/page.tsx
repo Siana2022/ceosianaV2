@@ -72,14 +72,15 @@ export default async function FicharPage() {
   const { data: tareas } = await supabase
     .from('tareas')
     .select('id, nombre, id_cliente, id_departamento, estado, minutos_acumulados')
-    .in('estado', ['espera', 'en_curso', 'bloqueado'])
+    .in('estado', ['espera', 'proceso', 'bloqueada'])
     .order('nombre')
 
-  // Pipeline prospects — visible to all employees as extra "clients" in selector
+  // Pipeline prospects — visible to all employees as extra "clients" in selector.
+  // activo puede ser NULL en filas antiguas, así que no basta con eq(true).
   const { data: pips } = await createAdminClient()
     .from('pipeline_prospectos')
     .select('id, nombre')
-    .eq('activo', true)
+    .or('activo.eq.true,activo.is.null')
     .order('nombre')
   const pipelineProspectos = (pips ?? []).map(p => ({ id: String(p.id), nombre: `${p.nombre} (Pipeline)` }))
 

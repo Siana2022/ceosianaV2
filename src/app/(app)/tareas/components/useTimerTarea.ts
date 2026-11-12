@@ -37,7 +37,8 @@ export function useTimerTarea() {
           body: JSON.stringify({
             hora_fin: ahora.toTimeString().slice(0, 5),
             minutos: minutosElapsed,
-            ...(esReunion && { propagate: true, id_tarea: tarea.id }),
+            id_tarea: tarea.id,
+            ...(esReunion && { propagate: true }),
           }),
         }).catch(err => console.error('[timer] PATCH error', err))
       }
@@ -70,6 +71,7 @@ export function useTimerTarea() {
             id_cliente: tarea.idCliente,
             id_servicio: tarea.idServicio,
             id_departamento: tarea.idDepartamento,
+            id_tarea: tarea.id,
             descripcion: tarea.nombre,
             fecha: ahora.toISOString().slice(0, 10),
             hora_inicio: ahora.toTimeString().slice(0, 5),
