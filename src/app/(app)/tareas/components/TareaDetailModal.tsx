@@ -198,6 +198,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           id_cliente: draft.idCliente,
           id_servicio: draft.idServicio,
           id_departamento: draft.idDepartamento,
+          id_tarea: tarea.id,
           descripcion: draft.nombre.trim() || tarea.nombre,
           fecha,
           hora_inicio: horaInicio,
@@ -245,7 +246,8 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           body: JSON.stringify({
             hora_fin: horaFin,
             minutos: minutosElapsed,
-            ...(esReunion && { propagate: true, id_tarea: tarea.id }),
+            id_tarea: tarea.id,
+            ...(esReunion && { propagate: true }),
           }),
         })
       } catch {

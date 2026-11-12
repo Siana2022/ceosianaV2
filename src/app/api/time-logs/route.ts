@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   if (!resolved) return NextResponse.json({ error: 'No autorizado. Asegúrate de que tu email coincide con un empleado en el sistema.' }, { status: 401 })
 
   const body = await req.json()
-  const { id_servicio, id_cliente, id_departamento, descripcion, fecha, hora_inicio, hora_fin, minutos, timer_abierto } = body
+  const { id_servicio, id_cliente, id_departamento, id_tarea, descripcion, fecha, hora_inicio, hora_fin, minutos, timer_abierto } = body
 
   if (!descripcion?.trim()) return NextResponse.json({ error: 'La descripción es obligatoria' }, { status: 400 })
   if (!fecha) return NextResponse.json({ error: 'La fecha es obligatoria' }, { status: 400 })
@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
       id_servicio: id_servicio || null,
       id_cliente: id_cliente || null,
       id_departamento: id_departamento || null,
+      id_tarea: id_tarea || null,
       descripcion: descripcion.trim(),
       fecha,
       hora_inicio: hora_inicio || null,
