@@ -698,9 +698,25 @@ export function TareasProvider({
   }, [tareas])
 
   const eliminarTarea = useCallback((idTarea: string) => {
+    const eliminada = tareas.find(t => t.id === idTarea)
     setTareas(prev => prev.filter(t => t.id !== idTarea))
-    fetch(`/api/tareas?id=${idTarea}`, { method: 'DELETE' }).catch(console.error)
-  }, [])
+    const restaurar = () => {
+      if (!eliminada) return
+      setTareas(prev => (prev.some(t => t.id === idTarea) ? prev : [...prev, eliminada]))
+    }
+    fetch(`/api/tareas?id=${idTarea}`, { method: 'DELETE' })
+      .then(async res => {
+        if (res.ok) return
+        const data = await res.json().catch(() => ({}))
+        restaurar()
+        pushToast(`No se pudo eliminar la tarea: ${(data as { error?: string }).error ?? res.status}`)
+      })
+      .catch(err => {
+        console.error('[tarea] DELETE error', err)
+        restaurar()
+        pushToast('No se pudo eliminar la tarea (sin conexión).')
+      })
+  }, [tareas, pushToast])
 
   const eliminarImagenTarea = useCallback((idTarea: string, idImagen: string) => {
     const tarea = tareas.find(t => t.id === idTarea)

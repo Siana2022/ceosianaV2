@@ -9,6 +9,7 @@ import EstadoBadge from './EstadoBadge'
 import ChatMock from './ChatMock'
 import ResponsablesMultiSelect from './ResponsablesMultiSelect'
 import RichTextEditor from './RichTextEditor'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 const ESTADOS: EstadoTarea[] = ['espera', 'proceso', 'bloqueada', 'terminado']
@@ -26,6 +27,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
   const { state, actions } = useTareas()
 
   const savedRef = useRef(false)
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false)
 
   // ── Local draft state (se persiste al pulsar Guardar) ──────────────────
   const [draft, setDraft] = useState({
@@ -727,11 +729,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             Cerrar
           </button>
           <button
-            onClick={() => {
-              if (!confirm('¿Eliminar esta tarea? Esta acción no se puede deshacer.')) return
-              actions.eliminarTarea(tarea.id)
-              onClose()
-            }}
+            onClick={() => setConfirmarBorrado(true)}
             className="px-3 py-2 bg-red-900/40 hover:bg-red-800/60 text-red-400 hover:text-red-300 rounded-lg text-sm"
             title="Eliminar tarea"
           >
@@ -739,6 +737,19 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmarBorrado}
+        title="Eliminar tarea"
+        message={`¿Seguro que quieres eliminar "${tarea.nombre}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        onConfirm={() => {
+          setConfirmarBorrado(false)
+          actions.eliminarTarea(tarea.id)
+          onClose()
+        }}
+        onCancel={() => setConfirmarBorrado(false)}
+      />
     </div>
   )
 }
