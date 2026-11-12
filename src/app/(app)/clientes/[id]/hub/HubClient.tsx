@@ -261,6 +261,49 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas
               </div>
             )
           })}
+
+          {/* Actividad reciente: acciones + tareas, lo más nuevo arriba */}
+          {(() => {
+            const nombreServicio = (id: string | null) => servicios.find(s => s.id === id)?.nombre ?? '—'
+            const eventos = [
+              ...acciones.map(a => ({
+                key: `a-${a.id}`,
+                fecha: a.fecha,
+                texto: a.titulo,
+                meta: `${nombreServicio(a.id_servicio)} · ${a.minutos ? `${a.minutos}m` : 'acción'}`,
+                icono: '🛠️',
+              })),
+              ...tareas.map(t => ({
+                key: `t-${t.id}`,
+                fecha: t.fecha_limite ?? '',
+                texto: t.nombre,
+                meta: `${nombreServicio(t.id_servicio)} · ${ESTADO_LABEL[t.estado] ?? t.estado}`,
+                icono: '🗂️',
+              })),
+            ]
+              .filter(e => e.fecha)
+              .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))
+              .slice(0, 12)
+
+            return (
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 sm:col-span-2">
+                <h3 className="text-white font-semibold text-sm mb-3">Actividad reciente</h3>
+                {eventos.length === 0 && <p className="text-gray-600 text-xs">Todavía no hay actividad registrada.</p>}
+                <div className="space-y-2">
+                  {eventos.map(e => (
+                    <div key={e.key} className="flex items-start gap-2 text-sm">
+                      <span className="flex-shrink-0">{e.icono}</span>
+                      <span className="flex-1 min-w-0 truncate text-gray-200">{e.texto}</span>
+                      <span className="text-gray-500 text-xs flex-shrink-0 hidden sm:inline">{e.meta}</span>
+                      <span className="text-gray-600 text-xs flex-shrink-0 w-16 text-right">
+                        {new Date(`${e.fecha}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
