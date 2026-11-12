@@ -22,7 +22,7 @@ function formatTiempo(minutos: number, extraSec: number) {
 }
 
 export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: () => void }) {
-  const { actions } = useTareas()
+  const { state, actions } = useTareas()
   const { toggleTimer, loading, timerError } = useTimerTarea()
   const [elapsedSec, setElapsedSec] = useState(0)
 
@@ -49,7 +49,26 @@ export default function TareaCard({ tarea, onAbrir }: { tarea: Tarea; onAbrir: (
 
       <div className="text-xs text-gray-400 space-y-1">
         <p>🏢 {actions.nombreCliente(tarea.idCliente)}</p>
-        <p>👤 {actions.nombresEmpleados(tarea.idsResponsables)}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span>👤</span>
+          {tarea.idsResponsables.length === 0
+            ? <span>Sin asignar</span>
+            : tarea.idsResponsables.map(id => {
+                const emp = state.empleados.find(e => e.id === id)
+                if (!emp) return null
+                return (
+                  <span key={id} className="inline-flex items-center gap-1 min-w-0" title={emp.nombre}>
+                    <span className="w-4 h-4 rounded-full bg-gray-700 overflow-hidden flex items-center justify-center text-[9px] text-gray-300 flex-shrink-0">
+                      {emp.avatarUrl
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={emp.avatarUrl} alt={emp.nombre} className="w-full h-full object-cover" />
+                        : emp.nombre[0]}
+                    </span>
+                    <span className="truncate max-w-24">{emp.nombre.split(' ')[0]}</span>
+                  </span>
+                )
+              })}
+        </div>
         <p>🗂️ {actions.nombreDepartamento(tarea.idDepartamento)}</p>
         <p>
           📅 {formatFecha(tarea.fechaLimite)}{tarea.hora && ` · ${tarea.hora}`}

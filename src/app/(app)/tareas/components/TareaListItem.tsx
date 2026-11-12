@@ -19,7 +19,7 @@ function formatTiempo(minutos: number, extraSec: number) {
 }
 
 export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbrir: () => void }) {
-  const { actions } = useTareas()
+  const { state, actions } = useTareas()
   const { toggleTimer, loading, timerError } = useTimerTarea()
   const [elapsedSec, setElapsedSec] = useState(0)
 
@@ -44,7 +44,16 @@ export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbri
         {tarea.recurrencia !== 'ninguna' && <span className="text-purple-400 ml-1.5 text-xs">🔁 {RECURRENCIA_LABEL[tarea.recurrencia]}</span>}
       </button>
       <span className="text-gray-500 text-xs w-28 truncate hidden sm:inline flex-shrink-0">🏢 {actions.nombreCliente(tarea.idCliente)}</span>
-      <span className="text-gray-500 text-xs w-24 truncate hidden md:inline flex-shrink-0">👤 {actions.nombresEmpleados(tarea.idsResponsables)}</span>
+      <span className="text-gray-500 text-xs hidden md:flex items-center gap-1 flex-shrink-0 max-w-32">
+        {tarea.idsResponsables.slice(0, 2).map(id => {
+          const emp = state.empleados.find(e => e.id === id)
+          return emp?.avatarUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img key={id} src={emp.avatarUrl} alt={emp.nombre} title={emp.nombre} className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+            : null
+        })}
+        <span className="truncate">👤 {actions.nombresEmpleados(tarea.idsResponsables)}</span>
+      </span>
       <span className="text-gray-500 text-xs w-24 truncate hidden lg:inline flex-shrink-0">🗂️ {actions.nombreDepartamento(tarea.idDepartamento)}</span>
       <span className="text-gray-500 text-xs w-20 flex-shrink-0">📅 {formatFecha(tarea.fechaLimite)}{tarea.hora && ` ${tarea.hora}`}</span>
       <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
