@@ -151,7 +151,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   }
 
   return (
-    <div className="p-8 max-w-6xl space-y-6">
+    <div className="p-8 w-full space-y-6">
       {/* cabecera */}
       <div>
         <div className="text-gray-500 text-xs mb-1">
