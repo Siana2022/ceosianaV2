@@ -37,7 +37,9 @@ function fmtMin(m: number) {
 
 export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, esAdmin }: Props) {
   const router = useRouter()
+  const serviciosLab = servicios.filter(s => plataformaDe(nombreTipo(s)) !== null)
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
+  const [servicioLab, setServicioLab] = useState<string>(serviciosLab[0]?.id ?? '')
   const [nuevaTarea, setNuevaTarea] = useState('')
   const [creandoTarea, setCreandoTarea] = useState(false)
   const [tituloAccion, setTituloAccion] = useState('')
@@ -56,9 +58,9 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
     return (a.fecha_limite ?? '9999-12-31') < (b.fecha_limite ?? '9999-12-31') ? -1 : 1
   })
   const minutosMes = acciones.reduce((s, a) => s + Number(a.minutos ?? 0), 0)
-  const cuentasServicio = cuentas.filter(c => c.id_servicio === servicioSel)
+  const cuentasServicio = cuentas.filter(c => c.id_servicio === servicioLab)
   const accionServicio = acciones.filter(a => a.id_servicio === servicioSel)
-  const servicio = servicios.find(s => s.id === servicioSel) ?? null
+  const servicio = servicios.find(s => s.id === servicioLab) ?? null
   const plataforma = servicio ? plataformaDe(nombreTipo(servicio)) : null
 
   const crearTarea = async () => {
@@ -246,11 +248,16 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
           <span className="ml-auto text-gray-500 text-xs font-normal">evaluar piezas y biblioteca</span>
         </summary>
         <div className="px-5 pb-5">
-          {servicios.length > 1 && (
+          {serviciosLab.length === 0 && (
+            <p className="text-amber-400/90 text-sm mb-3">
+              Este cliente no tiene servicios de plataforma (Google Ads, Meta Ads o GA4). Añádelo como servicio para poder vincular su cuenta.
+            </p>
+          )}
+          {serviciosLab.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <span className="text-gray-500 text-xs">Proyecto</span>
-              <select value={servicioSel} onChange={e => setServicioSel(e.target.value)} className={inputCls}>
-                {servicios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              <span className="text-gray-500 text-xs">Cuenta</span>
+              <select value={servicioLab} onChange={e => setServicioLab(e.target.value)} className={inputCls}>
+                {serviciosLab.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
               {plataforma && (
                 <span className="text-gray-500 text-xs">
@@ -270,7 +277,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             <div className="px-3 py-2 bg-gray-950 flex items-center justify-between">
               <span className="text-gray-500 text-[11px]">Creative Lab · {cliente.nombre}</span>
               <a
-                href={`/creative-lab/index.html?proyecto=${servicioSel}`}
+                href={`/creative-lab/index.html?proyecto=${servicioLab}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-blue-400 hover:text-blue-300 text-[11px]"
@@ -279,8 +286,8 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
               </a>
             </div>
             <iframe
-              key={servicioSel}
-              src={`/creative-lab/index.html?proyecto=${servicioSel}`}
+              key={servicioLab}
+              src={`/creative-lab/index.html?proyecto=${servicioLab}`}
               title="Creative Lab"
               className="w-full block"
               style={{ height: 1150, border: 0 }}
@@ -296,6 +303,13 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
           <span className="ml-auto text-gray-500 text-xs font-normal">{fmtMin(minutosMes)} en total</span>
         </summary>
         <div className="px-5 pb-5">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-gray-500 text-xs">Servicio</span>
+            <select value={servicioSel} onChange={e => setServicioSel(e.target.value)} className={inputCls}>
+              {servicios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+            {servicios.length === 0 && <span className="text-gray-600 text-xs">Sin servicios activos</span>}
+          </div>
           <div className="space-y-1 mb-3">
             {accionServicio.length === 0 && <p className="text-gray-600 text-sm">Sin trabajo registrado en este servicio.</p>}
             {accionServicio.slice(0, 10).map(a => (
