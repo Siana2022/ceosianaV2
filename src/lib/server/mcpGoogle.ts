@@ -143,40 +143,98 @@ export async function renovarToken(opts: {
   return data as Tokens
 }
 
-/** Llama a una herramienta del MCP y devuelve el texto de la respuesta. */
-export async function llamarHerramienta(accessToken: string, tool: string, input: unknown): Promise<string> {
-  const res = await fetch(MCP_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json, text/event-stream',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: { name: tool, arguments: input ?? {} },
-    }),
-  })
+/** Interpreta una respuesta MCP, que puede ser JSON o SSE. */
+function leerRespuesta(texto: string): unknown {
+  const lineas = texto.split('\n')
+  const datos = lineas.filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).filter(Boolean)
+  const cuerpo = datos.length ? datos[datos.length - 1] : texto
+  return JSON.parse(cuerpo)
+}
 
+interface RespuestaRpc {
+  sesion: string | null
+  data: unknown
+}
+
+async function rpc(
+  accessToken: string,
+  body: Record<string, unknown>,
+  sesion?: string | null,
+): Promise<RespuestaRpc> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+    Authorization: `Bearer ${accessToken}`,
+  }
+  if (sesion) headers['Mcp-Session-Id'] = sesion
+
+  const res = await fetch(MCP_URL, { method: 'POST', headers, body: JSON.stringify(body) })
+  const nuevaSesion = res.headers.get('mcp-session-id') ?? sesion ?? null
   const texto = await res.text()
+
   if (!res.ok) throw new Error(`MCP ${res.status}: ${texto.slice(0, 300)}`)
+  if (!texto.trim()) return { sesion: nuevaSesion, data: null }
 
-  // Puede responder JSON plano o SSE (data: {...})
-  const trozos = texto.split('\n').filter(l => l.startsWith('data:'))
-  const cuerpo = trozos.length ? trozos.map(l => l.slice(5).trim()).join('') : texto
-
-  let data: unknown
   try {
-    data = JSON.parse(cuerpo)
+    return { sesion: nuevaSesion, data: leerRespuesta(texto) }
   } catch {
     throw new Error(`Respuesta MCP no interpretable: ${texto.slice(0, 200)}`)
   }
+}
 
-  const rpc = data as { error?: { message?: string }; result?: { content?: { text?: string }[] } }
-  if (rpc.error) throw new Error(rpc.error.message ?? 'Error del servidor MCP')
+/** Abre una sesión MCP (initialize + initialized). */
+async function abrirSesion(accessToken: string): Promise<string | null> {
+  const init = await rpc(accessToken, {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'ceosiana-hub', version: '1.0.0' },
+    },
+  })
 
-  const partes = rpc.result?.content ?? []
-  return partes.map(p => p.text ?? '').join('\n')
+  const err = (init.data as { error?: { message?: string } } | null)?.error
+  if (err) throw new Error(err.message ?? 'initialize falló')
+
+  if (init.sesion) {
+    await rpc(accessToken, { jsonrpc: '2.0', method: 'notifications/initialized' }, init.sesion)
+  }
+  return init.sesion
+}
+
+/** Lista las herramientas que expone el servidor MCP. */
+export async function listarHerramientas(accessToken: string): Promise<string[]> {
+  const sesion = await abrirSesion(accessToken)
+  const res = await rpc(accessToken, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }, sesion)
+  const tools = (res.data as { result?: { tools?: { name: string }[] } } | null)?.result?.tools ?? []
+  return tools.map(t => t.name)
+}
+
+/** Llama a una herramienta del MCP y devuelve el texto de la respuesta. */
+export async function llamarHerramienta(accessToken: string, tool: string, input: unknown): Promise<string> {
+  const sesion = await abrirSesion(accessToken)
+  const res = await rpc(
+    accessToken,
+    {
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/call',
+      params: { name: tool, arguments: input ?? {} },
+    },
+    sesion,
+  )
+
+  const rpcData = res.data as {
+    error?: { message?: string }
+    result?: { content?: { text?: string }[]; isError?: boolean }
+  } | null
+
+  if (rpcData?.error) throw new Error(rpcData.error.message ?? 'Error del servidor MCP')
+
+  const partes = rpcData?.result?.content ?? []
+  const texto = partes.map(p => p.text ?? '').join('\n')
+  if (rpcData?.result?.isError) throw new Error(texto || 'La herramienta devolvió un error')
+  return texto
 }
