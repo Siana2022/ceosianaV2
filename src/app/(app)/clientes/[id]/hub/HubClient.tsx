@@ -26,20 +26,18 @@ interface Props {
   tareas: HubTarea[]
   acciones: HubAccion[]
   esAdmin: boolean
+  /** URL del artefacto en Claude. Si viene, se abre en pestaña nueva. */
+  creativeLabUrl?: string
 }
 
 const inputCls = 'bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
-
-// URL del artefacto real en Claude. Si está definida, el laboratorio se abre
-// en una pestaña nueva (ceosiana sigue abierta detrás).
-const CREATIVE_LAB_URL = process.env.NEXT_PUBLIC_CREATIVE_LAB_URL ?? ''
 
 function fmtMin(m: number) {
   const h = Math.floor(m / 60)
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
 }
 
-export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, esAdmin }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, esAdmin, creativeLabUrl = '' }: Props) {
   const router = useRouter()
   const serviciosLab = servicios.filter(s => plataformaDe(nombreTipo(s)) !== null)
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
@@ -277,7 +275,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             </div>
           )}
 
-          {CREATIVE_LAB_URL ? (
+          {creativeLabUrl ? (
             <div className="border border-gray-800 rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="flex-1 min-w-0">
                 <p className="text-white font-medium">Creative Lab se abre en Claude</p>
@@ -287,7 +285,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
                 </p>
               </div>
               <a
-                href={CREATIVE_LAB_URL}
+                href={creativeLabUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-medium flex-shrink-0"

@@ -61,6 +61,7 @@ export default async function HubPage({ params }: { params: Promise<{ id: string
       tareas={(tareas ?? []) as unknown as HubTarea[]}
       acciones={(acciones ?? []) as unknown as HubAccion[]}
       esAdmin={perfil?.rol === 'admin'}
+      creativeLabUrl={process.env.CREATIVE_LAB_URL ?? ''}
     />
   )
 }
