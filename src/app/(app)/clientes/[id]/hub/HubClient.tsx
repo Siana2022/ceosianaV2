@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { confirmDialog } from '@/components/confirmDialog'
@@ -20,13 +20,14 @@ import {
 } from './types'
 
 interface Props {
-  cliente: { id: string; nombre: string; activo: boolean | null }
+  cliente: { id: string; nombre: string; activo: boolean | null; token_portal?: string | null }
   servicios: HubServicio[]
   cuentas: HubCuenta[]
   tareas: HubTarea[]
   acciones: HubAccion[]
   notas: HubNota[]
   procesos: HubProceso[]
+  tokenPortal?: string | null
   esAdmin: boolean
   /** URL del artefacto en Claude. Si viene, se abre en pestaña nueva. */
   creativeLabUrl?: string
@@ -41,7 +42,7 @@ function fmtMin(m: number) {
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
 }
 
-export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, notas, procesos, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, notas, procesos, tokenPortal = null, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
   const router = useRouter()
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
   const [nuevaTarea, setNuevaTarea] = useState('')
@@ -55,6 +56,9 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   const [guardandoNota, setGuardandoNota] = useState(false)
   const [nuevoProceso, setNuevoProceso] = useState('')
   const [creandoProceso, setCreandoProceso] = useState(false)
+  const [token, setToken] = useState<string | null>(tokenPortal)
+  const [creandoToken, setCreandoToken] = useState(false)
+  const [origen, setOrigen] = useState('')
   const [error, setError] = useState('')
 
   const abiertas = tareas.filter(t => t.estado !== 'terminado').length
@@ -207,6 +211,38 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
     } finally {
       setCreandoProceso(false)
     }
+  }
+
+  useEffect(() => { setOrigen(window.location.origin) }, [])
+
+  const crearEnlace = async () => {
+    setCreandoToken(true)
+    setError('')
+    try {
+      const res = await fetch('/api/hub/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_cliente: cliente.id }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((d as { error?: string }).error ?? 'No se pudo crear el enlace')
+      setToken((d as { token: string }).token)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setCreandoToken(false)
+    }
+  }
+
+  const revocarEnlace = async () => {
+    const ok = await confirmDialog({
+      title: 'Revocar enlace del portal',
+      message: 'El cliente dejará de poder abrir su portal con el enlace actual. Podrás crear uno nuevo.',
+      confirmLabel: 'Revocar',
+    })
+    if (!ok) return
+    const res = await fetch(`/api/hub/portal?id_cliente=${cliente.id}`, { method: 'DELETE' })
+    if (res.ok) setToken(null)
   }
 
   const guardarNota = async () => {
@@ -443,6 +479,58 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             </button>
           </div>
           <p className="text-gray-600 text-[11px] mt-2">Registrar crea también el fichaje de ese tiempo en el servicio.</p>
+        </div>
+      </details>
+
+      {/* Portal del cliente */}
+      <details className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
+          <span className="text-gray-500 text-[10px]">▶</span> Portal del cliente
+          <span className="ml-auto text-gray-500 text-xs font-normal">
+            {token ? 'enlace activo' : 'sin enlace'}
+          </span>
+        </summary>
+        <div className="px-6 pb-5">
+          {!token && (
+            <p className="text-gray-500 text-sm mb-3">
+              Crea un enlace privado para que el cliente vea el avance, las tareas compartidas y el conocimiento marcado como compartido. No necesita cuenta.
+            </p>
+          )}
+          {token && (
+            <div className="flex flex-col sm:flex-row gap-2 mb-3">
+              <input
+                readOnly
+                value={`${origen}/portal/${token}`}
+                className={`flex-1 ${inputCls} font-mono text-xs`}
+                onFocus={e => e.currentTarget.select()}
+              />
+              <button
+                onClick={() => { void navigator.clipboard.writeText(`${origen}/portal/${token}`) }}
+                className="bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm"
+              >
+                Copiar
+              </button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={crearEnlace}
+              disabled={creandoToken}
+              className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {creandoToken ? '…' : token ? 'Renovar enlace' : 'Crear enlace del portal'}
+            </button>
+            {token && (
+              <button onClick={revocarEnlace} className="text-red-400 hover:text-red-300 text-sm px-3">
+                Revocar
+              </button>
+            )}
+          </div>
+          {token && (
+            <p className="text-gray-600 text-[11px] mt-2">
+              Comparte solo lo marcado como compartido: tareas y notas. Lo interno nunca aparece.
+            </p>
+          )}
         </div>
       </details>
 

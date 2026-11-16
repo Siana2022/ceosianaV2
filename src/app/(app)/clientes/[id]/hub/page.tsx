@@ -22,7 +22,7 @@ export default async function HubPage({
 
   const { data: cliente } = await supabase
     .from('clientes')
-    .select('id, nombre, activo')
+    .select('id, nombre, activo, token_portal')
     .eq('id', id)
     .maybeSingle()
 
@@ -84,12 +84,13 @@ export default async function HubPage({
     <HubClient
       googleConectado={Boolean(conexion)}
       avisoGoogle={google ? { tipo: google, detalle: msg ?? '' } : undefined}
-      cliente={cliente as { id: string; nombre: string; activo: boolean | null }}
+      cliente={cliente as { id: string; nombre: string; activo: boolean | null; token_portal?: string | null }}
       servicios={(servicios ?? []) as unknown as HubServicio[]}
       cuentas={(cuentas ?? []) as unknown as HubCuenta[]}
       tareas={(tareas ?? []) as unknown as HubTarea[]}
       notas={(notas ?? []) as unknown as HubNota[]}
       procesos={(procesos ?? []) as unknown as HubProceso[]}
+      tokenPortal={(cliente as { token_portal?: string | null }).token_portal ?? null}
       acciones={(acciones ?? []) as unknown as HubAccion[]}
       esAdmin={perfil?.rol === 'admin'}
       creativeLabUrl={process.env.CREATIVE_LAB_URL ?? ''}
