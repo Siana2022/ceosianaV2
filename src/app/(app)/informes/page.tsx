@@ -5,8 +5,8 @@ import InformesClient from './InformesClient'
 
 export default async function InformesPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const perfilData = await getPerfil()
   // Same fallback as fichar/page.tsx — users without a perfiles row are treated as admin

@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 async function checkAuth() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  return session
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
 }
 
 // POST — create column

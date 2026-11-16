@@ -46,8 +46,8 @@ export async function proxy(req: NextRequest) {
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
@@ -55,13 +55,13 @@ export async function proxy(req: NextRequest) {
   const { data: perfil } = await supabase
     .from('perfiles')
     .select('rol')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .maybeSingle()
 
   // Hub: además de admin, solo las cuentas de la lista
   const esHub = pathname === '/hub' || pathname.startsWith('/hub/') || /^\/clientes\/[^/]+\/hub(\/|$)/.test(pathname)
   if (esHub) {
-    const email = (session.user.email ?? '').toLowerCase()
+    const email = (user.email ?? '').toLowerCase()
     if (!HUB_EMAILS.includes(email)) {
       return NextResponse.redirect(new URL('/tareas', req.url))
     }

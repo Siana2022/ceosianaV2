@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from 'next/server'
 // Creates time_logs for ALL responsables of a reunión/visita (manual time entry case)
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
   const { id_tarea, minutos, fecha, id_empleado_actual, id_cliente, id_servicio, id_departamento } = body as {

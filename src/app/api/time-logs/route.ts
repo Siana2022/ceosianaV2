@@ -9,13 +9,13 @@ async function resolveEmpleadoId(supabase: Awaited<ReturnType<typeof createClien
   const perfil = await getPerfil()
   if (perfil?.id_empleado) return { id: perfil.id_empleado, rol: perfil.rol }
 
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user?.email) return null
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return null
 
   const { data: emp } = await supabase
     .from('empleados')
     .select('id')
-    .eq('email', session.user.email)
+    .eq('email', user.email)
     .maybeSingle()
 
   if (!emp) {

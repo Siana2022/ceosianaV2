@@ -15,8 +15,8 @@ const COLUMNAS_DEFAULT = [
 // GET /api/editorial/boards?id_cliente=xxx — get or create board for client
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const admin = createAdminClient()
   const { searchParams } = new URL(req.url)
@@ -72,8 +72,8 @@ export async function GET(req: NextRequest) {
 // POST /api/editorial/boards — create board for a client (if not exists)
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id_cliente } = await req.json()
   if (!id_cliente) return NextResponse.json({ error: 'id_cliente requerido' }, { status: 400 })
