@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Perfil { id: string; id_empleado: string | null; rol: 'admin' | 'empleado' }
 interface Servicio {
@@ -58,6 +59,9 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
   departamentos: Departamento[]; clientes: Cliente[]; tareas: TareaFichar[]
   pipelineProspectos?: Cliente[]; onSaved: () => void
 }) {
+  const router = useRouter()
+  const [nuevoServicio, setNuevoServicio] = useState('')
+  const [creandoServicio, setCreandoServicio] = useState(false)
   const [modo, setModo] = useState<'timer' | 'manual'>('timer')
   const [descripcion, setDescripcion] = useState('')
   const [clienteId, setClienteId] = useState('')
@@ -564,7 +568,52 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                         </option>
                       ))}
                       <option value="__manual__">✏️ Manual (escribir)</option>
+                      <option value="__nuevo__">➕ Crear servicio nuevo…</option>
                     </select>
+                    {proyectoOtrosId === '__nuevo__' && (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={nuevoServicio}
+                          onChange={e => setNuevoServicio(e.target.value)}
+                          placeholder="Nombre del servicio (ej: Meta Ads)"
+                          className="flex-1 bg-gray-800 border border-blue-400 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-300"
+                        />
+                        <button
+                          type="button"
+                          disabled={creandoServicio || !nuevoServicio.trim() || !clienteId || clienteId === '__otros__'}
+                          onClick={async () => {
+                            if (!nuevoServicio.trim() || !clienteId || clienteId === '__otros__') return
+                            setCreandoServicio(true)
+                            try {
+                              const res = await fetch('/api/servicios', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  id_cliente: clienteId,
+                                  nombre: nuevoServicio.trim(),
+                                  tipo: 'oneshot',
+                                  precio_base: null,
+                                  fecha_inicio: new Date().toISOString().slice(0, 10),
+                                }),
+                              })
+                              const data = await res.json()
+                              if (!res.ok) throw new Error(data.error ?? 'No se pudo crear')
+                              setProyectoOtrosId(String(data.id))
+                              setNuevoServicio('')
+                              router.refresh()
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : 'Error al crear el servicio')
+                            } finally {
+                              setCreandoServicio(false)
+                            }
+                          }}
+                          className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-3 py-2 text-sm font-medium disabled:opacity-50 flex-shrink-0"
+                        >
+                          {creandoServicio ? '…' : 'Crear'}
+                        </button>
+                      </div>
+                    )}
                     {proyectoOtrosId === '__manual__' && (
                       <input type="text" value={proyectoOtrosManual} onChange={e => setProyectoOtrosManual(e.target.value)}
                         placeholder="Escribe el proyecto o tarea..."
