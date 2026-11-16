@@ -151,14 +151,14 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   }
 
   return (
-    <div className="p-6 max-w-6xl space-y-5">
+    <div className="p-8 max-w-6xl space-y-6">
       {/* cabecera */}
       <div>
         <div className="text-gray-500 text-xs mb-1">
           <Link href="/hub" className="text-blue-400 hover:text-blue-300">Hub</Link> · {cliente.nombre}
         </div>
         <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold text-white">{cliente.nombre}</h2>
+          <h2 className="text-[30px] font-bold text-white leading-tight">{cliente.nombre}</h2>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-900/40 text-purple-300">Hub</span>
         </div>
         <p className="text-gray-500 text-sm mt-0.5">Espacio de trabajo del cliente</p>
@@ -169,24 +169,24 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
       )}
 
       {/* KPIs */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Tareas abiertas', value: String(abiertas), hint: `de ${tareas.length} en total` },
           { label: 'Horas registradas', value: fmtMin(minutosMes), hint: 'en los servicios' },
           { label: 'Servicios activos', value: String(servicios.length), hint: servicios.slice(0, 2).map(nombreTipo).join(' · ') || '—' },
           { label: 'Cuentas vinculadas', value: String(cuentas.length), hint: cuentas.length ? cuentas.map(c => PLATAFORMA_LABEL[c.plataforma as Plataforma] ?? c.plataforma).join(' · ') : 'ninguna' },
         ].map(k => (
-          <div key={k.label} className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-            <p className="text-gray-500 text-[11px] uppercase tracking-wider font-semibold">{k.label}</p>
-            <p className="text-white text-3xl font-bold leading-tight mt-1">{k.value}</p>
-            <p className="text-gray-500 text-xs mt-0.5 truncate">{k.hint}</p>
+          <div key={k.label} className="bg-gray-900 border border-gray-800 rounded-xl px-6 py-5 min-h-[118px] flex flex-col justify-center">
+            <p className="text-gray-500 text-[12px] uppercase tracking-[0.08em] font-semibold">{k.label}</p>
+            <p className="text-white text-[36px] font-bold leading-tight mt-1">{k.value}</p>
+            <p className="text-gray-500 text-[13px] mt-1 truncate">{k.hint}</p>
           </div>
         ))}
       </div>
 
       {/* Tareas */}
       <details open className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <summary className="cursor-pointer list-none px-5 py-3.5 flex items-center gap-2 text-white font-semibold">
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
           <span className="text-gray-500 text-[10px]">▶</span> Tareas del cliente
           <span className="ml-auto text-gray-500 text-xs font-normal">{abiertas} abiertas</span>
         </summary>
@@ -194,11 +194,11 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
           <div className="space-y-1">
             {tareas.length === 0 && <p className="text-gray-600 text-sm">Sin tareas todavía.</p>}
             {tareas.map(t => (
-              <div key={t.id} className="flex items-center gap-2 py-1.5 border-b border-gray-800/60 last:border-0">
+              <div key={t.id} className="flex items-center gap-2.5 py-2.5 border-b border-gray-800/60 last:border-0">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${ESTADO_CLASE[t.estado] ?? ESTADO_CLASE.espera}`}>
                   {ESTADO_LABEL[t.estado] ?? t.estado}
                 </span>
-                <span className={`flex-1 truncate text-sm ${t.estado === 'terminado' ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{t.nombre}</span>
+                <span className={`flex-1 truncate text-[15px] ${t.estado === 'terminado' ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{t.nombre}</span>
                 {t.fecha_limite && (
                   <span className="text-gray-500 text-xs">
                     {new Date(`${t.fecha_limite}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
@@ -228,7 +228,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
 
       {/* Creative Lab */}
       <details open className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <summary className="cursor-pointer list-none px-5 py-3.5 flex items-center gap-2 text-white font-semibold">
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
           <span className="text-gray-500 text-[10px]">▶</span> Creative Lab
           <span className="ml-auto text-gray-500 text-xs font-normal">evaluar piezas y biblioteca</span>
         </summary>
@@ -278,7 +278,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
 
       {/* Registro de trabajo */}
       <details className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <summary className="cursor-pointer list-none px-5 py-3.5 flex items-center gap-2 text-white font-semibold">
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
           <span className="text-gray-500 text-[10px]">▶</span> Registro de trabajo
           <span className="ml-auto text-gray-500 text-xs font-normal">{fmtMin(minutosMes)} en total</span>
         </summary>
