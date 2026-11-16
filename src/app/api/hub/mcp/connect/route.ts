@@ -22,7 +22,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const meta = await metadata()
-    const clientId = await registrarCliente(redirectUri)
+    // Si hay un client_id previamente registrado en el servidor MCP, se usa ese
+    // (el servidor puede tener una lista de clientes permitidos).
+    const clientIdFijo = process.env.GOOGLE_ADS_MCP_CLIENT_ID
+    const clientId = clientIdFijo || await registrarCliente(redirectUri)
     const { verifier, challenge } = crearPkce()
     const state = estadoAleatorio()
 
