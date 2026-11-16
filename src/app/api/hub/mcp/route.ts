@@ -61,7 +61,31 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const texto = await llamarHerramienta(accessToken, tool, body.input)
+    let texto: string
+    try {
+      texto = await llamarHerramienta(accessToken, tool, body.input)
+    } catch (e1) {
+      // Si el token ha dejado de valer, se renueva y se reintenta una vez
+      if (con.refresh_token && /401|invalid_token|unauthorized/i.test(String(e1))) {
+        const t = await renovarToken({
+          tokenEndpoint: con.token_endpoint as string,
+          clientId: con.client_id as string,
+          refreshToken: con.refresh_token as string,
+        })
+        accessToken = t.access_token
+        await admin
+          .from('mcp_conexiones')
+          .update({
+            access_token: t.access_token,
+            expires_at: t.expires_in ? new Date(Date.now() + t.expires_in * 1000).toISOString() : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('proveedor', 'google_ads')
+        texto = await llamarHerramienta(accessToken, tool, body.input)
+      } else {
+        throw e1
+      }
+    }
     return NextResponse.json({ payload: texto, cache: { storedAt: Date.now() } })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al llamar al servidor MCP'
