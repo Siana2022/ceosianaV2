@@ -1,11 +1,19 @@
 import { createClient } from '@/lib/server/supabase'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { redirect, notFound } from 'next/navigation'
 import HubClient from './HubClient'
 import type { HubServicio, HubCuenta, HubTarea, HubAccion } from './types'
 
-export default async function HubPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function HubPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ google?: string; msg?: string }>
+}) {
   const { id } = await params
+  const { google, msg } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -53,8 +61,17 @@ export default async function HubPage({ params }: { params: Promise<{ id: string
         .order('plataforma')
     : { data: [] }
 
+  const admin = createAdminClient()
+  const { data: conexion } = await admin
+    .from('mcp_conexiones')
+    .select('proveedor, updated_at')
+    .eq('proveedor', 'google_ads')
+    .maybeSingle()
+
   return (
     <HubClient
+      googleConectado={Boolean(conexion)}
+      avisoGoogle={google ? { tipo: google, detalle: msg ?? '' } : undefined}
       cliente={cliente as { id: string; nombre: string; activo: boolean | null }}
       servicios={(servicios ?? []) as unknown as HubServicio[]}
       cuentas={(cuentas ?? []) as unknown as HubCuenta[]}

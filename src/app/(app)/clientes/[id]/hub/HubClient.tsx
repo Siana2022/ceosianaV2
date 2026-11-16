@@ -25,6 +25,8 @@ interface Props {
   esAdmin: boolean
   /** URL del artefacto en Claude. Si viene, se abre en pestaña nueva. */
   creativeLabUrl?: string
+  googleConectado?: boolean
+  avisoGoogle?: { tipo: string; detalle: string }
 }
 
 const inputCls = 'bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
@@ -34,7 +36,7 @@ function fmtMin(m: number) {
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
 }
 
-export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, esAdmin, creativeLabUrl = '' }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
   const router = useRouter()
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
   const [nuevaTarea, setNuevaTarea] = useState('')
@@ -127,6 +129,16 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
         <p className="text-red-400 text-sm bg-red-500/10 border border-red-800/40 rounded-lg px-3 py-2">{error}</p>
       )}
 
+      {avisoGoogle && (
+        <p className={`text-sm rounded-lg px-3 py-2 border ${avisoGoogle.tipo === 'ok'
+          ? 'text-green-400 bg-green-500/10 border-green-800/40'
+          : 'text-amber-400 bg-amber-500/10 border-amber-800/40'}`}>
+          {avisoGoogle.tipo === 'ok'
+            ? '✓ Google Ads conectado.'
+            : `No se pudo conectar Google Ads (${avisoGoogle.tipo})${avisoGoogle.detalle ? `: ${avisoGoogle.detalle}` : ''}`}
+        </p>
+      )}
+
       {/* KPIs */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
@@ -199,6 +211,20 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
           <span className="ml-auto text-gray-500 text-xs font-normal">evaluar piezas y biblioteca</span>
         </summary>
         <div className="px-5 pb-5">
+          <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+            <span className={googleConectado ? 'text-green-400' : 'text-gray-500'}>
+              {googleConectado ? '● Google Ads conectado' : '○ Google Ads sin conectar'}
+            </span>
+            {esAdmin && (
+              <a
+                href="/api/hub/mcp/connect"
+                className="text-blue-400 hover:text-blue-300"
+              >
+                {googleConectado ? 'Reconectar' : 'Conectar Google Ads'}
+              </a>
+            )}
+          </div>
+
           {creativeLabUrl ? (
             <div className="border border-gray-800 rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="flex-1 min-w-0">

@@ -32,9 +32,23 @@
     },
     limits: { modelTiers: null }
   };
+  var mcp = {
+    callTool: async function(server, tool, input){
+      var res = await fetch('/api/hub/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ server: server, tool: tool, input: input })
+      });
+      var data = await res.json().catch(function(){ return {}; });
+      if (!res.ok) throw new Error(data.error || 'Error del conector de Google Ads');
+      return { payload: data.payload, cache: data.cache };
+    }
+  };
+
   window.claude = {
     use: function(name){
       if (name === 'sample') return Promise.resolve(sample);
+      if (name === 'mcp') return Promise.resolve(mcp);
       return Promise.resolve(null);
     }
   };
