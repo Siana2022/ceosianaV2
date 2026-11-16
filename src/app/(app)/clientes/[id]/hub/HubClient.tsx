@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { confirmDialog } from '@/components/confirmDialog'
 import {
   ESTADO_CLASE,
   ESTADO_LABEL,
@@ -118,6 +119,48 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
       setRegistrando(false)
+    }
+  }
+
+  const repetirProceso = async (pr: HubProceso) => {
+    const ok = await confirmDialog({
+      title: 'Repetir proceso',
+      message: `Se reiniciarán las fases de «${pr.nombre}» con las fechas del siguiente mes.`,
+      confirmLabel: 'Repetir',
+      danger: false,
+    })
+    if (!ok) return
+    setError('')
+
+    const sumarMes = (iso?: string) => {
+      const base = iso ? new Date(`${iso}T12:00:00`) : new Date()
+      base.setMonth(base.getMonth() + 1)
+      return base.toISOString().slice(0, 10)
+    }
+
+    const fases = pr.fases.map(f => ({
+      ...f,
+      estado: 'espera',
+      fechaCompletado: null,
+      minutosAcumulados: 0,
+      timerActivo: false,
+      fechaInicioPrevista: sumarMes(f.fechaInicioPrevista),
+      fechaFinPrevista: sumarMes(f.fechaFinPrevista),
+    }))
+
+    try {
+      const res = await fetch(`/api/procesos?id=${pr.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fases }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error ?? 'No se pudo repetir')
+      }
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
     }
   }
 
@@ -425,6 +468,15 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
                   <div className="flex items-center gap-3">
                     <span className="text-gray-200 text-sm font-medium flex-1 truncate">{pr.nombre}</span>
                     <span className="text-gray-500 text-xs">{hechas}/{total} fases</span>
+                    {total > 0 && hechas === total && (
+                      <button
+                        onClick={() => repetirProceso(pr)}
+                        className="text-green-400 hover:text-green-300 text-xs"
+                        title="Reiniciar con las fechas del mes siguiente"
+                      >
+                        Repetir ↻
+                      </button>
+                    )}
                     <Link
                       href="/tareas/vista-global"
                       className="text-blue-400 hover:text-blue-300 text-xs"

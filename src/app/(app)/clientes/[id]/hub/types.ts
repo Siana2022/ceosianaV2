@@ -96,8 +96,20 @@ export interface HubNota {
   empleado: { nombre: string } | { nombre: string }[] | null
 }
 
+export interface HubProcesoFase {
+  id: string
+  nombre: string
+  orden?: number
+  estado: string
+  fechaInicioPrevista?: string
+  fechaFinPrevista?: string
+  fechaCompletado?: string | null
+  minutosAcumulados?: number
+  [k: string]: unknown
+}
+
 export interface HubProceso {
   id: string
   nombre: string
-  fases: { id: string; nombre: string; estado: string; fechaFinPrevista?: string }[]
+  fases: HubProcesoFase[]
 }
