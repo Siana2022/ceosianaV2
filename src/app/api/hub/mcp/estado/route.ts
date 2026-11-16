@@ -21,6 +21,8 @@ export async function GET() {
   if (!con?.access_token) {
     return NextResponse.json({ conectado: false })
   }
+  const tokenActual = String(con.access_token)
+
 
   // Lectura del JWT (sin verificar) para ver audiencia y emisor
   let jwt: Record<string, unknown> | null = null
@@ -43,16 +45,53 @@ export async function GET() {
     actualizado: con.updated_at,
   }
 
+  // Pruebas en crudo contra el servidor MCP: status, cabecera de autenticación y cuerpo
+  const cuerpoInit = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'ceosiana-diag', version: '1' } },
+  }
+
+  async function probar(etiqueta: string, conAuth: boolean, extra: Record<string, string> = {}) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      ...extra,
+    }
+    if (conAuth) headers.Authorization = `Bearer ${tokenActual}`
+    const r = await fetch(MCP_URL, { method: 'POST', headers, body: JSON.stringify(cuerpoInit) })
+    const t = await r.text()
+    return {
+      prueba: etiqueta,
+      status: r.status,
+      www_authenticate: r.headers.get('www-authenticate'),
+      content_type: r.headers.get('content-type'),
+      cuerpo: t.slice(0, 240),
+    }
+  }
+
+  let pruebas: unknown[] = []
+  try {
+    pruebas = [
+      await probar('bearer', true),
+      await probar('bearer+protocol', true, { 'Mcp-Protocol-Version': '2025-06-18' }),
+      await probar('sin-auth', false),
+    ]
+  } catch (e) {
+    pruebas = [{ prueba: 'error', detalle: e instanceof Error ? e.message : String(e) }]
+  }
+
   // Intento 1: token actual
   try {
     const herramientas = await listarHerramientas(con.access_token as string)
-    return NextResponse.json({ ...diagnostico, refrescado: false, herramientas })
+    return NextResponse.json({ ...diagnostico, pruebas, refrescado: false, herramientas })
   } catch (e1) {
     const msg1 = e1 instanceof Error ? e1.message : 'Error desconocido'
 
     // Intento 2: renovar y repetir
     if (!con.refresh_token) {
-      return NextResponse.json({ ...diagnostico, error: msg1, refrescado: false })
+      return NextResponse.json({ ...diagnostico, pruebas, error: msg1, refrescado: false })
     }
     try {
       const t = await renovarToken({
@@ -72,6 +111,7 @@ export async function GET() {
       const herramientas = await listarHerramientas(t.access_token)
       return NextResponse.json({
         ...diagnostico,
+        pruebas,
         refrescado: true,
         herramientas,
         error_previo: msg1,
@@ -79,6 +119,7 @@ export async function GET() {
     } catch (e2) {
       return NextResponse.json({
         ...diagnostico,
+        pruebas,
         refrescado: false,
         error: msg1,
         error_refresh: e2 instanceof Error ? e2.message : 'Error al renovar',
