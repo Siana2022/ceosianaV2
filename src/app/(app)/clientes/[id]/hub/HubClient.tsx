@@ -30,6 +30,10 @@ interface Props {
 
 const inputCls = 'bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 
+// URL del artefacto real en Claude. Si está definida, el laboratorio se abre
+// en una pestaña nueva (ceosiana sigue abierta detrás).
+const CREATIVE_LAB_URL = process.env.NEXT_PUBLIC_CREATIVE_LAB_URL ?? ''
+
 function fmtMin(m: number) {
   const h = Math.floor(m / 60)
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
@@ -273,26 +277,46 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             </div>
           )}
 
-          <div className="border border-gray-800 rounded-lg overflow-hidden">
-            <div className="px-3 py-2 bg-gray-950 flex items-center justify-between">
-              <span className="text-gray-500 text-[11px]">Creative Lab · {cliente.nombre}</span>
+          {CREATIVE_LAB_URL ? (
+            <div className="border border-gray-800 rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-medium">Creative Lab se abre en Claude</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Se abre en una pestaña nueva, así ceosiana sigue abierta detrás y no pierdes nada si la cierras.
+                  Al volver, registra aquí el tiempo dedicado.
+                </p>
+              </div>
               <a
-                href={`/creative-lab/index.html?proyecto=${servicioLab}`}
+                href={CREATIVE_LAB_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="text-blue-400 hover:text-blue-300 text-[11px]"
+                className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-medium flex-shrink-0"
               >
-                Abrir a pantalla completa ↗
+                Abrir Creative Lab ↗
               </a>
             </div>
-            <iframe
-              key={servicioLab}
-              src={`/creative-lab/index.html?proyecto=${servicioLab}`}
-              title="Creative Lab"
-              className="w-full block"
-              style={{ height: 1150, border: 0 }}
-            />
-          </div>
+          ) : (
+            <div className="border border-gray-800 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 bg-gray-950 flex items-center justify-between">
+                <span className="text-gray-500 text-[11px]">Vista previa · Creative Lab</span>
+                <a
+                  href={`/creative-lab/index.html?proyecto=${servicioLab}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-400 hover:text-blue-300 text-[11px]"
+                >
+                  Abrir a pantalla completa ↗
+                </a>
+              </div>
+              <iframe
+                key={servicioLab}
+                src={`/creative-lab/index.html?proyecto=${servicioLab}`}
+                title="Creative Lab"
+                className="w-full block"
+                style={{ height: 1150, border: 0 }}
+              />
+            </div>
+          )}
         </div>
       </details>
 
