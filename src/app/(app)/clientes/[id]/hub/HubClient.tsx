@@ -49,6 +49,12 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   const [error, setError] = useState('')
 
   const abiertas = tareas.filter(t => t.estado !== 'terminado').length
+  const prioridadEstado = (e: string) => (e === 'terminado' ? 3 : e === 'bloqueada' ? 2 : 1)
+  const tareasOrdenadas = [...tareas].sort((a, b) => {
+    const d = prioridadEstado(a.estado) - prioridadEstado(b.estado)
+    if (d !== 0) return d
+    return (a.fecha_limite ?? '9999-12-31') < (b.fecha_limite ?? '9999-12-31') ? -1 : 1
+  })
   const minutosMes = acciones.reduce((s, a) => s + Number(a.minutos ?? 0), 0)
   const cuentasServicio = cuentas.filter(c => c.id_servicio === servicioSel)
   const accionServicio = acciones.filter(a => a.id_servicio === servicioSel)
@@ -188,12 +194,12 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
       <details open className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
           <span className="text-gray-500 text-[10px]">▶</span> Tareas del cliente
-          <span className="ml-auto text-gray-500 text-xs font-normal">{abiertas} abiertas</span>
+          <span className="ml-auto text-gray-500 text-xs font-normal">{abiertas} abiertas · {tareas.length} en total</span>
         </summary>
         <div className="px-5 pb-4">
           <div className="space-y-1">
             {tareas.length === 0 && <p className="text-gray-600 text-sm">Sin tareas todavía.</p>}
-            {tareas.map(t => (
+            {tareasOrdenadas.map(t => (
               <div key={t.id} className="flex items-center gap-2.5 py-2.5 border-b border-gray-800/60 last:border-0">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${ESTADO_CLASE[t.estado] ?? ESTADO_CLASE.espera}`}>
                   {ESTADO_LABEL[t.estado] ?? t.estado}
@@ -204,6 +210,13 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
                     {new Date(`${t.fecha_limite}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
                   </span>
                 )}
+                <Link
+                  href={`/tareas/vista-global?tarea=${t.id}`}
+                  className="text-blue-400 hover:text-blue-300 text-xs px-2 py-1 rounded hover:bg-gray-800 flex-shrink-0"
+                  title="Abrir tarea"
+                >
+                  Abrir ↗
+                </Link>
               </div>
             ))}
           </div>
