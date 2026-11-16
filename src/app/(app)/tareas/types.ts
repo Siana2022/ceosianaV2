@@ -95,6 +95,8 @@ export interface ProcesoFase {
   timerActivo: boolean
   descripcion: string
   chat: ChatMensaje[]
+  /** Tarea real asociada (se crea al arrancar la fase). Hereda fichaje y estados. */
+  idTarea?: string | null
 }
 
 export interface Proceso {

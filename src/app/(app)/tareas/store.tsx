@@ -363,8 +363,60 @@ export function TareasProvider({
 
   // Si se retrasa/adelanta la fecha fin prevista de una fase, desplaza en cadena el inicio (y fin) de las
   // fases siguientes por el mismo número de días, para mantener sus duraciones y evitar solapes.
+  // Cada fase que arranca tiene su tarea real: así hereda fichaje, estados y Kanban.
+  const sincronizarTareaFase = useCallback(async (
+    idProceso: string,
+    proceso: Proceso,
+    fase: ProcesoFase,
+  ) => {
+    try {
+      if (fase.estado === 'terminado') {
+        if (fase.idTarea) {
+          await fetch(`/api/tareas?id=${fase.idTarea}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estado: 'terminado' }),
+          })
+        }
+        return
+      }
+
+      if (fase.estado === 'proceso' && !fase.idTarea) {
+        const res = await fetch('/api/tareas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: `${proceso.nombre} · ${fase.nombre}`,
+            idCliente: proceso.idCliente,
+            idServicio: proceso.idServicio,
+            idDepartamento: fase.idDepartamento,
+            idsResponsables: fase.idsResponsables ?? [],
+            fechaLimite: fase.fechaFinPrevista,
+            tipo: 'tarea',
+            estado: 'proceso',
+          }),
+        })
+        if (!res.ok) return
+        const tarea = await res.json()
+        if (!tarea?.id) return
+
+        let fasesGuardar: ProcesoFase[] | null = null
+        setProcesos(prev => prev.map(p => {
+          if (p.id !== idProceso) return p
+          const fases = p.fases.map(f => f.id === fase.id ? { ...f, idTarea: tarea.id } : f)
+          fasesGuardar = fases
+          return { ...p, fases }
+        }))
+        if (fasesGuardar) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesGuardar })
+      }
+    } catch (e) {
+      console.error('[procesos] no se pudo sincronizar la tarea de la fase', e)
+    }
+  }, [])
+
   const actualizarFaseProceso = useCallback((idProceso: string, idFase: string, cambios: Partial<ProcesoFase>) => {
     let fasesDB: ProcesoFase[] | null = null
+    let procesoAfectado: Proceso | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
       let nuevasFases: ProcesoFase[]
@@ -384,10 +436,17 @@ export function TareasProvider({
         })
       }
       fasesDB = nuevasFases
-      return { ...p, fases: nuevasFases }
+      procesoAfectado = { ...p, fases: nuevasFases }
+      return procesoAfectado
     }))
     if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
-  }, [])
+
+    const afectado = procesoAfectado as Proceso | null
+    if (cambios.estado && afectado) {
+      const faseActual = afectado.fases.find(f => f.id === idFase)
+      if (faseActual) void sincronizarTareaFase(idProceso, afectado, faseActual)
+    }
+  }, [sincronizarTareaFase])
 
   const moverFaseProceso = useCallback((idProceso: string, idFase: string, direccion: -1 | 1) => {
     let fasesDB: ProcesoFase[] | null = null
@@ -418,6 +477,7 @@ export function TareasProvider({
     let siguienteNombre = ''
     let clienteNombre = ''
     let fasesDB: ProcesoFase[] | null = null
+    let procesoAfectado: Proceso | null = null
     setProcesos(prev => prev.map(p => {
       if (p.id !== idProceso) return p
       const ordenadas = [...p.fases].sort((a, b) => a.orden - b.orden)
@@ -435,15 +495,26 @@ export function TareasProvider({
       })
       clienteNombre = p.nombre
       fasesDB = nuevasFases
-      return { ...p, fases: nuevasFases }
+      procesoAfectado = { ...p, fases: nuevasFases }
+      return procesoAfectado
     }))
     if (fasesDB) dbPatch(`/api/procesos?id=${idProceso}`, { fases: fasesDB })
+
+    const afectado = procesoAfectado as Proceso | null
+    if (afectado) {
+      for (const f of afectado.fases) {
+        if (f.id === idFase || (f.idsResponsables === siguienteResponsables && siguienteNombre && f.nombre === siguienteNombre)) {
+          void sincronizarTareaFase(idProceso, afectado, f)
+        }
+      }
+    }
+
     if (siguienteResponsables) {
       pushToast(`🔔 Notificación simulada (Slack + email) a ${nombresEmpleados(siguienteResponsables)}: puede empezar "${siguienteNombre}" en ${clienteNombre}.`)
     } else {
       pushToast(`Fase completada. Era la última fase de "${clienteNombre}".`)
     }
-  }, [pushToast, nombresEmpleados])
+  }, [pushToast, nombresEmpleados, sincronizarTareaFase])
 
   const volverFaseAnterior = useCallback((idProceso: string, idFase: string) => {
     let anteriorResponsables: string[] | null = null
