@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
-import { listarHerramientas, renovarToken } from '@/lib/server/mcpGoogle'
+import { listarHerramientas, renovarToken, MCP_URL } from '@/lib/server/mcpGoogle'
 
 // GET /api/hub/mcp/estado — diagnóstico de la conexión con Google Ads.
 // Lista las herramientas que expone el servidor MCP para comprobar nombres.
@@ -22,11 +22,22 @@ export async function GET() {
     return NextResponse.json({ conectado: false })
   }
 
+  // Lectura del JWT (sin verificar) para ver audiencia y emisor
+  let jwt: Record<string, unknown> | null = null
+  try {
+    const partes = String(con.access_token).split('.')
+    if (partes.length === 3) {
+      jwt = JSON.parse(Buffer.from(partes[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'))
+    }
+  } catch { jwt = null }
+
   const diagnostico = {
+    jwt: jwt ? { aud: jwt.aud ?? null, iss: jwt.iss ?? null, exp: jwt.exp ?? null, scope: jwt.scope ?? jwt.scp ?? null, client_id: jwt.client_id ?? jwt.azp ?? null } : null,
     conectado: true,
     caduca: con.expires_at,
     caducado: con.expires_at ? new Date(con.expires_at as string).getTime() < Date.now() : null,
     scopes: con.scopes,
+    recurso_esperado: MCP_URL,
     tiene_refresh: Boolean(con.refresh_token),
     longitud_token: String(con.access_token).length,
     actualizado: con.updated_at,
