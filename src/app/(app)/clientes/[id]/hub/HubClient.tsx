@@ -10,6 +10,7 @@ import {
   TIPO_ACCION_LABEL,
   nombreTipo,
   type HubAccion,
+  type HubNota,
   type HubCuenta,
   type HubServicio,
   type HubTarea,
@@ -22,6 +23,7 @@ interface Props {
   cuentas: HubCuenta[]
   tareas: HubTarea[]
   acciones: HubAccion[]
+  notas: HubNota[]
   esAdmin: boolean
   /** URL del artefacto en Claude. Si viene, se abre en pestaña nueva. */
   creativeLabUrl?: string
@@ -36,7 +38,7 @@ function fmtMin(m: number) {
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
 }
 
-export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, notas, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
   const router = useRouter()
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
   const [nuevaTarea, setNuevaTarea] = useState('')
@@ -44,6 +46,10 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   const [tituloAccion, setTituloAccion] = useState('')
   const [minutosAccion, setMinutosAccion] = useState('30')
   const [registrando, setRegistrando] = useState(false)
+  const [notaTitulo, setNotaTitulo] = useState('')
+  const [notaTexto, setNotaTexto] = useState('')
+  const [notaCompartida, setNotaCompartida] = useState(false)
+  const [guardandoNota, setGuardandoNota] = useState(false)
   const [error, setError] = useState('')
 
   const abiertas = tareas.filter(t => t.estado !== 'terminado').length
@@ -108,6 +114,33 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
       setRegistrando(false)
+    }
+  }
+
+  const guardarNota = async () => {
+    const titulo = notaTitulo.trim()
+    if (!titulo) return
+    setGuardandoNota(true)
+    setError('')
+    try {
+      const res = await fetch('/api/hub/notas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_cliente: cliente.id,
+          titulo,
+          contenido: notaTexto,
+          visibilidad: notaCompartida ? 'compartida' : 'interna',
+        }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((d as { error?: string }).error ?? 'No se pudo guardar')
+      setNotaTitulo(''); setNotaTexto(''); setNotaCompartida(false)
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setGuardandoNota(false)
     }
   }
 
@@ -318,6 +351,66 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             </button>
           </div>
           <p className="text-gray-600 text-[11px] mt-2">Registrar crea también el fichaje de ese tiempo en el servicio.</p>
+        </div>
+      </details>
+
+      {/* Conocimiento */}
+      <details className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
+          <span className="text-gray-500 text-[10px]">▶</span> Conocimiento del cliente
+          <span className="ml-auto text-gray-500 text-xs font-normal">
+            {notas.length === 0 ? 'sin notas' : `${notas.length} nota${notas.length === 1 ? '' : 's'}`}
+          </span>
+        </summary>
+        <div className="px-6 pb-5">
+          <div className="space-y-2 mb-4">
+            {notas.length === 0 && (
+              <p className="text-gray-600 text-sm">Aquí quedan las decisiones y aprendizajes del cliente.</p>
+            )}
+            {notas.map(n => (
+              <div key={n.id} className="border border-gray-800 rounded-lg px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${n.visibilidad === 'compartida' ? 'bg-blue-900/40 text-blue-300' : 'bg-gray-800 text-gray-400'}`}>
+                    {n.visibilidad === 'compartida' ? 'Compartida' : 'Interna'}
+                  </span>
+                  <span className="text-gray-200 text-sm font-medium flex-1 truncate">{n.titulo}</span>
+                  <span className="text-gray-600 text-xs">
+                    {new Date(n.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                  </span>
+                </div>
+                {n.contenido && <p className="text-gray-400 text-[13px] mt-1.5 whitespace-pre-wrap">{n.contenido}</p>}
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-gray-800 pt-4 space-y-2">
+            <input
+              value={notaTitulo}
+              onChange={e => setNotaTitulo(e.target.value)}
+              placeholder="Título de la nota (ej: pausamos Display por CPA alto)"
+              className={`w-full ${inputCls}`}
+            />
+            <textarea
+              value={notaTexto}
+              onChange={e => setNotaTexto(e.target.value)}
+              placeholder="Contexto, decisión, por qué…"
+              rows={3}
+              className={`w-full ${inputCls}`}
+            />
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <label className="flex items-center gap-2 text-gray-400 text-[13px]">
+                <input type="checkbox" checked={notaCompartida} onChange={e => setNotaCompartida(e.target.checked)} className="accent-blue-500" />
+                Compartida con el cliente
+              </label>
+              <button
+                onClick={guardarNota}
+                disabled={guardandoNota || !notaTitulo.trim()}
+                className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {guardandoNota ? '…' : 'Guardar nota'}
+              </button>
+            </div>
+          </div>
         </div>
       </details>
 

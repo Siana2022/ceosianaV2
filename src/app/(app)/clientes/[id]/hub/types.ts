@@ -84,3 +84,14 @@ export const TIPO_ACCION_LABEL: Record<string, string> = {
   entrega: 'Entrega',
   nota: 'Nota',
 }
+
+export interface HubNota {
+  id: string
+  id_cliente: string
+  id_servicio: string | null
+  titulo: string
+  contenido: string | null
+  visibilidad: string
+  created_at: string
+  empleado: { nombre: string } | { nombre: string }[] | null
+}

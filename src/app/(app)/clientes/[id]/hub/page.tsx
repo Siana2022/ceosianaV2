@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { redirect, notFound } from 'next/navigation'
 import HubClient from './HubClient'
-import type { HubServicio, HubCuenta, HubTarea, HubAccion } from './types'
+import type { HubServicio, HubCuenta, HubTarea, HubAccion, HubNota } from './types'
 
 export default async function HubPage({
   params,
@@ -53,6 +53,12 @@ export default async function HubPage({
         .limit(100)
     : { data: [] }
 
+  const { data: notas } = await supabase
+    .from('notas_conocimiento')
+    .select('id, id_cliente, id_servicio, titulo, contenido, visibilidad, created_at, empleado:id_empleado(nombre)')
+    .eq('id_cliente', id)
+    .order('created_at', { ascending: false })
+
   const { data: cuentas } = ids.length
     ? await supabase
         .from('cuenta_plataforma')
@@ -76,6 +82,7 @@ export default async function HubPage({
       servicios={(servicios ?? []) as unknown as HubServicio[]}
       cuentas={(cuentas ?? []) as unknown as HubCuenta[]}
       tareas={(tareas ?? []) as unknown as HubTarea[]}
+      notas={(notas ?? []) as unknown as HubNota[]}
       acciones={(acciones ?? []) as unknown as HubAccion[]}
       esAdmin={perfil?.rol === 'admin'}
       creativeLabUrl={process.env.CREATIVE_LAB_URL ?? ''}
