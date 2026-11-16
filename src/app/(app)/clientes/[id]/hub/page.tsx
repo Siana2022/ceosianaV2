@@ -29,14 +29,12 @@ export default async function HubPage({ params }: { params: Promise<{ id: string
 
   const ids = (servicios ?? []).map(s => s.id)
 
-  // Tareas ligadas a estos servicios (id_servicio es text, se compara tal cual)
-  const { data: tareas } = ids.length
-    ? await supabase
-        .from('tareas')
-        .select('id, nombre, estado, fecha_limite, ids_responsables, id_servicio')
-        .in('id_servicio', ids)
-        .order('fecha_limite', { ascending: true })
-    : { data: [] }
+  // Tareas del cliente (id_cliente es text)
+  const { data: tareas } = await supabase
+    .from('tareas')
+    .select('id, nombre, estado, fecha_limite, ids_responsables, id_servicio')
+    .eq('id_cliente', id)
+    .order('fecha_limite', { ascending: true })
 
   const { data: acciones } = ids.length
     ? await supabase

@@ -1,6 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
+// El hub solo lo usan estas cuentas (configurable por entorno).
+const HUB_EMAILS = (process.env.HUB_EMAILS ?? 'anais@sianadigital.com,juanjo@sianadigital.com')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean)
+
 export async function proxy(req: NextRequest) {
   const res = NextResponse.next()
   const pathname = req.nextUrl.pathname
@@ -51,6 +57,15 @@ export async function proxy(req: NextRequest) {
     .select('rol')
     .eq('id', session.user.id)
     .maybeSingle()
+
+  // Hub: además de admin, solo las cuentas de la lista
+  const esHub = pathname === '/hub' || pathname.startsWith('/hub/') || /^\/clientes\/[^/]+\/hub(\/|$)/.test(pathname)
+  if (esHub) {
+    const email = (session.user.email ?? '').toLowerCase()
+    if (!HUB_EMAILS.includes(email)) {
+      return NextResponse.redirect(new URL('/tareas', req.url))
+    }
+  }
 
   // Empleados solo pueden acceder a /fichar y /tareas (procesos)
   const esEmpleado = perfil?.rol !== 'admin'
