@@ -374,6 +374,30 @@ export default function HubClient({ cliente, servicios, cuentas, esAdmin, tareas
               )}
             </div>
 
+            {/* Creative Lab embebido */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-800 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-white font-semibold text-sm">Creative Lab</h3>
+                  <p className="text-gray-500 text-xs mt-0.5">Evaluación de piezas con IA</p>
+                </div>
+                <a
+                  href={`/creative-lab/index.html?proyecto=${servicioActivo.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-400 hover:text-blue-300 text-xs flex-shrink-0"
+                >
+                  Abrir a pantalla completa ↗
+                </a>
+              </div>
+              <iframe
+                src={`/creative-lab/index.html?proyecto=${servicioActivo.id}`}
+                title="Creative Lab"
+                className="w-full block"
+                style={{ height: 1180, border: 0 }}
+              />
+            </div>
+
             {/* Tareas del servicio */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <div className="flex items-center justify-between gap-3 mb-3">
