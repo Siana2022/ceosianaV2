@@ -4,7 +4,7 @@ import { getPerfil } from '@/lib/server/perfil'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import HubClient from '@/app/(app)/clientes/[id]/hub/HubClient'
-import type { HubServicio, HubCuenta, HubTarea, HubAccion, HubNota } from '@/app/(app)/clientes/[id]/hub/types'
+import type { HubServicio, HubCuenta, HubTarea, HubAccion, HubNota, HubProceso } from '@/app/(app)/clientes/[id]/hub/types'
 
 export default async function HubIndexPage({
   searchParams,
@@ -102,6 +102,12 @@ export default async function HubIndexPage({
     .eq('id_cliente', clienteId)
     .order('created_at', { ascending: false })
 
+  const { data: procesos } = await supabase
+    .from('procesos')
+    .select('id, nombre, fases')
+    .eq('id_cliente', clienteId)
+    .order('created_at', { ascending: true })
+
   const { data: cuentas } = ids.length
     ? await supabase
         .from('cuenta_plataforma')
@@ -126,6 +132,7 @@ export default async function HubIndexPage({
       cuentas={(cuentas ?? []) as unknown as HubCuenta[]}
       tareas={(tareas ?? []) as unknown as HubTarea[]}
       notas={(notas ?? []) as unknown as HubNota[]}
+      procesos={(procesos ?? []) as unknown as HubProceso[]}
       acciones={(acciones ?? []) as unknown as HubAccion[]}
       esAdmin={perfil?.rol === 'admin'}
       creativeLabUrl={process.env.CREATIVE_LAB_URL ?? ''}

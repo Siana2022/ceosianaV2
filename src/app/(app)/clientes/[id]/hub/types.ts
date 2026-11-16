@@ -95,3 +95,9 @@ export interface HubNota {
   created_at: string
   empleado: { nombre: string } | { nombre: string }[] | null
 }
+
+export interface HubProceso {
+  id: string
+  nombre: string
+  fases: { id: string; nombre: string; estado: string; fechaFinPrevista?: string }[]
+}

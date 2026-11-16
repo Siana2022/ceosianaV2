@@ -11,6 +11,7 @@ import {
   nombreTipo,
   type HubAccion,
   type HubNota,
+  type HubProceso,
   type HubCuenta,
   type HubServicio,
   type HubTarea,
@@ -24,6 +25,7 @@ interface Props {
   tareas: HubTarea[]
   acciones: HubAccion[]
   notas: HubNota[]
+  procesos: HubProceso[]
   esAdmin: boolean
   /** URL del artefacto en Claude. Si viene, se abre en pestaña nueva. */
   creativeLabUrl?: string
@@ -38,7 +40,7 @@ function fmtMin(m: number) {
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
 }
 
-export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, notas, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, notas, procesos, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
   const router = useRouter()
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
   const [nuevaTarea, setNuevaTarea] = useState('')
@@ -50,6 +52,8 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   const [notaTexto, setNotaTexto] = useState('')
   const [notaCompartida, setNotaCompartida] = useState(false)
   const [guardandoNota, setGuardandoNota] = useState(false)
+  const [nuevoProceso, setNuevoProceso] = useState('')
+  const [creandoProceso, setCreandoProceso] = useState(false)
   const [error, setError] = useState('')
 
   const abiertas = tareas.filter(t => t.estado !== 'terminado').length
@@ -114,6 +118,51 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
       setRegistrando(false)
+    }
+  }
+
+  const crearProceso = async () => {
+    const nombre = nuevoProceso.trim()
+    if (!nombre) return
+    setCreandoProceso(true)
+    setError('')
+    const hoy = new Date().toISOString().slice(0, 10)
+    const fin = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+    try {
+      const res = await fetch('/api/procesos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idCliente: cliente.id,
+          idServicio: null,
+          idPlantilla: '',
+          nombre,
+          fases: [{
+            id: crypto.randomUUID(),
+            nombre: 'Fase 1',
+            orden: 1,
+            idDepartamento: null,
+            idsResponsables: [],
+            fechaInicioPrevista: hoy,
+            fechaFinPrevista: fin,
+            estado: 'espera',
+            fechaCompletado: null,
+            adjuntos: [],
+            minutosAcumulados: 0,
+            timerActivo: false,
+            descripcion: '',
+            chat: [],
+          }],
+        }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((d as { error?: string }).error ?? 'No se pudo crear')
+      setNuevoProceso('')
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setCreandoProceso(false)
     }
   }
 
@@ -351,6 +400,63 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             </button>
           </div>
           <p className="text-gray-600 text-[11px] mt-2">Registrar crea también el fichaje de ese tiempo en el servicio.</p>
+        </div>
+      </details>
+
+      {/* Procesos */}
+      <details className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
+          <span className="text-gray-500 text-[10px]">▶</span> Procesos del cliente
+          <span className="ml-auto text-gray-500 text-xs font-normal">
+            {procesos.length === 0 ? 'ninguno' : `${procesos.length} proceso${procesos.length === 1 ? '' : 's'}`}
+          </span>
+        </summary>
+        <div className="px-6 pb-5">
+          <div className="space-y-2 mb-4">
+            {procesos.length === 0 && (
+              <p className="text-gray-600 text-sm">Todavía no hay procesos. Crea uno y añade fases después.</p>
+            )}
+            {procesos.map(pr => {
+              const total = pr.fases?.length ?? 0
+              const hechas = (pr.fases ?? []).filter(f => f.estado === 'terminado').length
+              const pct = total ? Math.round((hechas / total) * 100) : 0
+              return (
+                <div key={pr.id} className="border border-gray-800 rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-200 text-sm font-medium flex-1 truncate">{pr.nombre}</span>
+                    <span className="text-gray-500 text-xs">{hechas}/{total} fases</span>
+                    <Link
+                      href="/tareas/vista-global"
+                      className="text-blue-400 hover:text-blue-300 text-xs"
+                      title="Los procesos se editan en Tareas"
+                    >
+                      Ver en Tareas ↗
+                    </Link>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              value={nuevoProceso}
+              onChange={e => setNuevoProceso(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') crearProceso() }}
+              placeholder="Nombre del proceso (ej: Artículos mensuales)"
+              className={`flex-1 ${inputCls}`}
+            />
+            <button
+              onClick={crearProceso}
+              disabled={creandoProceso || !nuevoProceso.trim()}
+              className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {creandoProceso ? '…' : 'Crear proceso'}
+            </button>
+          </div>
         </div>
       </details>
 
