@@ -3,15 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { confirmDialog } from '@/components/confirmDialog'
 import {
   ESTADO_CLASE,
   ESTADO_LABEL,
-  PLATAFORMA_ICONO,
   PLATAFORMA_LABEL,
   TIPO_ACCION_LABEL,
   nombreTipo,
-  plataformaDe,
   type HubAccion,
   type HubCuenta,
   type HubServicio,
@@ -39,17 +36,12 @@ function fmtMin(m: number) {
 
 export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, esAdmin, creativeLabUrl = '' }: Props) {
   const router = useRouter()
-  const serviciosLab = servicios.filter(s => plataformaDe(nombreTipo(s)) !== null)
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
-  const [servicioLab, setServicioLab] = useState<string>(serviciosLab[0]?.id ?? '')
   const [nuevaTarea, setNuevaTarea] = useState('')
   const [creandoTarea, setCreandoTarea] = useState(false)
   const [tituloAccion, setTituloAccion] = useState('')
   const [minutosAccion, setMinutosAccion] = useState('30')
   const [registrando, setRegistrando] = useState(false)
-  const [modal, setModal] = useState<{ plataforma: Plataforma } | null>(null)
-  const [nombreCuenta, setNombreCuenta] = useState('')
-  const [idExterno, setIdExterno] = useState('')
   const [error, setError] = useState('')
 
   const abiertas = tareas.filter(t => t.estado !== 'terminado').length
@@ -60,10 +52,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
     return (a.fecha_limite ?? '9999-12-31') < (b.fecha_limite ?? '9999-12-31') ? -1 : 1
   })
   const minutosMes = acciones.reduce((s, a) => s + Number(a.minutos ?? 0), 0)
-  const cuentasServicio = cuentas.filter(c => c.id_servicio === servicioLab)
   const accionServicio = acciones.filter(a => a.id_servicio === servicioSel)
-  const servicio = servicios.find(s => s.id === servicioLab) ?? null
-  const plataforma = servicio ? plataformaDe(nombreTipo(servicio)) : null
 
   const crearTarea = async () => {
     const nombre = nuevaTarea.trim()
@@ -118,46 +107,6 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
     } finally {
       setRegistrando(false)
     }
-  }
-
-  const vincular = async () => {
-    if (!modal || !servicioSel) return
-    setRegistrando(true)
-    setError('')
-    try {
-      const res = await fetch('/api/hub/cuentas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id_servicio: servicioSel,
-          plataforma: modal.plataforma,
-          id_externo: idExterno,
-          nombre: nombreCuenta,
-          moneda: 'EUR',
-        }),
-      })
-      const d = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((d as { error?: string }).error ?? 'No se pudo vincular')
-      setModal(null)
-      setNombreCuenta('')
-      setIdExterno('')
-      router.refresh()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error')
-    } finally {
-      setRegistrando(false)
-    }
-  }
-
-  const desvincular = async (cuenta: HubCuenta) => {
-    const ok = await confirmDialog({
-      title: 'Desvincular cuenta',
-      message: `¿Seguro que quieres desvincular «${cuenta.nombre}»? Se dejará de sincronizar.`,
-      confirmLabel: 'Desvincular',
-    })
-    if (!ok) return
-    const res = await fetch(`/api/hub/cuentas?id=${cuenta.id}`, { method: 'DELETE' })
-    if (res.ok) router.refresh()
   }
 
   return (
@@ -250,31 +199,6 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
           <span className="ml-auto text-gray-500 text-xs font-normal">evaluar piezas y biblioteca</span>
         </summary>
         <div className="px-5 pb-5">
-          {serviciosLab.length === 0 && (
-            <p className="text-amber-400/90 text-sm mb-3">
-              Este cliente no tiene servicios de plataforma (Google Ads, Meta Ads o GA4). Añádelo como servicio para poder vincular su cuenta.
-            </p>
-          )}
-          {serviciosLab.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <span className="text-gray-500 text-xs">Cuenta</span>
-              <select value={servicioLab} onChange={e => setServicioLab(e.target.value)} className={inputCls}>
-                {serviciosLab.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-              {plataforma && (
-                <span className="text-gray-500 text-xs">
-                  {PLATAFORMA_ICONO[plataforma]} {cuentasServicio.length ? cuentasServicio.map(c => c.nombre).join(', ') : 'cuenta sin vincular'}
-                </span>
-              )}
-              {plataforma && esAdmin && cuentasServicio.length === 0 && (
-                <button onClick={() => setModal({ plataforma })} className="text-blue-400 hover:text-blue-300 text-xs">Vincular cuenta</button>
-              )}
-              {esAdmin && cuentasServicio.map(c => (
-                <button key={c.id} onClick={() => desvincular(c)} className="text-red-400 hover:text-red-300 text-[11px]">desvincular</button>
-              ))}
-            </div>
-          )}
-
           {creativeLabUrl ? (
             <div className="border border-gray-800 rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="flex-1 min-w-0">
@@ -298,7 +222,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
               <div className="px-3 py-2 bg-gray-950 flex items-center justify-between">
                 <span className="text-gray-500 text-[11px]">Vista previa · Creative Lab</span>
                 <a
-                  href={`/creative-lab/index.html?proyecto=${servicioLab}`}
+                  href={`/creative-lab/index.html?proyecto=${servicioSel}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-400 hover:text-blue-300 text-[11px]"
@@ -307,8 +231,8 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
                 </a>
               </div>
               <iframe
-                key={servicioLab}
-                src={`/creative-lab/index.html?proyecto=${servicioLab}`}
+                key={servicioSel}
+                src={`/creative-lab/index.html?proyecto=${servicioSel}`}
                 title="Creative Lab"
                 className="w-full block"
                 style={{ height: 1150, border: 0 }}
@@ -371,20 +295,6 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
         </div>
       </details>
 
-      {/* Modal vincular */}
-      {modal && (
-        <div className="fixed inset-0 bg-black/70 z-[90] flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-white font-semibold">Vincular cuenta · {PLATAFORMA_LABEL[modal.plataforma]}</h3>
-            <input value={nombreCuenta} onChange={e => setNombreCuenta(e.target.value)} className={`w-full ${inputCls}`} placeholder="Nombre de la cuenta" />
-            <input value={idExterno} onChange={e => setIdExterno(e.target.value)} className={`w-full ${inputCls} font-mono`} placeholder={modal.plataforma === 'google_ads' ? '123-456-7890' : modal.plataforma === 'meta_ads' ? 'act_123456789' : 'properties/123456'} />
-            <div className="flex gap-3">
-              <button onClick={() => setModal(null)} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-800 hover:bg-gray-700 text-gray-300">Cancelar</button>
-              <button onClick={vincular} disabled={registrando || !nombreCuenta.trim() || !idExterno.trim()} className="flex-1 px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">Vincular</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
