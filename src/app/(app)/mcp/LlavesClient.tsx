@@ -30,7 +30,7 @@ function nombreEmpleado(l: Llave): string {
   return Array.isArray(l.empleado) ? (l.empleado[0]?.nombre ?? '—') : l.empleado.nombre
 }
 
-export default function LlavesClient({ empleados, clientes }: { empleados: Empleado[]; clientes: Cliente[] }) {
+export default function LlavesClient({ empleados, clientes, bypass }: { empleados: Empleado[]; clientes: Cliente[]; bypass: string }) {
   const [llaves, setLlaves] = useState<Llave[]>([])
   const [nombre, setNombre] = useState('')
   const [tipo, setTipo] = useState<'operativo' | 'admin' | 'externo'>('operativo')
@@ -117,7 +117,7 @@ export default function LlavesClient({ empleados, clientes }: { empleados: Emple
         {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
 
         {nueva && (
-          <PanelNuevaLlave token={nueva.token} tipo={nueva.tipo} />
+          <PanelNuevaLlave token={nueva.token} tipo={nueva.tipo} bypass={bypass} />
         )}
       </div>
 
@@ -167,9 +167,11 @@ export default function LlavesClient({ empleados, clientes }: { empleados: Emple
 }
 
 
-function PanelNuevaLlave({ token, tipo }: { token: string; tipo: string }) {
+function PanelNuevaLlave({ token, tipo, bypass }: { token: string; tipo: string; bypass: string }) {
   const origen = typeof window !== 'undefined' ? window.location.origin : ''
-  const url = `${origen}/api/mcp/${tipo}?llave=${token}`
+  // En previews protegidos por Vercel hace falta el secreto de omisión.
+  const extra = bypass ? `&x-vercel-protection-bypass=${encodeURIComponent(bypass)}` : ''
+  const url = `${origen}/api/mcp/${tipo}?llave=${token}${extra}`
   const [copiada, setCopiada] = useState(false)
 
   const copiar = () => {
