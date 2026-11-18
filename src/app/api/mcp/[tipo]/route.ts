@@ -229,7 +229,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
       const [{ data: cliente }, { data: tareas }, { data: servicios }, { data: procesos }] = await Promise.all([
         db.from('clientes').select('id, nombre').eq('id', id).maybeSingle(),
         db.from('tareas').select('estado').eq('id_cliente', id),
-        db.from('servicios').select('id, nombre').eq('id_cliente', id),
+        db.from('servicios').select('id, nombre, descripcion').eq('id_cliente', id),
         db.from('procesos').select('id, nombre, fases').eq('id_cliente', id),
       ])
       if (!cliente) throw new Error('Cliente no encontrado')
@@ -252,7 +252,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
 
     case 'hub_cliente': {
       const id = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
-      const { data: servicios } = await db.from('servicios').select('id, nombre').eq('id_cliente', id)
+      const { data: servicios } = await db.from('servicios').select('id, nombre, descripcion').eq('id_cliente', id)
       const idsServicio = (servicios ?? []).map(s => s.id)
 
       const [{ data: cuentas }, { data: notas }, { data: procesos }] = await Promise.all([
