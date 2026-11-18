@@ -20,7 +20,7 @@ const HERRAMIENTAS = [
   },
   {
     name: 'tareas_cliente',
-    description: 'Tareas de un cliente, con estado y fecha límite.',
+    description: 'Tareas de un cliente, con estado y fecha límite. id_cliente acepta el identificador o el nombre.',
     nivel: 1,
     inputSchema: {
       type: 'object',
@@ -57,7 +57,7 @@ const HERRAMIENTAS = [
   },
   {
     name: 'resumen_cliente',
-    description: 'Resumen de un cliente: tareas abiertas, servicios y procesos.',
+    description: 'Resumen de un cliente: tareas abiertas, servicios y procesos. id_cliente acepta id o nombre.',
     nivel: 1,
     inputSchema: {
       type: 'object',
@@ -67,7 +67,7 @@ const HERRAMIENTAS = [
   },
   {
     name: 'hub_cliente',
-    description: 'Contenido del hub de un cliente: servicios, cuentas, procesos y conocimiento.',
+    description: 'Contenido del hub de un cliente: servicios, cuentas, procesos y conocimiento. id_cliente acepta id o nombre.',
     nivel: 1,
     inputSchema: {
       type: 'object',
@@ -76,9 +76,22 @@ const HERRAMIENTAS = [
     },
   },
   {
+    name: 'biblioteca',
+    description: 'Contenido guardado del Creative Lab de un cliente: análisis, evaluaciones, hipótesis y conocimiento.',
+    nivel: 1,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id_cliente: { type: 'string' },
+        coleccion: { type: 'string', description: 'Opcional: analisis, evaluaciones, hipotesis, variaciones, conocimiento' },
+      },
+      required: ['id_cliente'],
+    },
+  },
+  {
     name: 'listar_clientes',
-    description: 'Lista de clientes activos con su identificador.',
-    nivel: 3,
+    description: 'Lista de clientes activos con su identificador. Úsalo para resolver un nombre.',
+    nivel: 2,
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -96,6 +109,18 @@ const PALABRAS: Record<string, string> = {
   proceso: 'En proceso',
   bloqueada: 'Bloqueada',
   terminado: 'Terminada',
+}
+
+async function resolverCliente(valor: string): Promise<string> {
+  const db = createAdminClient()
+  const v = String(valor ?? '').trim()
+  if (!v) throw new Error('Falta el cliente')
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(v)) return v
+
+  const { data } = await db.from('clientes').select('id, nombre').ilike('nombre', `%${v}%`).limit(2)
+  if (!data || data.length === 0) throw new Error(`No encuentro el cliente "${v}"`)
+  return String(data[0].id)
 }
 
 function texto(datos: unknown) {
@@ -165,7 +190,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
     }
 
     case 'resumen_cliente': {
-      const id = llave.idCliente ?? String(args.id_cliente ?? '')
+      const id = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
       const [{ data: cliente }, { data: tareas }, { data: servicios }, { data: procesos }] = await Promise.all([
         db.from('clientes').select('id, nombre').eq('id', id).maybeSingle(),
         db.from('tareas').select('estado').eq('id_cliente', id),
@@ -191,7 +216,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
     }
 
     case 'hub_cliente': {
-      const id = llave.idCliente ?? String(args.id_cliente ?? '')
+      const id = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
       const { data: servicios } = await db.from('servicios').select('id, nombre, descripcion').eq('id_cliente', id)
       const idsServicio = (servicios ?? []).map(s => s.id)
 
@@ -208,6 +233,29 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
         cuentas: cuentas ?? [],
         conocimiento: notas ?? [],
         procesos: procesos ?? [],
+      })
+    }
+
+    case 'biblioteca': {
+      const idCliente = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
+      let q = db
+        .from('lab_docs')
+        .select('coleccion, doc_id, datos, created_at')
+        .eq('id_cliente', idCliente)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (args.coleccion) q = q.eq('coleccion', String(args.coleccion))
+
+      const { data } = await q
+      return texto({
+        documentos: (data ?? []).map(d => ({
+          coleccion: d.coleccion,
+          id: d.doc_id,
+          fecha: d.created_at,
+          datos: d.datos,
+        })),
+        total: (data ?? []).length,
       })
     }
 
