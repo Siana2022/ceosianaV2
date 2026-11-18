@@ -24,7 +24,11 @@ export default async function LlavesMCPPage() {
       <LlavesClient
         empleados={(empleados ?? []) as { id: string; nombre: string }[]}
         clientes={(clientes ?? []) as { id: string; nombre: string }[]}
-        bypass={process.env.MCP_BYPASS ?? ''}
+        bypass={
+          process.env.MCP_BYPASS ??
+          process.env.VERCEL_AUTOMATION_BYPASS_SECRET ??
+          ''
+        }
       />
     </div>
   )
