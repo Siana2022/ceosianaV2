@@ -23,7 +23,18 @@ export function generarLlave(): { token: string; hash: string; prefijo: string }
 /** Valida la cabecera Authorization contra la tabla de llaves. */
 export async function verificarLlave(req: Request): Promise<LlaveMCP | null> {
   const cabecera = req.headers.get('authorization') ?? ''
-  const token = cabecera.toLowerCase().startsWith('bearer ') ? cabecera.slice(7).trim() : ''
+  let token = cabecera.toLowerCase().startsWith('bearer ') ? cabecera.slice(7).trim() : ''
+
+  // Permite la llave en la URL (?llave=...) para clientes que no admiten
+  // cabeceras. Es menos seguro: la URL puede quedar en registros.
+  if (!token) {
+    try {
+      token = new URL(req.url).searchParams.get('llave')?.trim() ?? ''
+    } catch {
+      token = ''
+    }
+  }
+
   if (!token.startsWith('ceo_')) return null
 
   const hash = crypto.createHash('sha256').update(token).digest('hex')
