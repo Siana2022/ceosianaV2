@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { llamarHerramienta, renovarToken, MCP_URL } from '@/lib/server/mcpGoogle'
+import { cuentasAnuncios, entidadesAnuncio, creatividades, vistaPrevia } from '@/lib/server/meta'
 
 // Las imágenes de Google van a otro dominio y el artefacto las pide con fetch,
 // así que el navegador las bloquea. Se reescriben a nuestro proxy del mismo origen.
@@ -27,12 +28,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  // Meta todavía no está conectado: se responde claro en vez de un 502 genérico
+  // ── Meta: se habla directamente con la Graph API ──────────────────────
   if ((body.server ?? '').toLowerCase().includes('meta')) {
-    return NextResponse.json(
-      { error: 'Meta Ads todavía no está conectado en Ceosiana' },
-      { status: 503 },
-    )
+    if (!process.env.META_SYSTEM_USER_TOKEN) {
+      return NextResponse.json(
+        { error: 'Meta Ads todavía no está conectado en Ceosiana' },
+        { status: 503 },
+      )
+    }
+    try {
+      const entrada = (body.input ?? {}) as Record<string, unknown>
+      let payload: unknown
+      switch (body.tool) {
+        case 'ads_get_ad_accounts':
+          payload = await cuentasAnuncios(Number(entrada.limit ?? 100), typeof entrada.cursor === 'string' ? entrada.cursor : undefined)
+          break
+        case 'ads_get_ad_entities':
+          payload = await entidadesAnuncio(entrada)
+          break
+        case 'ads_get_creatives':
+          payload = await creatividades(entrada)
+          break
+        case 'ads_get_ad_preview':
+          payload = await vistaPrevia(entrada)
+          break
+        default:
+          return NextResponse.json({ error: `Herramienta de Meta no soportada: ${body.tool}` }, { status: 400 })
+      }
+      return NextResponse.json({ payload, cache: { storedAt: Date.now() } })
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Error de Meta' }, { status: 502 })
+    }
   }
 
   const tool = body.tool
