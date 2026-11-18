@@ -315,15 +315,25 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   return (
     <div className="p-8 w-full space-y-6">
       {/* cabecera */}
-      <div>
-        <div className="text-gray-500 text-xs mb-1">
-          <Link href="/hub" className="text-blue-400 hover:text-blue-300">Hub</Link> · {cliente.nombre}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-gray-500 text-xs mb-1">
+            <Link href="/hub" className="text-blue-400 hover:text-blue-300">Hub</Link> · {cliente.nombre}
+          </div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-[30px] font-bold text-white leading-tight">{cliente.nombre}</h2>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-900/40 text-purple-300">Hub</span>
+          </div>
+          <p className="text-gray-500 text-sm mt-0.5">Espacio de trabajo del cliente</p>
         </div>
-        <div className="flex items-center gap-3">
-          <h2 className="text-[30px] font-bold text-white leading-tight">{cliente.nombre}</h2>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-900/40 text-purple-300">Hub</span>
-        </div>
-        <p className="text-gray-500 text-sm mt-0.5">Espacio de trabajo del cliente</p>
+        <a
+          href={creativeLabUrl || `/creative-lab/index.html?proyecto=${cliente.id}&v=20261118d`}
+          target="_blank"
+          rel="noreferrer"
+          className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex-shrink-0"
+        >
+          Creative Lab ↗
+        </a>
       </div>
 
       {error && (
@@ -426,46 +436,23 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             )}
           </div>
 
-          {creativeLabUrl ? (
-            <div className="border border-gray-800 rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-medium">Creative Lab se abre en Claude</p>
-                <p className="text-gray-500 text-sm mt-1">
-                  Se abre en una pestaña nueva, así ceosiana sigue abierta detrás y no pierdes nada si la cierras.
-                  Al volver, registra aquí el tiempo dedicado.
-                </p>
-              </div>
-              <a
-                href={creativeLabUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-medium flex-shrink-0"
-              >
-                Abrir Creative Lab ↗
-              </a>
+          <div className="border border-gray-800 rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-medium">Analizar creatividades y biblioteca</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Se abre a pantalla completa en una pestaña nueva, con los datos de este cliente y su biblioteca.
+                Ceosiana queda detrás y no pierdes nada si la cierras.
+              </p>
             </div>
-          ) : (
-            <div className="border border-gray-800 rounded-lg overflow-hidden">
-              <div className="px-3 py-2 bg-gray-950 flex items-center justify-between">
-                <span className="text-gray-500 text-[11px]">Vista previa · Creative Lab</span>
-                <a
-                  href={`/creative-lab/index.html?proyecto=${servicioSel}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-400 hover:text-blue-300 text-[11px]"
-                >
-                  Abrir a pantalla completa ↗
-                </a>
-              </div>
-              <iframe
-                key={servicioSel}
-                src={`/creative-lab/index.html?proyecto=${servicioSel}&v=20261118c`}
-                title="Creative Lab"
-                className="w-full block"
-                style={{ height: 1150, border: 0 }}
-              />
-            </div>
-          )}
+            <a
+              href={creativeLabUrl || `/creative-lab/index.html?proyecto=${cliente.id}&v=20261118d`}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-medium flex-shrink-0"
+            >
+              Abrir Creative Lab ↗
+            </a>
+          </div>
         </div>
       </details>
 
