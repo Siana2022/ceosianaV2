@@ -37,7 +37,7 @@ export default function LlavesClient({ empleados, clientes }: { empleados: Emple
   const [cliente, setCliente] = useState('')
   const [empleado, setEmpleado] = useState('')
   const [creando, setCreando] = useState(false)
-  const [nueva, setNueva] = useState<string | null>(null)
+  const [nueva, setNueva] = useState<{ token: string; tipo: string } | null>(null)
   const [error, setError] = useState('')
 
   const cargar = async () => {
@@ -60,7 +60,7 @@ export default function LlavesClient({ empleados, clientes }: { empleados: Emple
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((d as { error?: string }).error ?? 'No se pudo crear')
-      setNueva((d as { token: string }).token)
+      setNueva({ token: (d as { token: string }).token, tipo })
       setNombre('')
       setEmpleado('')
       setCliente('')
@@ -117,15 +117,7 @@ export default function LlavesClient({ empleados, clientes }: { empleados: Emple
         {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
 
         {nueva && (
-          <div className="mt-4 border border-[#3B63FB]/40 bg-[#3B63FB]/5 rounded-lg p-4">
-            <p className="text-[#111] text-sm font-medium mb-1">Cópiala ahora, no se vuelve a mostrar:</p>
-            <div className="flex gap-2">
-              <input readOnly value={nueva} className={`${input} font-mono text-xs`} onFocus={e => e.currentTarget.select()} />
-              <button onClick={() => void navigator.clipboard.writeText(nueva)} className="bg-[#111] text-white rounded-lg px-3 text-sm">
-                Copiar
-              </button>
-            </div>
-          </div>
+          <PanelNuevaLlave token={nueva.token} tipo={nueva.tipo} />
         )}
       </div>
 
@@ -170,6 +162,56 @@ export default function LlavesClient({ empleados, clientes }: { empleados: Emple
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+
+function PanelNuevaLlave({ token, tipo }: { token: string; tipo: string }) {
+  const origen = typeof window !== 'undefined' ? window.location.origin : ''
+  const url = `${origen}/api/mcp/${tipo}?llave=${token}`
+  const [copiada, setCopiada] = useState(false)
+
+  const copiar = () => {
+    void navigator.clipboard.writeText(url)
+    setCopiada(true)
+    setTimeout(() => setCopiada(false), 2000)
+  }
+
+  return (
+    <div className="mt-4 border border-[#3B63FB]/40 bg-[#3B63FB]/5 rounded-lg p-4 space-y-4">
+      <div>
+        <p className="text-[#111] text-sm font-semibold mb-1">Su enlace de conexión</p>
+        <p className="text-[#6f6a62] text-xs mb-2">
+          Es lo único que necesita. La llave va dentro, así que el enlace es personal: no lo comparta.
+        </p>
+        <div className="flex gap-2">
+          <input readOnly value={url} className={`${input} font-mono text-[11px]`} onFocus={e => e.currentTarget.select()} />
+          <button onClick={copiar} className="bg-[#111] text-white rounded-lg px-3 text-sm whitespace-nowrap">
+            {copiada ? 'Copiado' : 'Copiar'}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-[#111] text-sm font-semibold mb-2">Qué tiene que hacer</p>
+        <ol className="text-sm text-[#3a352f] space-y-1.5 list-decimal list-inside">
+          <li>Abrir Claude y entrar en <strong>Ajustes</strong> (abajo a la izquierda, o en el menú de su perfil).</li>
+          <li>Ir a <strong>Conectores</strong> y pulsar <strong>Add custom connector</strong>.</li>
+          <li>Poner un nombre, por ejemplo <strong>ceosiana</strong>.</li>
+          <li>Pegar el enlace de arriba en el campo de URL.</li>
+          <li>Guardar. No hace falta instalar nada ni escribir contraseñas.</li>
+          <li>Probar preguntándole: <em>“¿qué tareas tengo pendientes?”</em></li>
+        </ol>
+        <p className="text-[#6f6a62] text-xs mt-2">
+          Si Claude le pide autenticación, es que el conector no admite enlaces con llave: en ese caso
+          se añade en Claude Desktop con la cabecera <code className="bg-white px-1.5 py-0.5 rounded">Authorization: Bearer …</code>
+        </p>
+      </div>
+
+      <p className="text-[#8a847a] text-[11px]">
+        Esta llave no se vuelve a mostrar. Si se pierde, revóquela y cree otra.
+      </p>
     </div>
   )
 }
