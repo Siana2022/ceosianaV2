@@ -112,10 +112,40 @@ export async function GET() {
     muestraBusqueda = { error: e instanceof Error ? e.message : String(e) }
   }
 
+  // Tercera llamada: anuncios con imagen, para ver si llega la URL
+  let muestraImagenes: unknown = null
+  try {
+    const hoy = new Date()
+    const hace90 = new Date(Date.now() - 90 * 86400000)
+    const texto = await llamarHerramienta(tokenActual, 'search_search', {
+      customer_id: '1420936873',
+      resource: 'asset_group_asset',
+      fields: [
+        'asset.id',
+        'asset.name',
+        'asset.type',
+        'asset.image_asset.full_size.url',
+        'asset.image_asset.full_size.width_pixels',
+        'asset.image_asset.full_size.height_pixels',
+        'metrics.impressions',
+      ],
+      conditions: [
+        `segments.date BETWEEN '${hace90.toISOString().slice(0, 10)}' AND '${hoy.toISOString().slice(0, 10)}'`,
+        "asset.type IN ('IMAGE','YOUTUBE_VIDEO')",
+      ],
+      orderings: ['metrics.impressions DESC'],
+      login_customer_id: '2333383997',
+      limit: 3,
+    })
+    muestraImagenes = texto.slice(0, 1200)
+  } catch (e) {
+    muestraImagenes = { error: e instanceof Error ? e.message : String(e) }
+  }
+
   // Intento 1: token actual
   try {
     const herramientas = await listarHerramientas(con.access_token as string)
-    return NextResponse.json({ ...diagnostico, pruebas, muestra, muestraBusqueda, refrescado: false, herramientas })
+    return NextResponse.json({ ...diagnostico, pruebas, muestra, muestraBusqueda, muestraImagenes, refrescado: false, herramientas })
   } catch (e1) {
     const msg1 = e1 instanceof Error ? e1.message : 'Error desconocido'
 
