@@ -45,10 +45,52 @@
     }
   };
 
+  // Almacén persistente en ceosiana (antes vivía en Claude).
+  function labCall(body){
+    return fetch('/api/hub/lab', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json().catch(function(){ return {} }); });
+  }
+  var dbApi = {
+    doc: function(path){
+      var partes = String(path).split('/');
+      var coleccion = partes.shift();
+      var id = partes.join('/');
+      return {
+        get: function(){
+          return labCall({ op: 'get', coleccion: coleccion, id: id }).then(function(d){
+            return { exists: !!d.exists, data: function(){ return d.data || {} } };
+          });
+        },
+        set: function(data){ return labCall({ op: 'set', coleccion: coleccion, id: id, datos: data }); },
+        update: function(data){ return labCall({ op: 'update', coleccion: coleccion, id: id, datos: data }); }
+      };
+    },
+    collection: function(coleccion){
+      var q = { donde: null, limite: null };
+      var api = {
+        where: function(campo, op, valor){ q.donde = { campo: campo, valor: valor }; return api; },
+        limit: function(n){ q.limite = n; return api; },
+        get: function(){
+          return labCall({ op: 'query', coleccion: coleccion, donde: q.donde, limite: q.limite }).then(function(d){
+            return { docs: (d.docs || []).map(function(x){
+              return { id: x.id, data: function(){ return x.data || {} } };
+            }) };
+          });
+        },
+        add: function(data){ return labCall({ op: 'add', coleccion: coleccion, datos: data }); }
+      };
+      return api;
+    }
+  };
+
   window.claude = {
     use: function(name){
       if (name === 'sample') return Promise.resolve(sample);
       if (name === 'mcp') return Promise.resolve(mcp);
+      if (name === 'db') return Promise.resolve(dbApi);
       return Promise.resolve(null);
     }
   };
