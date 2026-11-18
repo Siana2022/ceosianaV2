@@ -20,11 +20,24 @@ export default async function HubPage({
 
   const perfil = await getPerfil()
 
-  const { data: cliente } = await supabase
+  // token_portal puede no existir todavía en la base: si la consulta falla,
+  // se repite sin esa columna en lugar de romper el hub.
+  let cliente: { id: string; nombre: string; activo: boolean | null; token_portal?: string | null } | null = null
+  { const { data } = await supabase
     .from('clientes')
     .select('id, nombre, activo, token_portal')
     .eq('id', id)
     .maybeSingle()
+    cliente = data }
+
+  if (!cliente) {
+    const { data: sinToken } = await supabase
+      .from('clientes')
+      .select('id, nombre, activo')
+      .eq('id', id)
+      .maybeSingle()
+    cliente = sinToken ?? null
+  }
 
   if (!cliente) notFound()
 
