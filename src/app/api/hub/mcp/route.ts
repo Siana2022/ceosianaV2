@@ -18,6 +18,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
+  // Meta todavía no está conectado: se responde claro en vez de un 502 genérico
+  if ((body.server ?? '').toLowerCase().includes('meta')) {
+    return NextResponse.json(
+      { error: 'Meta Ads todavía no está conectado en Ceosiana' },
+      { status: 503 },
+    )
+  }
+
   const tool = body.tool
   if (!tool) return NextResponse.json({ error: 'Falta la herramienta' }, { status: 400 })
 
