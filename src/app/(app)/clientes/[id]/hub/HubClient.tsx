@@ -326,14 +326,12 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
           </div>
           <p className="text-gray-500 text-sm mt-0.5">Espacio de trabajo del cliente</p>
         </div>
-        <a
-          href={creativeLabUrl || `/creative-lab/index.html?proyecto=${cliente.id}&v=20261118d`}
-          target="_blank"
-          rel="noreferrer"
+        <Link
+          href={`/clientes/${cliente.id}/creative-lab`}
           className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex-shrink-0"
         >
-          Creative Lab ↗
-        </a>
+          Creative Lab
+        </Link>
       </div>
 
       {error && (
@@ -444,14 +442,12 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
                 Ceosiana queda detrás y no pierdes nada si la cierras.
               </p>
             </div>
-            <a
-              href={creativeLabUrl || `/creative-lab/index.html?proyecto=${cliente.id}&v=20261118d`}
-              target="_blank"
-              rel="noreferrer"
+            <Link
+              href={`/clientes/${cliente.id}/creative-lab`}
               className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-medium flex-shrink-0"
             >
-              Abrir Creative Lab ↗
-            </a>
+              Abrir Creative Lab
+            </Link>
           </div>
         </div>
       </details>

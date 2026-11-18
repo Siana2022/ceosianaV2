@@ -59,7 +59,7 @@ export async function proxy(req: NextRequest) {
     .maybeSingle()
 
   // Hub: además de admin, solo las cuentas de la lista
-  const esHub = pathname === '/hub' || pathname.startsWith('/hub/') || /^\/clientes\/[^/]+\/hub(\/|$)/.test(pathname)
+  const esHub = pathname === '/hub' || pathname.startsWith('/hub/') || /^\/clientes\/[^/]+\/(hub|creative-lab)(\/|$)/.test(pathname)
   if (esHub) {
     const email = (user.email ?? '').toLowerCase()
     if (!HUB_EMAILS.includes(email)) {
