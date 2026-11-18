@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { verificarLlave, type LlaveMCP, type TipoLlave } from '@/lib/server/mcpAuth'
+import { llamarHerramienta } from '@/lib/server/mcpGoogle'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +74,40 @@ const HERRAMIENTAS = [
       type: 'object',
       properties: { id_cliente: { type: 'string' } },
       required: ['id_cliente'],
+    },
+  },
+  {
+    name: 'creatividades_cliente',
+    description: 'Creatividades de Google Ads de un cliente con sus métricas e imagen, para analizarlas o evaluarlas.',
+    nivel: 1,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id_cliente: { type: 'string', description: 'Identificador o nombre del cliente' },
+        desde: { type: 'string', description: 'Fecha inicial AAAA-MM-DD (por defecto, hace 30 días)' },
+        hasta: { type: 'string', description: 'Fecha final AAAA-MM-DD (por defecto, hoy)' },
+        limite: { type: 'number', description: 'Máximo de creatividades (por defecto 40)' },
+      },
+      required: ['id_cliente'],
+    },
+  },
+  {
+    name: 'guardar_evaluacion',
+    description: 'Guarda en la biblioteca la evaluación de una pieza para un cliente.',
+    nivel: 1,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id_cliente: { type: 'string', description: 'Identificador o nombre del cliente' },
+        nombre_pieza: { type: 'string' },
+        puntuacion: { type: 'number', description: 'De 0 a 10' },
+        fortalezas: { type: 'array', items: { type: 'string' } },
+        riesgos: { type: 'array', items: { type: 'string' } },
+        notas: { type: 'string' },
+        imagen_url: { type: 'string' },
+        plataforma: { type: 'string', enum: ['google_ads', 'meta_ads'] },
+      },
+      required: ['id_cliente', 'nombre_pieza'],
     },
   },
   {
@@ -234,6 +269,113 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
         conocimiento: notas ?? [],
         procesos: procesos ?? [],
       })
+    }
+
+    case 'creatividades_cliente': {
+      const idCliente = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
+      const desde = String(args.desde ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10))
+      const hasta = String(args.hasta ?? new Date().toISOString().slice(0, 10))
+      const limite = Math.min(Number(args.limite ?? 40), 200)
+
+      const { data: servicios } = await db.from('servicios').select('id').eq('id_cliente', idCliente)
+      const idsServicio = (servicios ?? []).map(s => s.id)
+      if (idsServicio.length === 0) throw new Error('El cliente no tiene servicios')
+
+      const { data: cuentas } = await db
+        .from('cuenta_plataforma')
+        .select('id_externo, nombre')
+        .in('id_servicio', idsServicio)
+        .eq('plataforma', 'google_ads')
+        .eq('activa', true)
+
+      if (!cuentas || cuentas.length === 0) {
+        throw new Error('El cliente no tiene ninguna cuenta de Google Ads vinculada en el hub')
+      }
+
+      const { data: conexion } = await db
+        .from('mcp_conexiones')
+        .select('access_token')
+        .eq('proveedor', 'google_ads')
+        .maybeSingle()
+      if (!conexion?.access_token) throw new Error('Google Ads no está conectado en ceosiana')
+
+      const token = String(conexion.access_token)
+      const piezas: Record<string, unknown>[] = []
+
+      for (const cuenta of cuentas) {
+        const texto = await llamarHerramienta(token, 'search_search', {
+          customer_id: cuenta.id_externo,
+          resource: 'asset_group_asset',
+          fields: [
+            'campaign.name',
+            'asset.id',
+            'asset.name',
+            'asset.type',
+            'asset.image_asset.full_size.url',
+            'metrics.impressions',
+            'metrics.clicks',
+            'metrics.cost_micros',
+            'metrics.conversions',
+            'metrics.conversions_value',
+          ],
+          conditions: [
+            `segments.date BETWEEN '${desde}' AND '${hasta}'`,
+            "asset.type IN ('IMAGE','YOUTUBE_VIDEO')",
+          ],
+          orderings: ['metrics.impressions DESC'],
+          login_customer_id: cuenta.id_externo,
+          limit: limite,
+        })
+
+        const filas = JSON.parse(texto) as Record<string, unknown>[]
+        for (const f of filas) {
+          const coste = Number(f['metrics.cost_micros'] ?? 0) / 1e6
+          const conv = Number(f['metrics.conversions'] ?? 0)
+          piezas.push({
+            cuenta: cuenta.nombre,
+            campana: String(f['campaign.name'] ?? ''),
+            id: String(f['asset.id'] ?? ''),
+            nombre: String(f['asset.name'] ?? ''),
+            tipo: String(f['asset.type'] ?? ''),
+            imagen: String(f['asset.image_asset.full_size.url'] ?? ''),
+            impresiones: Number(f['metrics.impressions'] ?? 0),
+            clics: Number(f['metrics.clicks'] ?? 0),
+            coste: Number(coste.toFixed(2)),
+            conversiones: conv,
+            valor: Number(Number(f['metrics.conversions_value'] ?? 0).toFixed(2)),
+            cpa: conv >= 0.5 ? Number((coste / conv).toFixed(2)) : null,
+          })
+        }
+      }
+
+      piezas.sort((a, b) => Number(b.impresiones) - Number(a.impresiones))
+      return texto({ periodo: { desde, hasta }, total: piezas.length, creatividades: piezas.slice(0, limite) })
+    }
+
+    case 'guardar_evaluacion': {
+      const idCliente = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
+      const nombrePieza = String(args.nombre_pieza ?? '').trim()
+      if (!nombrePieza) throw new Error('Falta el nombre de la pieza')
+
+      const id = crypto.randomUUID()
+      const { error } = await db.from('lab_docs').insert({
+        coleccion: 'evaluaciones',
+        doc_id: id,
+        id_cliente: idCliente,
+        plataforma: args.plataforma === 'meta_ads' ? 'meta_ads' : 'google_ads',
+        datos: {
+          nombre: nombrePieza,
+          puntuacion: args.puntuacion ?? null,
+          fortalezas: Array.isArray(args.fortalezas) ? args.fortalezas : [],
+          riesgos: Array.isArray(args.riesgos) ? args.riesgos : [],
+          notas: args.notas ?? '',
+          imagen_url: args.imagen_url ?? '',
+          autor: llave.nombre,
+          createdAt: new Date().toISOString(),
+        },
+      })
+      if (error) throw new Error(error.message)
+      return texto({ ok: true, id, guardado: nombrePieza })
     }
 
     case 'biblioteca': {
