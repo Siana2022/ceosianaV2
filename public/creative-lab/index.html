@@ -30,7 +30,7 @@
       if (!res.ok) throw new Error(data.error || 'Error al llamar al modelo');
       return data.result;
     },
-    limits: { modelTiers: null }
+    limits: async function(){ return { modelTiers: null } }
   };
   var mcp = {
     callTool: async function(server, tool, input){
