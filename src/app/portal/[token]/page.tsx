@@ -33,7 +33,7 @@ export default async function PortalPage({ params }: Props) {
   }
 
   const [{ data: servicios }, { data: tareas }, { data: notas }, { data: aprobaciones }] = await Promise.all([
-    admin.from('servicios').select('id, nombre, descripcion, activo').eq('id_cliente', cliente.id).or('activo.eq.true,activo.is.null').order('nombre'),
+    admin.from('servicios').select('id, nombre, activo').eq('id_cliente', cliente.id).or('activo.eq.true,activo.is.null').order('nombre'),
     admin.from('tareas').select('id, nombre, estado, fecha_limite, id_servicio, visibilidad').eq('id_cliente', cliente.id).eq('visibilidad', 'compartida').order('fecha_limite', { ascending: true }),
     admin.from('notas_conocimiento').select('id, titulo, contenido, created_at').eq('id_cliente', cliente.id).eq('visibilidad', 'compartida').order('created_at', { ascending: false }).limit(20),
     admin.from('aprobaciones').select('id, id_tarea, estado, comentario, created_at').eq('id_cliente', cliente.id).order('created_at', { ascending: false }).limit(10),
@@ -88,7 +88,6 @@ export default async function PortalPage({ params }: Props) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                   <div>
                     <div style={{ fontWeight: 600 }}>{s.nombre}</div>
-                    {s.descripcion && <div style={{ color: '#666', fontSize: 13, marginTop: 2 }}>{s.descripcion}</div>}
                   </div>
                   <div style={{ color: '#666', fontSize: 13, whiteSpace: 'nowrap' }}>
                     {p ? `${p.hechas}/${p.total} tareas` : 'sin tareas'}

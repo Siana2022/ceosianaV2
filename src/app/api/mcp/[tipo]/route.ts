@@ -217,7 +217,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
 
     case 'hub_cliente': {
       const id = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
-      const { data: servicios } = await db.from('servicios').select('id, nombre, descripcion').eq('id_cliente', id)
+      const { data: servicios } = await db.from('servicios').select('id, nombre').eq('id_cliente', id)
       const idsServicio = (servicios ?? []).map(s => s.id)
 
       const [{ data: cuentas }, { data: notas }, { data: procesos }] = await Promise.all([
