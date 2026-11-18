@@ -91,10 +91,31 @@ export async function GET() {
     muestra = { error: e instanceof Error ? e.message : String(e) }
   }
 
+  // Segunda llamada: la que usa el artefacto para listar cuentas
+  let muestraBusqueda: unknown = null
+  try {
+    const texto = await llamarHerramienta(tokenActual, 'search_search', {
+      customer_id: '2333383997',
+      resource: 'customer_client',
+      fields: [
+        'customer_client.id',
+        'customer_client.descriptive_name',
+        'customer_client.manager',
+        'customer_client.currency_code',
+      ],
+      conditions: ["customer_client.status = 'ENABLED'", 'customer_client.manager = FALSE'],
+      orderings: [],
+      login_customer_id: '2333383997',
+    })
+    muestraBusqueda = texto.slice(0, 1500)
+  } catch (e) {
+    muestraBusqueda = { error: e instanceof Error ? e.message : String(e) }
+  }
+
   // Intento 1: token actual
   try {
     const herramientas = await listarHerramientas(con.access_token as string)
-    return NextResponse.json({ ...diagnostico, pruebas, muestra, refrescado: false, herramientas })
+    return NextResponse.json({ ...diagnostico, pruebas, muestra, muestraBusqueda, refrescado: false, herramientas })
   } catch (e1) {
     const msg1 = e1 instanceof Error ? e1.message : 'Error desconocido'
 
