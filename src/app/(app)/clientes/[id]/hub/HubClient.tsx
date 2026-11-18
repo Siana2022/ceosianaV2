@@ -327,7 +327,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
           <p className="text-gray-500 text-sm mt-0.5">Espacio de trabajo del cliente</p>
         </div>
         <Link
-          href={`/clientes/${cliente.id}/creative-lab`}
+          href={`/clientes/${cliente.id}/lab/creative-lab`}
           className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex-shrink-0"
         >
           Creative Lab
@@ -443,7 +443,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
               </p>
             </div>
             <Link
-              href={`/clientes/${cliente.id}/creative-lab`}
+              href={`/clientes/${cliente.id}/lab/creative-lab`}
               className="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 text-sm font-medium flex-shrink-0"
             >
               Abrir Creative Lab
