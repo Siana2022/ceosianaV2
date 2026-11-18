@@ -459,7 +459,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
               </div>
               <iframe
                 key={servicioSel}
-                src={`/creative-lab/index.html?proyecto=${servicioSel}`}
+                src={`/creative-lab/index.html?proyecto=${servicioSel}&v=20261118b`}
                 title="Creative Lab"
                 className="w-full block"
                 style={{ height: 1150, border: 0 }}
