@@ -1378,6 +1378,9 @@ function thumbFor(a){
   if(a.creativeId && saved[a.creativeId]) return {url:saved[a.creativeId]};
   const L = laminas[a.id] || (a.creativeId && laminas[a.creativeId]);
   if(L) return {sprite:L};
+  // ceosiana: el dato ya trae la URL (reescrita al proxy del hub), úsala
+  if(a.thumbUrl) return {url:a.thumbUrl};
+  if(a.url) return {url:a.url};
   return null;
 }
 async function blobFor(a){
