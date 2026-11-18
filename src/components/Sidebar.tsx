@@ -49,6 +49,7 @@ const NAV_SECTIONS: { label: string; items: MenuItem[] }[] = [
       { href: '/dedicacion',     label: 'Dedicación',     icon: '⏱️' },
       { href: '/administracion', label: 'Administración', icon: '🧾' },
       { href: '/historico',      label: 'Histórico',      icon: '📈' },
+      { href: '/mcp',            label: 'MCP',            icon: '🔑' },
     ],
   },
   {
