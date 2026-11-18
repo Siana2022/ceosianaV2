@@ -59,6 +59,8 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   const [token, setToken] = useState<string | null>(tokenPortal)
   const [creandoToken, setCreandoToken] = useState(false)
   const [origen, setOrigen] = useState('')
+  const [disponibles, setDisponibles] = useState<{ id: string; nombre: string; moneda: string }[]>([])
+  const [cargandoDisp, setCargandoDisp] = useState(false)
   const [error, setError] = useState('')
 
   const abiertas = tareas.filter(t => t.estado !== 'terminado').length
@@ -214,6 +216,44 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   }
 
   useEffect(() => { setOrigen(window.location.origin) }, [])
+
+  const cargarDisponibles = async () => {
+    if (disponibles.length || cargandoDisp) return
+    setCargandoDisp(true)
+    try {
+      const res = await fetch('/api/hub/cuentas/disponibles')
+      const d = await res.json().catch(() => ({}))
+      setDisponibles((d as { cuentas?: { id: string; nombre: string; moneda: string }[] }).cuentas ?? [])
+    } catch {
+      setDisponibles([])
+    } finally {
+      setCargandoDisp(false)
+    }
+  }
+
+  const vincularCuenta = async (idServicio: string, idExterno: string) => {
+    if (!idExterno) return
+    const cuenta = disponibles.find(c => c.id === idExterno)
+    if (!cuenta) return
+    setError('')
+    const res = await fetch('/api/hub/cuentas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_servicio: idServicio,
+        plataforma: 'google_ads',
+        id_externo: cuenta.id,
+        nombre: cuenta.nombre,
+        moneda: cuenta.moneda,
+      }),
+    })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setError((d as { error?: string }).error ?? 'No se pudo vincular la cuenta')
+      return
+    }
+    router.refresh()
+  }
 
   const crearEnlace = async () => {
     setCreandoToken(true)
@@ -479,6 +519,49 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             </button>
           </div>
           <p className="text-gray-600 text-[11px] mt-2">Registrar crea también el fichaje de ese tiempo en el servicio.</p>
+        </div>
+      </details>
+
+      {/* Cuentas de anuncios */}
+      <details
+        className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
+        onToggle={e => { if ((e.currentTarget as HTMLDetailsElement).open) void cargarDisponibles() }}
+      >
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
+          <span className="text-gray-500 text-[10px]">▶</span> Cuentas de anuncios
+          <span className="ml-auto text-gray-500 text-xs font-normal">
+            {cuentas.length === 0 ? 'sin vincular' : `${cuentas.length} vinculada${cuentas.length === 1 ? '' : 's'}`}
+          </span>
+        </summary>
+        <div className="px-6 pb-5 space-y-3">
+          <p className="text-gray-500 text-sm">
+            Indica qué cuenta de Google Ads corresponde a cada servicio. Es lo que permite traer sus datos y guardarlos en el conocimiento del cliente.
+          </p>
+          {servicios.length === 0 && <p className="text-gray-600 text-sm">Este cliente no tiene servicios.</p>}
+          {servicios.map(sv => {
+            const actual = cuentas.find(c => c.id_servicio === sv.id && c.plataforma === 'google_ads')
+            return (
+              <div key={sv.id} className="flex flex-col sm:flex-row sm:items-center gap-2 border border-gray-800 rounded-lg px-4 py-3">
+                <span className="text-gray-200 text-sm flex-1 truncate">{sv.nombre}</span>
+                {actual ? (
+                  <span className="text-gray-400 text-xs">{actual.nombre} · {actual.id_externo}</span>
+                ) : (
+                  <span className="text-gray-600 text-xs">sin cuenta</span>
+                )}
+                <select
+                  value={actual?.id_externo ?? ''}
+                  onChange={e => vincularCuenta(sv.id, e.target.value)}
+                  disabled={cargandoDisp}
+                  className={`sm:w-72 ${inputCls}`}
+                >
+                  <option value="">{cargandoDisp ? 'Cargando cuentas…' : '— Elegir cuenta —'}</option>
+                  {disponibles.map(c => (
+                    <option key={c.id} value={c.id}>{c.nombre} · {c.id}</option>
+                  ))}
+                </select>
+              </div>
+            )
+          })}
         </div>
       </details>
 
