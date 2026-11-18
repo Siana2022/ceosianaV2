@@ -6,6 +6,14 @@ export const MCP_URL = process.env.GOOGLE_ADS_MCP_URL
 
 const BASE = MCP_URL.replace(/\/mcp\/?$/, '')
 
+// El servidor anuncia estos scopes en su reto; si falta alguno, rechaza el token.
+const SCOPES = [
+  'openid',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+  'https://www.googleapis.com/auth/adwords',
+].join(' ')
+
 export interface MetadataOAuth {
   authorization_endpoint: string
   token_endpoint: string
@@ -40,7 +48,7 @@ export async function registrarCliente(redirectUri: string): Promise<string> {
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
-      scope: 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/adwords',
+      scope: SCOPES,
     }),
   })
   const data = await res.json().catch(() => ({}))
@@ -80,7 +88,7 @@ export function urlAutorizacion(opts: {
   u.searchParams.set('state', opts.state)
   u.searchParams.set('code_challenge', opts.challenge)
   u.searchParams.set('code_challenge_method', 'S256')
-  u.searchParams.set('scope', 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/adwords')
+  u.searchParams.set('scope', SCOPES)
   u.searchParams.set('resource', MCP_URL)
   return u.toString()
 }
