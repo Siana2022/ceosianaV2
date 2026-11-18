@@ -68,7 +68,7 @@ function Marco({
       <div className="px-5 py-2 bg-white border-b border-gray-200 flex items-center gap-3 flex-wrap">
         <Link
           href={`/clientes/${cliente.id}/hub`}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-black border border-gray-300 rounded-lg px-3 py-1.5 bg-white"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1f1f1f] hover:text-black border border-[#cfc9be] rounded-lg px-3 py-1.5 bg-white hover:bg-[#f7f5f1]"
         >
           ← Volver al hub
         </Link>
@@ -81,8 +81,8 @@ function Marco({
                 href={`/clientes/${cliente.id}/lab/${a.slug}`}
                 className={
                   a.slug === slug
-                    ? 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-gray-900 shadow-sm'
-                    : 'px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:text-gray-900'
+                    ? 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-[#111111] shadow-sm'
+                    : 'px-3 py-1.5 rounded-lg text-sm text-[#5f5a52] hover:text-[#111111]'
                 }
               >
                 {a.nombre}
@@ -91,8 +91,8 @@ function Marco({
           </nav>
         )}
 
-        <span className="text-gray-400 text-sm truncate">
-          <span className="text-gray-800 font-medium">{cliente.nombre}</span>
+        <span className="text-[#7a746b] text-sm truncate">
+          <span className="text-[#111111] font-medium">{cliente.nombre}</span>
           {esAdmin ? '' : ''}
         </span>
 
@@ -100,7 +100,7 @@ function Marco({
           href={src}
           target="_blank"
           rel="noreferrer"
-          className="ml-auto text-blue-600 hover:text-blue-500 text-xs flex-shrink-0"
+          className="ml-auto text-[#2c6fd0] hover:text-[#1d5bb0] text-xs flex-shrink-0"
         >
           Abrir en pestaña ↗
         </a>

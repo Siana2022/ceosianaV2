@@ -321,7 +321,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             <Link href="/hub" className="text-blue-400 hover:text-blue-300">Hub</Link> · {cliente.nombre}
           </div>
           <div className="flex items-center gap-3">
-            <h2 className="text-[30px] font-bold text-white leading-tight">{cliente.nombre}</h2>
+            <h2 className="text-[30px] font-bold text-[#111111] leading-tight">{cliente.nombre}</h2>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-900/40 text-purple-300">Hub</span>
           </div>
           <p className="text-gray-500 text-sm mt-0.5">Espacio de trabajo del cliente</p>
