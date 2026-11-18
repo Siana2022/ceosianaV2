@@ -77,6 +77,20 @@ const HERRAMIENTAS = [
     },
   },
   {
+    name: 'rendimiento_cliente',
+    description: 'Rendimiento de Google Ads de un cliente en un periodo: totales y campañas con coste, conversiones, CPA y ROAS.',
+    nivel: 1,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id_cliente: { type: 'string', description: 'Identificador o nombre del cliente' },
+        desde: { type: 'string', description: 'AAAA-MM-DD' },
+        hasta: { type: 'string', description: 'AAAA-MM-DD' },
+      },
+      required: ['id_cliente'],
+    },
+  },
+  {
     name: 'creatividades_cliente',
     description: 'Creatividades de Google Ads de un cliente con sus métricas e imagen, para analizarlas o evaluarlas.',
     nivel: 1,
@@ -268,6 +282,89 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
         cuentas: cuentas ?? [],
         conocimiento: notas ?? [],
         procesos: procesos ?? [],
+      })
+    }
+
+    case 'rendimiento_cliente': {
+      const idCliente = llave.idCliente ?? await resolverCliente(String(args.id_cliente ?? ''))
+      const desde = String(args.desde ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10))
+      const hasta = String(args.hasta ?? new Date().toISOString().slice(0, 10))
+
+      const { data: servicios } = await db.from('servicios').select('id').eq('id_cliente', idCliente)
+      const idsServicio = (servicios ?? []).map(s => s.id)
+      if (idsServicio.length === 0) throw new Error('El cliente no tiene servicios')
+
+      const { data: cuentas } = await db
+        .from('cuenta_plataforma')
+        .select('id_externo, nombre')
+        .in('id_servicio', idsServicio)
+        .eq('plataforma', 'google_ads')
+        .eq('activa', true)
+      if (!cuentas || cuentas.length === 0) {
+        throw new Error('El cliente no tiene ninguna cuenta de Google Ads vinculada en el hub')
+      }
+
+      const { data: conexion } = await db
+        .from('mcp_conexiones').select('access_token').eq('proveedor', 'google_ads').maybeSingle()
+      if (!conexion?.access_token) throw new Error('Google Ads no está conectado en ceosiana')
+      const token = String(conexion.access_token)
+
+      const campanas: Record<string, unknown>[] = []
+      let coste = 0, impresiones = 0, clics = 0, conversiones = 0, valor = 0
+
+      for (const cuenta of cuentas) {
+        const texto = await llamarHerramienta(token, 'search_search', {
+          customer_id: cuenta.id_externo,
+          resource: 'campaign',
+          fields: [
+            'campaign.id', 'campaign.name', 'campaign.status', 'campaign.advertising_channel_type',
+            'metrics.cost_micros', 'metrics.impressions', 'metrics.clicks',
+            'metrics.conversions', 'metrics.conversions_value',
+          ],
+          conditions: [`segments.date BETWEEN '${desde}' AND '${hasta}'`, 'metrics.impressions > 0'],
+          orderings: ['metrics.cost_micros DESC'],
+          login_customer_id: cuenta.id_externo,
+        })
+
+        const filas = JSON.parse(texto) as Record<string, unknown>[]
+        for (const f of filas) {
+          const c = Number(f['metrics.cost_micros'] ?? 0) / 1e6
+          const i = Number(f['metrics.impressions'] ?? 0)
+          const cl = Number(f['metrics.clicks'] ?? 0)
+          const cv = Number(f['metrics.conversions'] ?? 0)
+          const v = Number(f['metrics.conversions_value'] ?? 0)
+
+          coste += c; impresiones += i; clics += cl; conversiones += cv; valor += v
+
+          campanas.push({
+            cuenta: cuenta.nombre,
+            campana: String(f['campaign.name'] ?? ''),
+            estado: String(f['campaign.status'] ?? ''),
+            tipo: String(f['campaign.advertising_channel_type'] ?? ''),
+            coste: Number(c.toFixed(2)),
+            impresiones: i,
+            clics: cl,
+            conversiones: cv,
+            valor: Number(v.toFixed(2)),
+            cpa: cv >= 0.5 ? Number((c / cv).toFixed(2)) : null,
+            roas: c > 0 ? Number((v / c).toFixed(2)) : null,
+          })
+        }
+      }
+
+      return texto({
+        periodo: { desde, hasta, dias: Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1 },
+        totales: {
+          coste: Number(coste.toFixed(2)),
+          impresiones,
+          clics,
+          conversiones: Number(conversiones.toFixed(2)),
+          valor: Number(valor.toFixed(2)),
+          cpa: conversiones >= 0.5 ? Number((coste / conversiones).toFixed(2)) : null,
+          roas: coste > 0 ? Number((valor / coste).toFixed(2)) : null,
+          ctr: impresiones > 0 ? Number(((clics / impresiones) * 100).toFixed(2)) : null,
+        },
+        campanas: campanas.slice(0, 40),
       })
     }
 
