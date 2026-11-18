@@ -3,6 +3,15 @@ import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { llamarHerramienta, renovarToken, MCP_URL } from '@/lib/server/mcpGoogle'
 
+// Las imágenes de Google van a otro dominio y el artefacto las pide con fetch,
+// así que el navegador las bloquea. Se reescriben a nuestro proxy del mismo origen.
+function proxificarImagenes(texto: string): string {
+  return texto.replace(
+    /https:\/\/(?:tpc\.googlesyndication\.com|lh3\.googleusercontent\.com|i\.ytimg\.com)\/[^"\\\s]+/g,
+    (url) => `/api/hub/imagen?url=${encodeURIComponent(url)}`,
+  )
+}
+
 // POST /api/hub/mcp — puente entre el artefacto y el servidor MCP de Google Ads.
 // El artefacto llama a mcp.callTool(servidor, herramienta, input) y aquí se
 // reenvía con el token guardado en servidor. Solo lectura.
@@ -94,7 +103,7 @@ export async function POST(req: NextRequest) {
         throw e1
       }
     }
-    return NextResponse.json({ payload: texto, cache: { storedAt: Date.now() } })
+    return NextResponse.json({ payload: proxificarImagenes(texto), cache: { storedAt: Date.now() } })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al llamar al servidor MCP'
     // Un 401 indica que la conexión caducó: el cliente debe reconectar
