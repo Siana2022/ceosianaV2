@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
-import { listarHerramientas, renovarToken, MCP_URL } from '@/lib/server/mcpGoogle'
+import { listarHerramientas, renovarToken, llamarHerramienta, MCP_URL } from '@/lib/server/mcpGoogle'
 
 // GET /api/hub/mcp/estado — diagnóstico de la conexión con Google Ads.
 // Lista las herramientas que expone el servidor MCP para comprobar nombres.
@@ -82,10 +82,19 @@ export async function GET() {
     pruebas = [{ prueba: 'error', detalle: e instanceof Error ? e.message : String(e) }]
   }
 
+  // Llamada real a la primera herramienta, para ver la forma de los datos
+  let muestra: unknown = null
+  try {
+    const texto = await llamarHerramienta(tokenActual, 'customers_list_accessible_customers', {})
+    muestra = texto.slice(0, 1200)
+  } catch (e) {
+    muestra = { error: e instanceof Error ? e.message : String(e) }
+  }
+
   // Intento 1: token actual
   try {
     const herramientas = await listarHerramientas(con.access_token as string)
-    return NextResponse.json({ ...diagnostico, pruebas, refrescado: false, herramientas })
+    return NextResponse.json({ ...diagnostico, pruebas, muestra, refrescado: false, herramientas })
   } catch (e1) {
     const msg1 = e1 instanceof Error ? e1.message : 'Error desconocido'
 
