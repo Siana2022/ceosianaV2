@@ -80,7 +80,24 @@
             }) };
           });
         },
-        add: function(data){ return labCall({ op: 'add', coleccion: coleccion, datos: data }); }
+        add: function(data){ return labCall({ op: 'add', coleccion: coleccion, datos: data }); },
+        // El artefacto escucha cambios en vivo; aquí se simula con sondeo.
+        onSnapshot: function(cb){
+          var activo = true;
+          function cargar(){
+            labCall({ op: 'query', coleccion: coleccion, donde: q.donde, limite: q.limite })
+              .then(function(d){
+                if(!activo) return;
+                cb({ docs: (d.docs || []).map(function(x){
+                  return { id: x.id, data: function(){ return x.data || {} } };
+                }) });
+              })
+              .catch(function(){});
+          }
+          cargar();
+          var t = setInterval(cargar, 15000);
+          return function(){ activo = false; clearInterval(t); };
+        }
       };
       return api;
     }
