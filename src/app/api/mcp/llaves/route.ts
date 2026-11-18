@@ -11,7 +11,7 @@ export async function GET() {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('mcp_llaves')
-    .select('id, nombre, tipo, prefijo, activo, ultimo_uso, created_at, empleado:id_empleado(nombre)')
+    .select('id, nombre, tipo, prefijo, activo, ultimo_uso, created_at, empleado:id_empleado(nombre), cliente:id_cliente(nombre)')
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -27,10 +27,11 @@ export async function POST(req: NextRequest) {
     nombre?: string
     tipo?: string
     id_empleado?: string | null
+    id_cliente?: string | null
   }
 
   const nombre = (body.nombre ?? '').trim()
-  const tipo = body.tipo === 'admin' ? 'admin' : 'operativo'
+  const tipo = body.tipo === 'admin' ? 'admin' : body.tipo === 'externo' ? 'externo' : 'operativo'
   if (!nombre) return NextResponse.json({ error: 'El nombre es obligatorio' }, { status: 400 })
 
   const { token, hash, prefijo } = generarLlave()
@@ -39,7 +40,8 @@ export async function POST(req: NextRequest) {
     nombre,
     tipo,
     id_perfil: perfil.id,
-    id_empleado: body.id_empleado || null,
+    id_empleado: tipo === 'externo' ? null : body.id_empleado || null,
+    id_cliente: tipo === 'externo' ? body.id_cliente || null : null,
     hash,
     prefijo,
   })

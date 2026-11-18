@@ -9,6 +9,7 @@ export default async function LlavesMCPPage() {
 
   const admin = createAdminClient()
   const { data: empleados } = await admin.from('empleados').select('id, nombre').order('nombre')
+  const { data: clientes } = await admin.from('clientes').select('id, nombre').eq('activo', true).order('nombre')
 
   return (
     <div className="p-8 w-full space-y-6">
@@ -20,7 +21,10 @@ export default async function LlavesMCPPage() {
           fichaje y consultar el hub; la de administrador, para todo.
         </p>
       </div>
-      <LlavesClient empleados={(empleados ?? []) as { id: string; nombre: string }[]} />
+      <LlavesClient
+        empleados={(empleados ?? []) as { id: string; nombre: string }[]}
+        clientes={(clientes ?? []) as { id: string; nombre: string }[]}
+      />
     </div>
   )
 }

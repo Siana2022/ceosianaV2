@@ -1,12 +1,14 @@
 import crypto from 'crypto'
 import { createAdminClient } from './supabase-admin'
 
-export type TipoLlave = 'operativo' | 'admin'
+export type TipoLlave = 'operativo' | 'admin' | 'externo'
 
 export interface LlaveMCP {
   tipo: TipoLlave
   nombre: string
   idEmpleado: string | null
+  /** En llaves externas, limita el acceso a un único cliente. */
+  idCliente: string | null
 }
 
 export function generarLlave(): { token: string; hash: string; prefijo: string } {
@@ -29,7 +31,7 @@ export async function verificarLlave(req: Request): Promise<LlaveMCP | null> {
 
   const { data } = await admin
     .from('mcp_llaves')
-    .select('tipo, nombre, id_empleado, activo')
+    .select('tipo, nombre, id_empleado, id_cliente, activo')
     .eq('hash', hash)
     .maybeSingle()
 
@@ -42,5 +44,6 @@ export async function verificarLlave(req: Request): Promise<LlaveMCP | null> {
     tipo: data.tipo as TipoLlave,
     nombre: String(data.nombre),
     idEmpleado: (data.id_empleado as string | null) ?? null,
+    idCliente: (data.id_cliente as string | null) ?? null,
   }
 }

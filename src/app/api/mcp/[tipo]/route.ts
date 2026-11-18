@@ -15,13 +15,13 @@ const HERRAMIENTAS = [
   {
     name: 'mis_tareas',
     description: 'Tareas abiertas asignadas a mí, ordenadas por fecha límite.',
-    scope: 'operativo',
+    nivel: 2,
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'tareas_cliente',
     description: 'Tareas de un cliente, con estado y fecha límite.',
-    scope: 'operativo',
+    nivel: 1,
     inputSchema: {
       type: 'object',
       properties: { id_cliente: { type: 'string' } },
@@ -31,7 +31,7 @@ const HERRAMIENTAS = [
   {
     name: 'cambiar_estado_tarea',
     description: 'Cambia el estado de una tarea: espera, proceso, bloqueada o terminado.',
-    scope: 'operativo',
+    nivel: 2,
     inputSchema: {
       type: 'object',
       properties: {
@@ -44,7 +44,7 @@ const HERRAMIENTAS = [
   {
     name: 'fichar',
     description: 'Registra tiempo trabajado en una tarea.',
-    scope: 'operativo',
+    nivel: 2,
     inputSchema: {
       type: 'object',
       properties: {
@@ -58,7 +58,7 @@ const HERRAMIENTAS = [
   {
     name: 'resumen_cliente',
     description: 'Resumen de un cliente: tareas abiertas, servicios y procesos.',
-    scope: 'operativo',
+    nivel: 1,
     inputSchema: {
       type: 'object',
       properties: { id_cliente: { type: 'string' } },
@@ -68,7 +68,7 @@ const HERRAMIENTAS = [
   {
     name: 'hub_cliente',
     description: 'Contenido del hub de un cliente: servicios, cuentas, procesos y conocimiento.',
-    scope: 'operativo',
+    nivel: 1,
     inputSchema: {
       type: 'object',
       properties: { id_cliente: { type: 'string' } },
@@ -78,16 +78,18 @@ const HERRAMIENTAS = [
   {
     name: 'listar_clientes',
     description: 'Lista de clientes activos con su identificador.',
-    scope: 'admin',
+    nivel: 3,
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'listar_empleados',
     description: 'Lista del equipo con identificador y nombre.',
-    scope: 'admin',
+    nivel: 3,
     inputSchema: { type: 'object', properties: {} },
   },
 ] as const
+
+const NIVEL: Record<TipoLlave, number> = { externo: 1, operativo: 2, admin: 3 }
 
 const PALABRAS: Record<string, string> = {
   espera: 'En espera',
@@ -163,7 +165,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
     }
 
     case 'resumen_cliente': {
-      const id = String(args.id_cliente ?? '')
+      const id = llave.idCliente ?? String(args.id_cliente ?? '')
       const [{ data: cliente }, { data: tareas }, { data: servicios }, { data: procesos }] = await Promise.all([
         db.from('clientes').select('id, nombre').eq('id', id).maybeSingle(),
         db.from('tareas').select('estado').eq('id_cliente', id),
@@ -189,7 +191,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
     }
 
     case 'hub_cliente': {
-      const id = String(args.id_cliente ?? '')
+      const id = llave.idCliente ?? String(args.id_cliente ?? '')
       const { data: servicios } = await db.from('servicios').select('id, nombre, descripcion').eq('id_cliente', id)
       const idsServicio = (servicios ?? []).map(s => s.id)
 
@@ -236,7 +238,7 @@ async function atender(peticion: Peticion, llave: LlaveMCP) {
     case 'tools/list':
       return {
         tools: HERRAMIENTAS
-          .filter(h => llave.tipo === 'admin' || h.scope === 'operativo')
+          .filter(h => NIVEL[llave.tipo] >= h.nivel)
           .map(h => ({ name: h.name, description: h.description, inputSchema: h.inputSchema })),
       }
 
@@ -245,8 +247,12 @@ async function atender(peticion: Peticion, llave: LlaveMCP) {
       const nombre = String(params.name ?? '')
       const herramienta = HERRAMIENTAS.find(h => h.name === nombre)
       if (!herramienta) throw new Error(`Herramienta desconocida: ${nombre}`)
-      if (herramienta.scope === 'admin' && llave.tipo !== 'admin') {
-        throw new Error('Esta herramienta requiere una llave de administrador')
+      if (NIVEL[llave.tipo] < herramienta.nivel) {
+        throw new Error(
+          herramienta.nivel === 3
+            ? 'Esta herramienta requiere una llave de administrador'
+            : 'Esta herramienta requiere una llave operativa',
+        )
       }
       return ejecutar(nombre, params.arguments ?? {}, llave)
     }
@@ -258,7 +264,7 @@ async function atender(peticion: Peticion, llave: LlaveMCP) {
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ tipo: string }> }) {
   const { tipo } = await ctx.params
-  if (tipo !== 'operativo' && tipo !== 'admin') {
+  if (tipo !== 'operativo' && tipo !== 'admin' && tipo !== 'externo') {
     return NextResponse.json({ error: 'Ruta no válida' }, { status: 404 })
   }
 
@@ -270,8 +276,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tipo: stri
     )
   }
 
-  if (tipo === 'admin' && llave.tipo !== 'admin') {
-    return NextResponse.json({ error: 'Llave operativa no válida para administración' }, { status: 403 })
+  if (NIVEL[llave.tipo] < NIVEL[tipo as TipoLlave]) {
+    return NextResponse.json({ error: 'Esta llave no sirve para esta ruta' }, { status: 403 })
   }
 
   const cuerpo = (await req.json().catch(() => null)) as Peticion | Peticion[] | null
