@@ -146,6 +146,24 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
     const body = await req.json() as Record<string, unknown>
+
+    // Departamento y servicio son el mismo concepto: si viene uno, se completa el otro.
+    if (body.idServicio && !body.idDepartamento) {
+      const { data: sv } = await supabase
+        .from('servicios').select('id_departamento').eq('id', body.idServicio).maybeSingle()
+      if (sv?.id_departamento) body.idDepartamento = sv.id_departamento
+    } else if (body.idDepartamento && !body.idServicio && body.idCliente) {
+      const { data: sv } = await supabase
+        .from('servicios')
+        .select('id')
+        .eq('id_cliente', body.idCliente)
+        .eq('id_departamento', body.idDepartamento)
+        .eq('activo', true)
+        .limit(1)
+        .maybeSingle()
+      if (sv?.id) body.idServicio = sv.id
+    }
+
     const row = bodyToDbRow(body)
     if (body.id) row.id = body.id  // accept client-generated UUID
     const { data, error } = await supabase.from('tareas').insert(row).select().single()
@@ -209,6 +227,23 @@ export async function PATCH(req: NextRequest) {
       body.minutosAcumulados = (Number((cur as Record<string, unknown> | null)?.minutos_acumulados) || 0) + body.minutosIncremento
       delete body.minutosIncremento
     }
+    // Departamento y servicio son el mismo concepto: si viene uno, se completa el otro
+    if (body.idServicio && !body.idDepartamento) {
+      const { data: sv } = await supabase
+        .from('servicios').select('id_departamento').eq('id', body.idServicio).maybeSingle()
+      if (sv?.id_departamento) body.idDepartamento = sv.id_departamento
+    } else if (body.idDepartamento && !body.idServicio && body.idCliente) {
+      const { data: sv } = await supabase
+        .from('servicios')
+        .select('id')
+        .eq('id_cliente', body.idCliente)
+        .eq('id_departamento', body.idDepartamento)
+        .eq('activo', true)
+        .limit(1)
+        .maybeSingle()
+      if (sv?.id) body.idServicio = sv.id
+    }
+
     const row = bodyToDbRow(body)
     if (Object.keys(row).length === 0) return NextResponse.json({ ok: true })
     // Fetch BEFORE update to detect responsable changes and previous estado

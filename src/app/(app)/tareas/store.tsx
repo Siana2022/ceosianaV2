@@ -712,30 +712,44 @@ export function TareasProvider({
             idTarea,
           }),
         }).catch(console.error)
-        // Slack DM al mencionado
+        // Slack DM al mencionado, con cliente y enlace a la tarea
+        const enlaceTarea = `${typeof window !== 'undefined' ? window.location.origin : ''}/tareas/vista-global?tarea=${idTarea}`
         fetch('/api/slack/dm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             idEmpleado,
-            text: `💬 *Te han mencionado en "${tarea?.nombre ?? 'una tarea'}"*\n"${texto.slice(0, 200)}"`,
+            text: [
+              `💬 *Te han mencionado*${tarea?.idCliente ? ` · ${nombreCliente(tarea.idCliente)}` : ''}`,
+              `*${tarea?.nombre ?? 'una tarea'}*`,
+              `👤 ${nombreEmpleado(idEmpleadoActual ?? '')}: "${texto.slice(0, 200)}"`,
+              `🔗 <${enlaceTarea}|Ver tarea →>`,
+            ].join('\n'),
           }),
         }).catch(console.error)
       })
-      // Notificación Slack al canal del cliente
+      // Notificación Slack al canal del cliente, con tarea, cliente y enlace
       if (tarea?.idCliente) {
         const menciones = mencionesIds.map(id => nombreEmpleado(id)).join(', ')
+        const enlace = `${typeof window !== 'undefined' ? window.location.origin : ''}/tareas/vista-global?tarea=${idTarea}`
         fetch('/api/slack/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             idCliente: tarea.idCliente,
-            text: `💬 *Mención en tarea*\n*${tarea.nombre}*\n👤 @${menciones}: "${texto}"`,
+            text: [
+              `💬 *Mención en el chat de una tarea*`,
+              `📋 *${tarea.nombre}*`,
+              `🏢 ${nombreCliente(tarea.idCliente)}`,
+              `👤 ${nombreEmpleado(idEmpleadoActual ?? '')} menciona a ${menciones}:`,
+              `"${texto}"`,
+              `🔗 <${enlace}|Ver tarea →>`,
+            ].join('\n'),
           }),
         }).catch(console.error)
       }
     }
-  }, [nombreEmpleado, tareas, idEmpleadoActual])
+  }, [nombreEmpleado, tareas, idEmpleadoActual, nombreCliente])
 
   const editChatMensajeTarea = useCallback((idTarea: string, idMensaje: string, texto: string) => {
     setTareas(prev => prev.map(t => {
