@@ -3,6 +3,36 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { NextRequest, NextResponse } from 'next/server'
 
+/** Al pasar a "ganado", el prospecto se convierte en cliente si no existe. */
+async function asegurarCliente(nombreProspecto: string, idProspecto: string) {
+  if (!nombreProspecto?.trim()) return null
+  const admin = createAdminClient()
+
+  const { data: existente } = await admin
+    .from('clientes')
+    .select('id')
+    .ilike('nombre', nombreProspecto.trim())
+    .maybeSingle()
+
+  let clienteId = existente?.id as string | undefined
+
+  if (!clienteId) {
+    const { data: nuevo } = await admin
+      .from('clientes')
+      .insert({ nombre: nombreProspecto.trim(), activo: true })
+      .select('id')
+      .single()
+    clienteId = nuevo?.id as string | undefined
+  }
+
+  if (clienteId) {
+    // Los fichajes que se hicieron al prospecto pasan al cliente
+    await admin.from('time_logs').update({ id_cliente: clienteId }).eq('id_cliente', idProspecto)
+  }
+
+  return clienteId ?? null
+}
+
 async function requireAdmin() {
   const perfil = await getPerfil()
   if (perfil?.rol !== 'admin') return null
@@ -61,6 +91,10 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if ((estado ?? 'descubrimiento') === 'ganado' && data) {
+    await asegurarCliente(String(data.nombre ?? ''), String(data.id ?? ''))
+  }
   return NextResponse.json(data)
 }
 
@@ -101,29 +135,7 @@ export async function PATCH(req: NextRequest) {
 
   // When prospect moves to "ganado": auto-create client and migrate time_logs
   if (body.estado === 'ganado' && data) {
-    const nombreProspecto = (data as Record<string, unknown>).nombre as string
-    const { data: existingCliente } = await admin
-      .from('clientes')
-      .select('id')
-      .eq('nombre', nombreProspecto)
-      .maybeSingle()
-
-    let clienteId = existingCliente?.id as string | undefined
-    if (!clienteId) {
-      const { data: nuevoCliente } = await admin
-        .from('clientes')
-        .insert({ nombre: nombreProspecto, activo: true })
-        .select('id')
-        .single()
-      clienteId = nuevoCliente?.id as string | undefined
-    }
-
-    if (clienteId) {
-      await admin
-        .from('time_logs')
-        .update({ id_cliente: clienteId })
-        .eq('id_cliente', id)
-    }
+    await asegurarCliente(String((data as Record<string, unknown>).nombre ?? ''), id)
   }
 
   return NextResponse.json(data)
