@@ -608,7 +608,12 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                   </p>
                 )}
                 {timerStatus === 'idle' && tarea.minutosAcumulados > 0 && (
-                  <p className="text-gray-500 text-xs mt-0.5">Acumulado: {formatMinutos(tarea.minutosAcumulados)}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    Acumulado: {formatMinutos(tarea.minutosAcumulados)}
+                    {tiempos && tiempos.por_empleado.length === 0 && (
+                      <span className="text-amber-600"> · sin desglose por persona (tiempo anterior al fichaje vinculado)</span>
+                    )}
+                  </p>
                 )}
               </div>
               <div className="flex gap-2">
