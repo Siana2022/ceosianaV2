@@ -269,6 +269,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
 
   // ── Servicios filtrados por cliente ──────────────────────────────────
   const serviciosDelCliente = state.servicios.filter(s => s.idCliente === draft.idCliente)
+  const creador = tarea.idCreador ? state.empleados.find(e => e.id === tarea.idCreador) : null
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -286,7 +287,22 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             />
             <EstadoBadge estado={draft.estado} />
           </div>
-          <button onClick={cerrar} className="text-gray-500 hover:text-white text-xl">✕</button>
+          <div className="flex items-center gap-3">
+            {creador && (
+              <div className="flex items-center gap-2 pr-3 border-r border-gray-800" title={`Creado por ${creador.nombre}`}>
+                {creador.avatarUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={creador.avatarUrl} alt={creador.nombre} className="w-9 h-9 rounded-full object-cover" />
+                  : <span className="w-9 h-9 rounded-full bg-gray-800 text-sm text-gray-300 flex items-center justify-center">{creador.nombre[0]}</span>
+                }
+                <div className="leading-tight">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-500">Creado por</div>
+                  <div className="text-sm text-gray-200 font-medium">{creador.nombre}</div>
+                </div>
+              </div>
+            )}
+            <button onClick={cerrar} className="text-gray-500 hover:text-white text-xl">✕</button>
+          </div>
         </div>
 
         {/* Body */}
@@ -397,14 +413,6 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                 placeholder={draft.tipo === 'visita' ? 'Dirección de la visita...' : 'Sala, o enlace de Meet/Zoom...'}
                 className={inputCls}
               />
-            </div>
-          )}
-
-          {/* Creador */}
-          {tarea.idCreador && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>Creado por</span>
-              <span className="text-gray-300 font-medium">{state.empleados.find(e => e.id === tarea.idCreador)?.nombre ?? '—'}</span>
             </div>
           )}
 

@@ -39,9 +39,17 @@ export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbri
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_10rem_10rem_7rem_9rem_7rem_8rem] items-center gap-3 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-lg px-3 py-2 transition-colors">
-      <button onClick={onAbrir} className="min-w-0 text-left text-white text-sm hover:text-blue-300 truncate whitespace-nowrap py-0.5">
-        {TIPO_TAREA_ICONO[tarea.tipo]} {tarea.nombre}
-        {tarea.recurrencia !== 'ninguna' && <span className="text-purple-400 ml-1.5 text-xs">🔁 {RECURRENCIA_LABEL[tarea.recurrencia]}</span>}
+      <button onClick={onAbrir} className="min-w-0 flex items-center gap-2 text-left text-white text-sm hover:text-blue-300 py-0.5">
+        {(() => {
+          const creador = tarea.idCreador ? state.empleados.find(e => e.id === tarea.idCreador) : null
+          if (!creador) return null
+          return creador.avatarUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={creador.avatarUrl} alt={creador.nombre} title={`Creado por ${creador.nombre}`} className="w-4 h-4 rounded-full object-cover flex-shrink-0 opacity-80" />
+            : <span title={`Creado por ${creador.nombre}`} className="w-4 h-4 rounded-full bg-gray-800 text-[9px] text-gray-400 flex items-center justify-center flex-shrink-0">{creador.nombre[0]}</span>
+        })()}
+        <span className="truncate whitespace-nowrap">{TIPO_TAREA_ICONO[tarea.tipo]} {tarea.nombre}</span>
+        {tarea.recurrencia !== 'ninguna' && <span className="text-purple-400 ml-1.5 text-xs flex-shrink-0">🔁 {RECURRENCIA_LABEL[tarea.recurrencia]}</span>}
       </button>
       <span className="text-gray-500 text-xs truncate text-left">🏢 {actions.nombreCliente(tarea.idCliente)}</span>
       <span className="text-gray-500 text-xs flex items-center justify-start gap-1 min-w-0">
