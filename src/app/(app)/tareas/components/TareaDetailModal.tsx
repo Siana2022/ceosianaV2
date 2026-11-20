@@ -276,8 +276,9 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
       <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="px-6 py-4 border-b border-gray-800 flex-shrink-0">
+          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-lg">{TIPO_TAREA_ICONO[draft.tipo]}</span>
             <input
               value={draft.nombre}
@@ -287,22 +288,20 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             />
             <EstadoBadge estado={draft.estado} />
           </div>
-          <div className="flex items-center gap-3">
-            {creador && (
-              <div className="flex items-center gap-2 pr-3 border-r border-gray-800" title={`Creado por ${creador.nombre}`}>
-                {creador.avatarUrl
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={creador.avatarUrl} alt={creador.nombre} className="w-9 h-9 rounded-full object-cover" />
-                  : <span className="w-9 h-9 rounded-full bg-gray-800 text-sm text-gray-300 flex items-center justify-center">{creador.nombre[0]}</span>
-                }
-                <div className="leading-tight">
-                  <div className="text-[10px] uppercase tracking-wide text-gray-500">Creado por</div>
-                  <div className="text-sm text-gray-200 font-medium">{creador.nombre}</div>
-                </div>
-              </div>
-            )}
-            <button onClick={cerrar} className="text-gray-500 hover:text-white text-xl">✕</button>
+            <button onClick={cerrar} className="text-gray-500 hover:text-white text-xl flex-shrink-0">✕</button>
           </div>
+
+          {creador && (
+            <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500">
+              {creador.avatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={creador.avatarUrl} alt={creador.nombre} className="w-[18px] h-[18px] rounded-full object-cover" />
+                : <span className="w-[18px] h-[18px] rounded-full bg-gray-800 text-[9px] text-gray-400 flex items-center justify-center">{creador.nombre[0]}</span>
+              }
+              <span>Creado por</span>
+              <span className="text-gray-300 font-medium">{creador.nombre}</span>
+            </div>
+          )}
         </div>
 
         {/* Body */}
