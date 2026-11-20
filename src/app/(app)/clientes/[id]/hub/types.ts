@@ -61,10 +61,10 @@ export const ESTADO_LABEL: Record<string, string> = {
 }
 
 export const ESTADO_CLASE: Record<string, string> = {
-  espera: 'bg-gray-700/40 text-gray-300',
-  proceso: 'bg-blue-900/40 text-blue-300',
-  bloqueada: 'bg-red-900/40 text-red-300',
-  terminado: 'bg-green-900/40 text-green-300',
+  espera: 'bg-stone-200 text-stone-700',
+  proceso: 'bg-blue-100 text-blue-800',
+  bloqueada: 'bg-amber-100 text-amber-800',
+  terminado: 'bg-green-100 text-green-800',
 }
 
 export interface HubAccion {

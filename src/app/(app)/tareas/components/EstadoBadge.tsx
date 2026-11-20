@@ -2,10 +2,10 @@ import { ESTADO_FASE_LABEL, ESTADO_TAREA_LABEL } from '../mockData'
 import type { EstadoFase, EstadoTarea } from '../types'
 
 const STYLES: Record<EstadoTarea, string> = {
-  espera: 'bg-gray-500/20 text-gray-300',
-  proceso: 'bg-blue-500/20 text-blue-400',
-  bloqueada: 'bg-red-500/20 text-red-400',
-  terminado: 'bg-green-500/20 text-green-400',
+  espera: 'bg-stone-200 text-stone-700',
+  proceso: 'bg-blue-100 text-blue-800',
+  bloqueada: 'bg-amber-100 text-amber-800',
+  terminado: 'bg-green-100 text-green-800',
 }
 
 interface Props {
