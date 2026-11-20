@@ -12,6 +12,8 @@ import CrearClienteModal from '../components/CrearClienteModal'
 import GanttChart from '../components/GanttChart'
 import GanttLegend from '../components/GanttLegend'
 import CollapsibleSection from '../components/CollapsibleSection'
+import TareaListItem from '../components/TareaListItem'
+import TareaCard from '../components/TareaCard'
 import RangoFechasSelector from '../components/RangoFechasSelector'
 import WorkloadPieChart from '../components/WorkloadPieChart'
 import ProcesosTareasBloque, { type VistaTareas } from '../components/ProcesosTareasBloque'
@@ -22,7 +24,7 @@ import { workloadClientePorEmpleado, workloadDepartamentoPorEmpleado, workloadEm
 
 const inputCls = 'bg-gray-800 border border-gray-700 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:border-blue-500'
 
-type Tab = 'cliente' | 'empleado' | 'departamento'
+type Tab = 'todos' | 'cliente' | 'empleado' | 'departamento'
 type Visualizacion = 'kanban' | 'gantt' | 'quesos'
 type Metrica = 'horas' | 'tareas'
 
@@ -79,6 +81,20 @@ export default function VistaGlobalPage() {
     setTareaAbiertaId(id)
     setTareaEsNueva(true)
   }
+
+  const vistaTareasToggle = (
+    <div className="flex gap-1 bg-gray-800 rounded-lg p-1 w-fit flex-shrink-0">
+      {([{ key: 'lista', label: '☰ Lista' }, { key: 'tarjeta', label: '▦ Tarjetas' }] as const).map(v => (
+        <button
+          key={v.key}
+          onClick={() => setVistaTareas(v.key)}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${vistaTareas === v.key ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  )
 
   const visualizacionToggle = (
     <div className="flex gap-1 bg-gray-800 rounded-lg p-1 w-fit flex-shrink-0">
@@ -154,6 +170,12 @@ export default function VistaGlobalPage() {
   ]
   const reunionesVisitasDepartamento = state.tareas.filter(t => t.idDepartamento === idDepartamento && t.tipo !== 'tarea' && t.estado !== 'terminado')
 
+  // ── Todos los clientes ───────────────────────────────────────────────────
+  const tareasTodas = state.tareas.filter(t => t.tipo === 'tarea')
+  const tareasActivasTodas = porFecha(tareasTodas.filter(t => t.estado !== 'terminado'))
+  const tareasTerminadasTodas = porFecha(tareasTodas.filter(t => t.estado === 'terminado'))
+  const reunionesVisitasTodas = porFecha(state.tareas.filter(t => t.tipo !== 'tarea' && t.estado !== 'terminado'))
+
   const filasEmpleadoGantt = detectarConflictos(
     filasGanttEmpleado(state.procesos, state.tareas, idEmpleado, actions.nombreCliente),
     state.conflictosResueltos
@@ -167,6 +189,7 @@ export default function VistaGlobalPage() {
     <div className="space-y-6">
       <div className="flex gap-1 bg-gray-800 rounded-lg p-1 w-fit">
         {([
+          { key: 'todos', label: '🌍 TODOS LOS CLIENTES' },
           { key: 'cliente', label: '🏢 Por cliente' },
           { key: 'empleado', label: '🧑 Por persona' },
           { key: 'departamento', label: '🗂️ Por departamento' },
@@ -180,6 +203,52 @@ export default function VistaGlobalPage() {
           </button>
         ))}
       </div>
+
+      {tab === 'todos' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-500">
+              {tareasActivasTodas.length} tareas activas · {tareasTerminadasTodas.length} terminadas · {state.clientes.length} clientes
+            </p>
+            {vistaTareasToggle}
+          </div>
+
+          <CollapsibleSection title="Tareas activas" badge={tareasActivasTodas.length} defaultOpen>
+            {vistaTareas === 'lista' ? (
+              <div className="space-y-1.5">
+                {tareasActivasTodas.map(t => (
+                  <TareaListItem key={t.id} tarea={t} onAbrir={() => setTareaAbiertaId(t.id)} />
+                ))}
+                {tareasActivasTodas.length === 0 && <p className="text-gray-600 text-sm">Sin tareas activas.</p>}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {tareasActivasTodas.map(t => (
+                  <TareaCard key={t.id} tarea={t} onAbrir={() => setTareaAbiertaId(t.id)} />
+                ))}
+              </div>
+            )}
+          </CollapsibleSection>
+
+          {reunionesVisitasTodas.length > 0 && (
+            <CollapsibleSection title="Reuniones y visitas" badge={reunionesVisitasTodas.length} defaultOpen={false}>
+              <div className="space-y-1.5">
+                {reunionesVisitasTodas.map(t => (
+                  <TareaListItem key={t.id} tarea={t} onAbrir={() => setTareaAbiertaId(t.id)} />
+                ))}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          <CollapsibleSection title="Tareas terminadas" badge={tareasTerminadasTodas.length} defaultOpen={false}>
+            <div className="space-y-1.5">
+              {tareasTerminadasTodas.slice(0, 100).map(t => (
+                <TareaListItem key={t.id} tarea={t} onAbrir={() => setTareaAbiertaId(t.id)} />
+              ))}
+            </div>
+          </CollapsibleSection>
+        </div>
+      )}
 
       {tab === 'cliente' && (
         <div className="space-y-4">
