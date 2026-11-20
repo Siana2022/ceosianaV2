@@ -19,6 +19,7 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     { data: rawTareas, error: errTareas },
     { data: rawProcesos, error: errProcesos },
     { data: rawPlantillas, error: errPlantillas },
+    { data: rawProspectos },
   ] = await Promise.all([
     supabase.from('clientes').select('id, nombre, slack_canal').eq('activo', true).order('nombre'),
     supabase.from('empleados').select('id, nombre, email, avatar_url').eq('activo', true).order('nombre'),
@@ -31,12 +32,31 @@ export default async function TareasLayout({ children }: { children: ReactNode }
     supabase.from('tareas').select('*').order('created_at', { ascending: false }),
     supabase.from('procesos').select('*').order('created_at', { ascending: true }),
     supabase.from('plantillas').select('*').order('created_at', { ascending: true }),
+    supabase
+      .from('pipeline_prospectos')
+      .select('id, nombre, estado')
+      .eq('activo', true)
+      .in('estado', ['descubrimiento', 'propuesta', 'negociacion'])
+      .order('nombre'),
   ])
 
   const errs = { clientes: errClientes, empleados: errEmpleados, departamentos: errDepartamentos, servicios: errServicios, tareas: errTareas, procesos: errProcesos, plantillas: errPlantillas }
   Object.entries(errs).forEach(([k, e]) => { if (e) console.error(`[tareas/layout] Error loading ${k}:`, e.message) })
 
-  const clientes: Cliente[] = (rawClientes ?? []).map(c => ({ id: String(c.id), nombre: c.nombre }))
+  // Los prospectos abiertos se pueden usar como cliente, marcando su estado.
+  const ETIQUETA: Record<string, string> = {
+    descubrimiento: 'Descubrimiento',
+    propuesta: 'Propuesta',
+    negociacion: 'Negociación',
+  }
+
+  const clientes: Cliente[] = [
+    ...(rawClientes ?? []).map(c => ({ id: String(c.id), nombre: c.nombre as string })),
+    ...((rawProspectos ?? []) as { id: string; nombre: string; estado: string }[]).map(p => ({
+      id: String(p.id),
+      nombre: `${p.nombre} · ${ETIQUETA[p.estado] ?? p.estado}`,
+    })),
+  ].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   const slackClienteInit: Record<string, string> = {}
   ;(rawClientes ?? []).forEach(c => {
     if (c.slack_canal) slackClienteInit[String(c.id)] = c.slack_canal as string

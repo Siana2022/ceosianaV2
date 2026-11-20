@@ -25,12 +25,30 @@ export default async function FicharPage() {
     .eq('activo', true)
     .order('nombre')
 
-  // Fetch all active clients
-  const { data: clientes } = await supabase
-    .from('clientes')
-    .select('id, nombre')
-    .eq('activo', true)
-    .order('nombre')
+  // Clientes activos + prospectos abiertos (se distinguen por el estado)
+  const [{ data: clientesBase }, { data: prospectos }] = await Promise.all([
+    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase
+      .from('pipeline_prospectos')
+      .select('id, nombre, estado')
+      .eq('activo', true)
+      .in('estado', ['descubrimiento', 'propuesta', 'negociacion'])
+      .order('nombre'),
+  ])
+
+  const ETIQUETA_PROSPECTO: Record<string, string> = {
+    descubrimiento: 'Descubrimiento',
+    propuesta: 'Propuesta',
+    negociacion: 'Negociación',
+  }
+
+  const clientes = [
+    ...(clientesBase ?? []),
+    ...((prospectos ?? []) as { id: string; nombre: string; estado: string }[]).map(p => ({
+      id: p.id,
+      nombre: `${p.nombre} · ${ETIQUETA_PROSPECTO[p.estado] ?? p.estado}`,
+    })),
+  ].sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'))
 
   // Fetch employee info if linked; if not, try to resolve by email
   let empleadoNombre = 'Usuario'
