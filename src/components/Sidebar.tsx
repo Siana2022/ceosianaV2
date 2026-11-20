@@ -37,13 +37,13 @@ const NAV_SECTIONS: { label: string; items: MenuItem[] }[] = [
       { href: '/tareas',    label: 'Tareas',     icon: '🗂️' },
       { href: '/fichar',    label: 'Fichar',     icon: '🕐' },
       { href: '/pipeline',  label: 'Pipeline',   icon: '🔮' },
+      { href: '/editorial', label: 'Editorial',  icon: '📅' },
     ],
   },
   {
     label: 'GESTIÓN',
     items: [
       { href: '/comercial',      label: 'Comercial',      icon: '🎯' },
-      { href: '/editorial',      label: 'Editorial',      icon: '📅' },
       { href: '/ingresos',       label: 'Ingresos',       icon: '💶' },
       { href: '/costes',         label: 'Costes',         icon: '💰' },
       { href: '/dedicacion',     label: 'Dedicación',     icon: '⏱️' },
