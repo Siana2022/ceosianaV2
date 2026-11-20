@@ -48,6 +48,7 @@ const NAV_SECTIONS: { label: string; items: MenuItem[] }[] = [
       { href: '/costes',         label: 'Costes',         icon: '💰' },
       { href: '/dedicacion',     label: 'Dedicación',     icon: '⏱️' },
       { href: '/administracion', label: 'Administración', icon: '🧾' },
+      { href: '/clientes',       label: 'Clientes',       icon: '🏢' },
       { href: '/historico',      label: 'Histórico',      icon: '📈' },
       { href: '/mcp',            label: 'MCP',            icon: '🔑' },
     ],
@@ -214,7 +215,7 @@ export default function Sidebar({ rol, clientes = [] }: Props) {
                       return (
                         <Link
                           key={c.id}
-                          href={`/clientes/${c.id}`}
+                          href={`/tareas/vista-global?cliente=${c.id}`}
                           className={`relative flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[16px] font-medium transition-all ${
                             isActive
                               ? 'bg-[#2D2B28] text-white'

@@ -46,6 +46,15 @@ export default function VistaGlobalPage() {
     const tareaId = searchParams.get('tarea')
     if (tareaId) setTareaAbiertaId(tareaId)
   }, [searchParams])
+
+  // Abrir directamente las tareas de un cliente desde el menú lateral
+  useEffect(() => {
+    const clienteId = searchParams.get('cliente')
+    if (clienteId) {
+      setIdCliente(clienteId)
+      setTab('cliente')
+    }
+  }, [searchParams])
   const [tareaEsNueva, setTareaEsNueva] = useState(false)
   const [mostrarImportar, setMostrarImportar] = useState(false)
   const [mostrarCrearCliente, setMostrarCrearCliente] = useState(false)
