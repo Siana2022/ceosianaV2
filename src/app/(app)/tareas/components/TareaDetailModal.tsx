@@ -271,6 +271,22 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
   const serviciosDelCliente = state.servicios.filter(s => s.idCliente === draft.idCliente)
   const creador = tarea.idCreador ? state.empleados.find(e => e.id === tarea.idCreador) : null
 
+  const [tiempos, setTiempos] = useState<{ total: number; por_empleado: { id: string; nombre: string; avatar: string | null; minutos: number }[] } | null>(null)
+  useEffect(() => {
+    let vivo = true
+    fetch(`/api/tareas/tiempos?id=${tarea.id}`)
+      .then(r => r.json())
+      .then(d => { if (vivo) setTiempos(d) })
+      .catch(() => { if (vivo) setTiempos(null) })
+    return () => { vivo = false }
+  }, [tarea.id])
+
+  const fmtMin = (m: number) => {
+    const h = Math.floor(m / 60)
+    const min = m % 60
+    return h > 0 ? `${h}h ${min}m` : `${min}m`
+  }
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
@@ -412,6 +428,30 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
                 placeholder={draft.tipo === 'visita' ? 'Dirección de la visita...' : 'Sala, o enlace de Meet/Zoom...'}
                 className={inputCls}
               />
+            </div>
+          )}
+
+          {/* Tiempo fichado por persona */}
+          {tiempos && tiempos.por_empleado.length > 0 && (
+            <div>
+              <label className="block text-gray-400 text-sm mb-1.5">Tiempo fichado</label>
+              <div className="bg-gray-800/60 rounded-lg divide-y divide-gray-800">
+                {tiempos.por_empleado.map(e => (
+                  <div key={e.id} className="flex items-center gap-2 px-3 py-2">
+                    {e.avatar
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={e.avatar} alt={e.nombre} className="w-5 h-5 rounded-full object-cover" />
+                      : <span className="w-5 h-5 rounded-full bg-gray-700 text-[10px] text-gray-300 flex items-center justify-center">{e.nombre[0]}</span>
+                    }
+                    <span className="flex-1 text-sm text-gray-200 truncate">{e.nombre}</span>
+                    <span className="text-sm text-gray-300 font-mono">{fmtMin(e.minutos)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center px-3 py-2">
+                  <span className="flex-1 text-sm font-medium text-white">Total</span>
+                  <span className="text-sm font-semibold text-white font-mono">{fmtMin(tiempos.total)}</span>
+                </div>
+              </div>
             </div>
           )}
 
