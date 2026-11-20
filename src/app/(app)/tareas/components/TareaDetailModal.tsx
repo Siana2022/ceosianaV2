@@ -47,6 +47,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
     explicacionBloqueo: tarea.explicacionBloqueo ?? '',
     minutosAcumulados: tarea.minutosAcumulados,
     syncCalendar: tarea.syncCalendar,
+    externa: tarea.externa ?? false,
     checklist: tarea.checklist ?? [] as ChecklistItem[],
   })
   const [nuevoChecklistItem, setNuevoChecklistItem] = useState('')
@@ -112,6 +113,7 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
       descripcion: draft.descripcion,
       explicacionBloqueo: draft.estado === 'bloqueada' ? draft.explicacionBloqueo : null,
       syncCalendar: draft.syncCalendar,
+      externa: draft.externa,
       checklist: draft.checklist,
     })
     if (draft.minutosAcumulados !== tarea.minutosAcumulados) {
@@ -338,6 +340,24 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
               ))}
             </div>
           </div>
+
+          {/* Ámbito (solo reuniones y visitas) */}
+          {(draft.tipo === 'reunion' || draft.tipo === 'visita') && (
+            <div>
+              <label className="block text-gray-400 text-sm mb-1.5">¿Con quién es?</label>
+              <div className="flex gap-1.5">
+                {[{ v: false, label: '🏠 Interna' }, { v: true, label: '🤝 Con el cliente' }].map(op => (
+                  <button
+                    key={String(op.v)}
+                    onClick={() => set('externa', op.v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${(draft.externa ?? false) === op.v ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Estado */}
           <div>

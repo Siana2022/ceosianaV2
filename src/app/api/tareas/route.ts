@@ -40,6 +40,7 @@ const CAMINO: Record<string, string> = {
   recurrencia: 'recurrencia',
   minutosAcumulados: 'minutos_acumulados',
   syncCalendar: 'sync_calendar',
+  externa: 'externa',
   chat: 'chat',
   checklist: 'checklist',
   adjuntos: 'adjuntos',
@@ -67,6 +68,7 @@ function rowToTarea(row: Record<string, unknown>) {
     recurrencia: row.recurrencia ?? 'ninguna',
     minutosAcumulados: row.minutos_acumulados ?? 0,
     syncCalendar: row.sync_calendar ?? false,
+    externa: row.externa ?? false,
     timerActivo: false,
     chat: row.chat ?? [],
     checklist: row.checklist ?? [],
@@ -272,9 +274,9 @@ export async function PATCH(req: NextRequest) {
             const faltan = respIds.filter((rid: string) => !hechos.has(rid))
             const fecha = (tarea.fecha_limite as string | null) ?? new Date().toISOString().slice(0, 10)
 
-            // Si la reunión no tiene servicio, el tiempo va al servicio REUNIONES del cliente
-            let idServicio = tarea.id_servicio as string | null
-            if (!idServicio && tarea.id_cliente) {
+            // Las reuniones y visitas van SIEMPRE al servicio REUNIONES del cliente
+            let idServicio: string | null = null
+            if (tarea.id_cliente) {
               const { data: sv } = await admin
                 .from('servicios')
                 .select('id')

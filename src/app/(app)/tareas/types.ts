@@ -126,6 +126,8 @@ export interface Tarea {
   descripcion: string
   recurrencia: Recurrencia
   syncCalendar: boolean
+  /** Solo reuniones y visitas: true si es con el cliente. */
+  externa?: boolean
   minutosAcumulados: number
   timerActivo: boolean
   chat: ChatMensaje[]
