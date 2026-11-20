@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { redirect, notFound } from 'next/navigation'
 import HubClient from './HubClient'
-import type { HubServicio, HubCuenta, HubTarea, HubAccion, HubNota, HubProceso } from './types'
+import type { HubServicio, HubCuenta, HubTarea, HubAccion, HubNota, HubProceso, HubEmpleado } from './types'
 
 export default async function HubPage({
   params,
@@ -78,6 +78,11 @@ export default async function HubPage({
     .eq('id_cliente', id)
     .order('created_at', { ascending: true })
 
+  const { data: empleados } = await supabase
+    .from('empleados')
+    .select('id, nombre, avatar_url')
+    .eq('activo', true)
+
   const { data: cuentas } = ids.length
     ? await supabase
         .from('cuenta_plataforma')
@@ -103,6 +108,7 @@ export default async function HubPage({
       tareas={(tareas ?? []) as unknown as HubTarea[]}
       notas={(notas ?? []) as unknown as HubNota[]}
       procesos={(procesos ?? []) as unknown as HubProceso[]}
+      empleados={(empleados ?? []) as unknown as HubEmpleado[]}
       tokenPortal={(cliente as { token_portal?: string | null }).token_portal ?? null}
       acciones={(acciones ?? []) as unknown as HubAccion[]}
       esAdmin={perfil?.rol === 'admin'}

@@ -113,3 +113,9 @@ export interface HubProceso {
   nombre: string
   fases: HubProcesoFase[]
 }
+
+export interface HubEmpleado {
+  id: string
+  nombre: string
+  avatar_url: string | null
+}

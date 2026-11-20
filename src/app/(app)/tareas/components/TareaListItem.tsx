@@ -47,10 +47,11 @@ export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbri
       <span className="text-gray-500 text-xs hidden md:flex items-center justify-center gap-1 flex-shrink-0 max-w-32 text-center">
         {tarea.idsResponsables.slice(0, 2).map(id => {
           const emp = state.empleados.find(e => e.id === id)
-          return emp?.avatarUrl
+          if (!emp) return null
+          return emp.avatarUrl
             // eslint-disable-next-line @next/next/no-img-element
             ? <img key={id} src={emp.avatarUrl} alt={emp.nombre} title={emp.nombre} className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
-            : null
+            : <span key={id} title={emp.nombre} className="w-4 h-4 rounded-full bg-gray-700 text-[9px] text-gray-300 flex items-center justify-center flex-shrink-0">{emp.nombre[0]}</span>
         })}
         <span className="truncate">👤 {actions.nombresEmpleados(tarea.idsResponsables)}</span>
       </span>

@@ -13,6 +13,7 @@ import {
   type HubAccion,
   type HubNota,
   type HubProceso,
+  type HubEmpleado,
   type HubCuenta,
   type HubServicio,
   type HubTarea,
@@ -27,6 +28,7 @@ interface Props {
   acciones: HubAccion[]
   notas: HubNota[]
   procesos: HubProceso[]
+  empleados: HubEmpleado[]
   tokenPortal?: string | null
   esAdmin: boolean
   /** URL del artefacto en Claude. Si viene, se abre en pestaña nueva. */
@@ -42,7 +44,7 @@ function fmtMin(m: number) {
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
 }
 
-export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, notas, procesos, tokenPortal = null, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
+export default function HubClient({ cliente, servicios, cuentas, tareas, acciones, notas, procesos, empleados, tokenPortal = null, esAdmin, creativeLabUrl = '', googleConectado = false, avisoGoogle }: Props) {
   const router = useRouter()
   const [servicioSel, setServicioSel] = useState<string>(servicios[0]?.id ?? '')
   const [nuevaTarea, setNuevaTarea] = useState('')
@@ -379,6 +381,16 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
                   {ESTADO_LABEL[t.estado] ?? t.estado}
                 </span>
                 <span className={`flex-1 truncate text-[15px] ${t.estado === 'terminado' ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{t.nombre}</span>
+                <span className="flex items-center gap-1 flex-shrink-0">
+                  {(t.ids_responsables ?? []).slice(0, 3).map(id => {
+                    const emp = empleados.find(e => e.id === id)
+                    if (!emp) return null
+                    return emp.avatar_url
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img key={id} src={emp.avatar_url} alt={emp.nombre} title={emp.nombre} className="w-5 h-5 rounded-full object-cover" />
+                      : <span key={id} title={emp.nombre} className="w-5 h-5 rounded-full bg-gray-800 text-[10px] text-gray-400 flex items-center justify-center">{emp.nombre[0]}</span>
+                  })}
+                </span>
                 {t.fecha_limite && (
                   <span className="text-gray-500 text-xs">
                     {new Date(`${t.fecha_limite}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}

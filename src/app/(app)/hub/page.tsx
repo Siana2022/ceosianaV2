@@ -4,7 +4,7 @@ import { getPerfil } from '@/lib/server/perfil'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import HubClient from '@/app/(app)/clientes/[id]/hub/HubClient'
-import type { HubServicio, HubCuenta, HubTarea, HubAccion, HubNota, HubProceso } from '@/app/(app)/clientes/[id]/hub/types'
+import type { HubServicio, HubCuenta, HubTarea, HubAccion, HubNota, HubProceso, HubEmpleado } from '@/app/(app)/clientes/[id]/hub/types'
 
 export default async function HubIndexPage({
   searchParams,
@@ -120,6 +120,11 @@ export default async function HubIndexPage({
     .eq('id_cliente', clienteId)
     .order('created_at', { ascending: true })
 
+  const { data: empleados } = await supabase
+    .from('empleados')
+    .select('id, nombre, avatar_url')
+    .eq('activo', true)
+
   const { data: cuentas } = ids.length
     ? await supabase
         .from('cuenta_plataforma')
@@ -145,6 +150,7 @@ export default async function HubIndexPage({
       tareas={(tareas ?? []) as unknown as HubTarea[]}
       notas={(notas ?? []) as unknown as HubNota[]}
       procesos={(procesos ?? []) as unknown as HubProceso[]}
+      empleados={(empleados ?? []) as unknown as HubEmpleado[]}
       tokenPortal={(cliente as { token_portal?: string | null }).token_portal ?? null}
       acciones={(acciones ?? []) as unknown as HubAccion[]}
       esAdmin={perfil?.rol === 'admin'}
