@@ -164,6 +164,55 @@ export default async function ClienteDetailPage({
     factByServicioMes.get(ing.id_servicio)!.set(ing.mes, (factByServicioMes.get(ing.id_servicio)!.get(ing.mes) ?? 0) + Number(ing.valor))
   }
 
+  // ── Convertidor de Project (10 %) ─────────────────────────────────────
+  // Solo para clientes con servicio Project, desde diciembre de 2026.
+  // El fee de Project es transferido: no lo paga el cliente y no suma al total.
+  type FilaConvertidor = { id: string; nombre: string; fee: number; cesion: number; conProject: number }
+  const convertidor: {
+    aplica: boolean
+    meses: Record<number, { total: number; project: number; filas: FilaConvertidor[] }>
+  } = { aplica: false, meses: {} }
+
+  const MES_INICIO_CONVERTIDOR = 12
+
+  const esProject = (sv: Record<string, unknown>) => {
+    const tipo = (sv.tipo_servicio as { nombre?: string } | null)?.nombre ?? ''
+    const nombre = String(sv.nombre ?? '')
+    return /^project$/i.test(tipo.trim()) || /^project$/i.test(nombre.trim())
+  }
+  const esReuniones = (sv: Record<string, unknown>) => /^reuniones$/i.test(String(sv.nombre ?? '').trim())
+
+  const projectSvc = (servicios ?? []).find(sv => esProject(sv as Record<string, unknown>))
+  if (projectSvc && year >= 2026) {
+    for (let mes = MES_INICIO_CONVERTIDOR; mes <= 12; mes++) {
+      const filas: FilaConvertidor[] = []
+      for (const sv of servicios ?? []) {
+        const svAny = sv as unknown as Record<string, unknown>
+        if (esProject(svAny) || esReuniones(svAny)) continue
+        const fee = factByServicioMes.get(String(svAny.id))?.get(mes) ?? 0
+        if (fee <= 0) continue
+        filas.push({ id: String(svAny.id), nombre: String(svAny.nombre ?? ''), fee, cesion: 0, conProject: fee })
+      }
+      if (filas.length === 0) continue
+
+      const total = filas.reduce((t, f) => t + f.fee, 0)
+      const objetivo = Math.round(total * 0.1 * 100) / 100
+      const porServicio = Math.round((objetivo / filas.length) * 100) / 100
+
+      let repartido = 0
+      for (const f of filas) {
+        f.cesion = porServicio
+        f.conProject = Math.round((f.fee - porServicio) * 100) / 100
+        repartido += porServicio
+      }
+      // El redondeo restante se le da a Project para que cuadre exacto
+      const project = Math.round((objetivo + (objetivo - repartido)) * 100) / 100
+
+      convertidor.meses[mes] = { total, project, filas }
+    }
+    convertidor.aplica = Object.keys(convertidor.meses).length > 0
+  }
+
   // Para logs sin id_servicio: si el departamento tiene exactamente 1 servicio con facturación ese mes, le imputamos el coste
   const deptMonthToServices = new Map<string, Map<number, string[]>>()
   for (const s of servicios ?? []) {

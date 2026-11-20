@@ -125,6 +125,10 @@ interface Props {
   total_costes: number
   coste_personal: number
   rentabilidadServicios: RentabilidadServicio[]
+  convertidor?: {
+    aplica: boolean
+    meses: Record<number, { total: number; project: number; filas: { id: string; nombre: string; fee: number; cesion: number; conProject: number }[] }>
+  }
   year: number
   umbralCostePorHora: number
   timeLogsCliente: {
@@ -173,6 +177,7 @@ export default function ClienteDetailClient({
   total_costes,
   coste_personal,
   rentabilidadServicios,
+  convertidor,
   year,
   umbralCostePorHora,
   timeLogsCliente,
@@ -1466,6 +1471,62 @@ export default function ClienteDetailClient({
                 </div>
               </div>
             )}
+          </div>
+        )
+      })()}
+
+      {/* Convertidor de Project */}
+      {convertidor?.aplica && (() => {
+        const meses = Object.keys(convertidor.meses).map(Number).sort((a, b) => b - a)
+        const mes = rentMes ?? meses[0]
+        const datos = convertidor.meses[mes]
+        if (!datos) return null
+        const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+        const totalConProject = datos.filas.reduce((t, f) => t + f.conProject, 0) + datos.project
+
+        return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-800">
+              <h3 className="text-white font-semibold">Convertidor de Project · {MESES[mes - 1]} {year}</h3>
+              <p className="text-gray-500 text-xs mt-0.5">
+                10 % del fee de los servicios con facturación, transferido a Project. No cambia lo que paga el cliente.
+              </p>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-800 bg-gray-800/30">
+                  <th className="text-left px-6 py-2">Servicio</th>
+                  <th className="text-right px-4 py-2">Facturado</th>
+                  <th className="text-right px-4 py-2">Cesión</th>
+                  <th className="text-right px-4 py-2">Con Project</th>
+                </tr>
+              </thead>
+              <tbody>
+                {datos.filas.map(f => (
+                  <tr key={f.id} className="border-b border-gray-800/40">
+                    <td className="px-6 py-2 text-gray-200">{f.nombre}</td>
+                    <td className="px-4 py-2 text-right text-gray-300">{f.fee.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
+                    <td className="px-4 py-2 text-right text-amber-500">−{f.cesion.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
+                    <td className="px-4 py-2 text-right text-white">{f.conProject.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
+                  </tr>
+                ))}
+                <tr className="bg-purple-900/20">
+                  <td className="px-6 py-2 text-purple-200 font-medium">Project <span className="text-[10px] text-purple-300/70">· transferido, no facturado</span></td>
+                  <td className="px-4 py-2 text-right text-gray-500">—</td>
+                  <td className="px-4 py-2 text-right text-gray-500">—</td>
+                  <td className="px-4 py-2 text-right text-purple-200 font-semibold">{datos.project.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
+                </tr>
+                <tr className="border-t border-gray-800">
+                  <td className="px-6 py-2 text-white font-semibold">Total</td>
+                  <td className="px-4 py-2 text-right text-white font-semibold">{datos.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
+                  <td className="px-4 py-2 text-right text-gray-500">—</td>
+                  <td className="px-4 py-2 text-right text-white font-semibold">{totalConProject.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="px-6 py-3 text-[11px] text-gray-500 border-t border-gray-800">
+              El total no cambia: es el mismo dinero repartido de otra forma. Project no aparece en la factura del cliente.
+            </p>
           </div>
         )
       })()}
