@@ -64,11 +64,15 @@ const NAV_SECTIONS: { label: string; items: MenuItem[] }[] = [
   },
 ]
 
+// El equipo ve lo mismo que dirección en PRINCIPAL, más el listado de clientes
+// del menú. Gestión y Equipo quedan solo para administración.
 const MENU_EMPLEADO: MenuItem[] = [
-  { href: '/fichar',  label: 'Fichar',          icon: '🕐' },
-  { href: '/tareas',  label: 'Tareas',           icon: '🗂️' },
-  { href: '/alertas', label: 'Notificaciones',   icon: '🔔' },
-  { href: '/perfil',  label: 'Mi perfil',        icon: '👤' },
+  { href: '/hub',       label: 'Hub',            icon: '🧭' },
+  { href: '/tareas',    label: 'Tareas',         icon: '🗂️' },
+  { href: '/fichar',    label: 'Fichar',         icon: '🕐' },
+  { href: '/editorial', label: 'Editorial',      icon: '📅' },
+  { href: '/alertas',   label: 'Notificaciones', icon: '🔔' },
+  { href: '/perfil',    label: 'Mi perfil',      icon: '👤' },
 ]
 
 // ── NavItem ────────────────────────────────────────────────────
@@ -153,7 +157,8 @@ export default function Sidebar({ rol, clientes = [] }: Props) {
       {/* ── Navigation ── */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         {rol === 'empleado' ? (
-          <div className="space-y-[2px]">
+          <div className="space-y-4">
+            <div className="space-y-[2px]">
             {MENU_EMPLEADO.map(item => (
               <NavItem
                 key={item.href}
@@ -164,6 +169,38 @@ export default function Sidebar({ rol, clientes = [] }: Props) {
                 badge={item.href === '/alertas' ? notifCount : undefined}
               />
             ))}
+            </div>
+
+            {clientes.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setClientesOpen(o => !o)}
+                  className="w-full px-3 mb-[6px] flex items-center justify-between group"
+                >
+                  <span className="text-[16px] font-semibold tracking-[0.04em]" style={{ color: '#FFFFFF' }}>CLIENTES</span>
+                  <span className="text-[8px] transition-transform duration-200" style={{ color: '#7A7570', transform: clientesOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                </button>
+                {clientesOpen && (
+                  <div className="space-y-[2px]">
+                    {clientes.map(c => {
+                      const color = clientColor(c.id)
+                      return (
+                        <Link
+                          key={c.id}
+                          href={`/tareas/vista-global?cliente=${c.id}`}
+                          className="flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[16px] font-medium text-white hover:bg-[#242220]"
+                        >
+                          <span className="w-5 h-5 rounded-[4px] flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 leading-none" style={{ backgroundColor: color }}>
+                            {initials(c.nombre)}
+                          </span>
+                          <span className="flex-1 truncate">{c.nombre}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-5">
