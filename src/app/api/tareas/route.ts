@@ -244,6 +244,50 @@ export async function PATCH(req: NextRequest) {
         if (newResponsables && newResponsables.length > 0) {
           notificarNuevosResponsables(id, tarea.nombre as string, newResponsables, oldResponsables).catch(() => {})
         }
+
+        // Al terminar una reunión o visita, se ficha a todos los responsables
+        // (una hora de reunión son las mismas horas para cada asistente).
+        const esReunionVisita = tarea.tipo === 'reunion' || tarea.tipo === 'visita'
+        if (esReunionVisita && body.estado === 'terminado' && oldEstado !== 'terminado' && respIds.length > 0) {
+          try {
+            const admin = createAdminClient()
+            const minutos = Number(tarea.minutos_acumulados ?? 0)
+            const { data: yaFichados } = await admin
+              .from('time_logs')
+              .select('id_empleado')
+              .eq('id_tarea', id)
+            const hechos = new Set((yaFichados ?? []).map((r: { id_empleado: string }) => r.id_empleado))
+            const faltan = respIds.filter((rid: string) => !hechos.has(rid))
+            const fecha = (tarea.fecha_limite as string | null) ?? new Date().toISOString().slice(0, 10)
+
+            // Si la reunión no tiene servicio, el tiempo va al servicio REUNIONES del cliente
+            let idServicio = tarea.id_servicio as string | null
+            if (!idServicio && tarea.id_cliente) {
+              const { data: sv } = await admin
+                .from('servicios')
+                .select('id')
+                .eq('id_cliente', tarea.id_cliente)
+                .ilike('nombre', 'REUNIONES')
+                .maybeSingle()
+              idServicio = (sv?.id as string | undefined) ?? null
+            }
+
+            if (faltan.length > 0 && minutos > 0) {
+              await admin.from('time_logs').insert(faltan.map((rid: string) => ({
+                id_empleado: rid,
+                id_tarea: id,
+                id_cliente: tarea.id_cliente,
+                id_servicio: idServicio,
+                id_departamento: tarea.id_departamento,
+                descripcion: tarea.nombre,
+                fecha,
+                minutos,
+              })))
+            }
+          } catch (e) {
+            console.error('[tareas PATCH] fichaje de reunión:', e)
+          }
+        }
         try {
           const [clienteInfo, depNombre] = await Promise.all([
             infoCliente(tarea.id_cliente as string | null),
