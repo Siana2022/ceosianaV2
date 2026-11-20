@@ -62,6 +62,22 @@ Las dos deben poder verse, no sustituirse.
 5. **Histórico**: empieza a contar en **diciembre de 2026**. Los meses anteriores
    no se recalculan.
 
+## El fee de Project no es real
+
+El importe que recibe Project **no lo paga el cliente**: sale de restar a los
+demás servicios. Por eso, en cualquier pantalla:
+
+- Se etiqueta como **“transferido (no facturado)”**, nunca como facturación.
+- **No suma al total facturado**: el total del cliente sigue siendo el mismo,
+  solo cambia cómo se reparte entre servicios.
+- **No aparece en la vista “sin Project”**, que es la única que refleja lo que
+  realmente se factura.
+- En la vista “con Project” el total de ingresos debe seguir cuadrando con el
+  facturado real; si no cuadra, hay un error de cálculo.
+
+Ejemplo: cliente con 8.700 € facturados. Con el convertidor, los servicios suman
+7.830 € + 870 € de Project = 8.700 €. **No son 9.570 €.**
+
 ## REUNIONES: caso aparte
 
 El servicio REUNIONES **no entra en la rentabilidad**: no tiene fee y no se
