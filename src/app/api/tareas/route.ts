@@ -221,6 +221,18 @@ export async function PATCH(req: NextRequest) {
     }
     const { error } = await supabase.from('tareas').update(row).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Si corriges el servicio o el departamento de la tarea, sus fichajes lo siguen
+    if ('idServicio' in body || 'idDepartamento' in body) {
+      const cambiosLogs: Record<string, unknown> = {}
+      if ('idServicio' in body) cambiosLogs.id_servicio = body.idServicio || null
+      if ('idDepartamento' in body) cambiosLogs.id_departamento = body.idDepartamento || null
+      const { error: errLogs } = await createAdminClient()
+        .from('time_logs')
+        .update(cambiosLogs)
+        .eq('id_tarea', id)
+      if (errLogs) console.error('[tareas PATCH] propagar fichajes', errLogs)
+    }
     // Calendar + Slack: awaited (Vercel kills background IIFEs) pero con try/catch individuales
     const needsTareaFetch = body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined || body.estado === 'bloqueada' || body.estado === 'terminado' || (newResponsables && newResponsables.length > 0)
     if (needsTareaFetch) {

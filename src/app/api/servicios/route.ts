@@ -57,6 +57,16 @@ export async function PUT(request: NextRequest) {
     console.error('PUT /api/servicios', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Si cambia el departamento del servicio, los fichajes de ese servicio lo siguen
+  if (id_departamento !== undefined && id) {
+    const { error: errLogs } = await supabase
+      .from('time_logs')
+      .update({ id_departamento: id_departamento || null })
+      .eq('id_servicio', id)
+    if (errLogs) console.error('PUT /api/servicios · time_logs', errLogs)
+  }
+
   return NextResponse.json(data)
 }
 
