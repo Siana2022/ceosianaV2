@@ -118,7 +118,16 @@ export default function VistaGlobalPage() {
   // ── Por cliente ──────────────────────────────────────────────────────────
   const procesosCliente = state.procesos.filter(p => p.idCliente === idCliente)
   const tareasCliente = state.tareas.filter(t => t.idCliente === idCliente && t.tipo === 'tarea')
-  const tareasActivasCliente = tareasCliente.filter(t => t.estado !== 'terminado')
+  // Orden por fecha límite: lo más urgente primero; sin fecha, al final.
+  const porFecha = <T extends { fechaLimite: string | null }>(lista: T[]) =>
+    [...lista].sort((a, b) => {
+      if (!a.fechaLimite && !b.fechaLimite) return 0
+      if (!a.fechaLimite) return 1
+      if (!b.fechaLimite) return -1
+      return a.fechaLimite.localeCompare(b.fechaLimite)
+    })
+
+  const tareasActivasCliente = porFecha(tareasCliente.filter(t => t.estado !== 'terminado'))
   const tareasTerminadasCliente = [
     ...tareasCliente.filter(t => t.estado === 'terminado'),
     ...state.tareas.filter(t => t.idCliente === idCliente && t.tipo !== 'tarea' && t.estado === 'terminado'),
@@ -128,7 +137,7 @@ export default function VistaGlobalPage() {
   // ── Por persona ──────────────────────────────────────────────────────────
   const procesosPersona = state.procesos.filter(p => p.fases.some(f => f.idsResponsables.includes(idEmpleado)))
   const tareasPersona = state.tareas.filter(t => t.idsResponsables.includes(idEmpleado) && t.tipo === 'tarea')
-  const tareasActivasPersona = tareasPersona.filter(t => t.estado !== 'terminado')
+  const tareasActivasPersona = porFecha(tareasPersona.filter(t => t.estado !== 'terminado'))
   const tareasTerminadasPersona = [
     ...tareasPersona.filter(t => t.estado === 'terminado'),
     ...state.tareas.filter(t => t.idsResponsables.includes(idEmpleado) && t.tipo !== 'tarea' && t.estado === 'terminado'),
@@ -138,7 +147,7 @@ export default function VistaGlobalPage() {
   // ── Por departamento ─────────────────────────────────────────────────────
   const procesosDepartamento = state.procesos.filter(p => p.fases.some(f => f.idDepartamento === idDepartamento))
   const tareasDepartamento = state.tareas.filter(t => t.idDepartamento === idDepartamento && t.tipo === 'tarea')
-  const tareasActivasDepartamento = tareasDepartamento.filter(t => t.estado !== 'terminado')
+  const tareasActivasDepartamento = porFecha(tareasDepartamento.filter(t => t.estado !== 'terminado'))
   const tareasTerminadasDepartamento = [
     ...tareasDepartamento.filter(t => t.estado === 'terminado'),
     ...state.tareas.filter(t => t.idDepartamento === idDepartamento && t.tipo !== 'tarea' && t.estado === 'terminado'),
