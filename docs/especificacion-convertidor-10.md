@@ -48,20 +48,29 @@ Las dos deben poder verse, no sustituirse.
 - **El convertidor solo existe donde hay servicio Project.** Sin Project, no hay
   reparto ni segunda rentabilidad.
 
-## Preguntas abiertas antes de implementar
+## Decisiones cerradas (20/11/2026)
 
-1. **Cuántos servicios cuentan**: ¿solo los activos del cliente, o también los
-   que no tienen fee ese mes?
-2. **Cómo se identifica Project**: ¿por el tipo de servicio del catálogo
-   (`Project`) o por el nombre?
-3. ~~Qué pasa si el cliente no tiene servicio Project~~ → **decidido**: si no
-   tiene Project, no se aplica el convertidor. Nada de crearlo solo ni avisar.
-4. **Redondeo**: ¿a céntimos por servicio y el resto al Project, para que la suma
-   cuadre exacta?
-5. **Ámbito**: ¿solo afecta al cálculo de rentabilidad, o también a lo que se
-   factura al cliente? (Lo lógico: solo rentabilidad.)
-6. **Histórico**: ¿se recalcula para meses pasados o empieza a contar desde su
-   activación?
+1. **Qué servicios cuentan**: solo los que tienen **fee mayor que 0** ese mes.
+   Los de fee 0 no diluyen el reparto.
+2. **Cómo se identifica Project**: todo cliente que tenga el **servicio Project**
+   (por el tipo del catálogo, con el nombre como respaldo).
+3. **Redondeo**: cada cesión se redondea a céntimos y **el resto se le da a
+   Project**, para que la suma cuadre exacta.
+4. **Alcance**: afecta **solo a la rentabilidad interna**. El cliente sigue
+   recibiendo la factura de los demás servicios, sin línea de Project. Por eso
+   hay **dos rentabilidades**: con Project y sin Project.
+5. **Histórico**: empieza a contar en **diciembre de 2026**. Los meses anteriores
+   no se recalculan.
+
+## REUNIONES: caso aparte
+
+El servicio REUNIONES **no entra en la rentabilidad**: no tiene fee y no se
+imputa a ningún lado. Solo sirve para **contabilizar el tiempo dedicado a
+reuniones** y ver dónde se van las horas.
+
+- Se muestra en la interna como servicio con horas.
+- No suma coste al cliente ni entra en el cálculo de márgenes.
+- Queda fuera también del reparto del convertidor.
 
 ## Dónde encaja
 
