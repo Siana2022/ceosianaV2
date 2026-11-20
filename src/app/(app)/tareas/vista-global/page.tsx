@@ -31,7 +31,7 @@ export default function VistaGlobalPage() {
   const searchParams = useSearchParams()
   const [tab, setTab] = useState<Tab>(() => state.idEmpleadoActual ? 'empleado' : 'cliente')
   const [visualizacion, setVisualizacion] = useState<Visualizacion>('kanban')
-  const [vistaTareas, setVistaTareas] = useState<VistaTareas>('tarjeta')
+  const [vistaTareas, setVistaTareas] = useState<VistaTareas>('lista')
   const [metrica, setMetrica] = useState<Metrica>('horas')
   const [rango, setRango] = useState(() => ({ desde: inicioMes(hoyISO()), hasta: finMes(hoyISO()) }))
   const [idCliente, setIdCliente] = useState(state.clientes[0]?.id ?? '')
