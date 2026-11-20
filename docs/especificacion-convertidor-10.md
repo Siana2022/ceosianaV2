@@ -12,6 +12,9 @@ La idea es que Project **sí tenga un ingreso**, pero no inventado: se le
 
 ## Regla
 
+0. **Solo se aplica si el cliente tiene el servicio Project.** Si no lo tiene, no
+   hay convertidor: su rentabilidad es la de siempre. Es una decisión del
+   cliente, no un cálculo universal.
 1. Se toma el **10 % del fee mensual total del cliente**.
 2. Ese 10 % se asigna como ingreso del servicio **Project**.
 3. El 10 % se reparte **a partes iguales entre los servicios que no son Project**.
@@ -42,6 +45,8 @@ Las dos deben poder verse, no sustituirse.
 
 - El reparto es **equitativo** entre los servicios no Project.
 - Project **nunca** tiene fee propio: su ingreso sale siempre del convertidor.
+- **El convertidor solo existe donde hay servicio Project.** Sin Project, no hay
+  reparto ni segunda rentabilidad.
 
 ## Preguntas abiertas antes de implementar
 
@@ -49,8 +54,8 @@ Las dos deben poder verse, no sustituirse.
    que no tienen fee ese mes?
 2. **Cómo se identifica Project**: ¿por el tipo de servicio del catálogo
    (`Project`) o por el nombre?
-3. **Qué pasa si el cliente no tiene servicio Project**: ¿se crea solo, se
-   ignora el convertidor, o se avisa?
+3. ~~Qué pasa si el cliente no tiene servicio Project~~ → **decidido**: si no
+   tiene Project, no se aplica el convertidor. Nada de crearlo solo ni avisar.
 4. **Redondeo**: ¿a céntimos por servicio y el resto al Project, para que la suma
    cuadre exacta?
 5. **Ámbito**: ¿solo afecta al cálculo de rentabilidad, o también a lo que se
