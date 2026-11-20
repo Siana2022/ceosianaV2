@@ -22,7 +22,7 @@ export default function ResponsablesMultiSelect({ empleados, seleccionados, onCh
             key={e.id}
             type="button"
             onClick={() => toggle(e.id)}
-            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${checked ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${checked ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
           >
             {checked ? '✓ ' : ''}{e.nombre}
           </button>

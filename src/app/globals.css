@@ -58,7 +58,7 @@ body {
 
 /* text-white → near-black on light backgrounds.
    Exceptions: elements that also carry a colored bg class. */
-.text-white:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-black"]):not([class*="bg-pink"]):not([class*="bg-rose"]):not([class*="bg-orange"]):not([class*="bg-violet"]):not([class*="bg-amber"]):not([class*="bg-sky"]):not([class*="bg-cyan"]):not([class*="bg-zinc"]):not([class*="bg-slate"]) {
+.text-white:not([class*="bg-["]):not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-black"]):not([class*="bg-pink"]):not([class*="bg-rose"]):not([class*="bg-orange"]):not([class*="bg-violet"]):not([class*="bg-amber"]):not([class*="bg-sky"]):not([class*="bg-cyan"]):not([class*="bg-zinc"]):not([class*="bg-slate"]) {
   color: #111111 !important;
 }
 
@@ -108,7 +108,7 @@ textarea::placeholder { color: #9B978E; }
 }
 
 /* Same :not() chain as the light override, plus [data-theme="dark"] ancestor → beats light specificity */
-[data-theme="dark"] .text-white:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-black"]):not([class*="bg-pink"]):not([class*="bg-rose"]):not([class*="bg-orange"]):not([class*="bg-violet"]):not([class*="bg-amber"]):not([class*="bg-sky"]):not([class*="bg-cyan"]):not([class*="bg-zinc"]):not([class*="bg-slate"]) { color: #ffffff !important; }
+[data-theme="dark"] .text-white:not([class*="bg-["]):not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-black"]):not([class*="bg-pink"]):not([class*="bg-rose"]):not([class*="bg-orange"]):not([class*="bg-violet"]):not([class*="bg-amber"]):not([class*="bg-sky"]):not([class*="bg-cyan"]):not([class*="bg-zinc"]):not([class*="bg-slate"]) { color: #ffffff !important; }
 [data-theme="dark"] .text-white         { color: #ffffff !important; }
 [data-theme="dark"] .text-gray-100      { color: #f3f4f6 !important; }
 [data-theme="dark"] .text-gray-200      { color: #e5e7eb !important; }
