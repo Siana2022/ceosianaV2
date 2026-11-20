@@ -12,6 +12,18 @@ Pendientes anotados durante las sesiones de trabajo.
 - **Vista de tareas**: por defecto lista (`lista`), con el nombre en una sola
   línea y más ancho para que no se parta en dos.
 
+## Fichaje
+
+- **Minutos antiguos sin autor**: hay tareas cuyo `minutos_acumulados` viene de
+  antes de que el fichaje se ligara a la tarea, así que no tienen desglose por
+  persona. Ejemplo: *[CAF] Creatividades Cafuster | Meta/Google* (110 min, 0
+  fichajes). Ya se avisa en la ficha.
+  - Opción A: dejarlos (el total es correcto, sin autor).
+  - Opción B: que cada implicado fiche su parte real y ajustar el contador para
+    no duplicar.
+- **Repartir el tiempo entre varios responsables**: hoy cada uno ficha lo suyo y
+  se suma; falta definir si debe haber un reparto automático.
+
 ## Funcionalidad
 
 - **Convertidor real del 10 %**: ver `especificacion-convertidor-10.md`.
