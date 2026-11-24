@@ -56,7 +56,7 @@ export async function proxy(req: NextRequest) {
 
   // Empleados solo pueden acceder a /fichar y /tareas (procesos)
   const esEmpleado = perfil?.rol !== 'admin'
-  const rutasEquipo = ['/hub', '/tareas', '/fichar', '/editorial', '/perfil', '/alertas']
+  const rutasEquipo = ['/dashboard', '/hub', '/tareas', '/fichar', '/editorial', '/perfil', '/alertas']
   const rutaPermitida = rutasEquipo.some(r => pathname === r || pathname.startsWith(r + '/'))
   if (esEmpleado && !rutaPermitida) {
     return NextResponse.redirect(new URL('/fichar', req.url))

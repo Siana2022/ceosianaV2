@@ -1,4 +1,7 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/server/supabase'
+import { getPerfil } from '@/lib/server/perfil'
+import { createAdminClient } from '@/lib/server/supabase-admin'
 import EvolucionChart from '@/components/EvolucionChart'
 import BeneficioChart from '@/components/BeneficioChart'
 
@@ -17,6 +20,12 @@ export default async function DashboardPage({
   const mes = mesParam ? parseInt(mesParam) : null
 
   const supabase = await createClient()
+
+  // El equipo tiene su propio panel: trabajo y horas, nunca economía.
+  const perfil = await getPerfil()
+  if (perfil?.rol !== 'admin') {
+    return <PanelEquipo idEmpleado={perfil?.id_empleado ?? null} />
+  }
 
   // Always fetch full year for charts; filter for KPIs client-side
   const [
@@ -225,6 +234,85 @@ export default async function DashboardPage({
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  )
+}
+
+
+async function PanelEquipo({ idEmpleado }: { idEmpleado: string | null }) {
+  const admin = createAdminClient()
+  const hoy = new Date().toISOString().slice(0, 10)
+  const inicioMes = `${hoy.slice(0, 7)}-01`
+
+  const [{ data: tareas }, { data: fichajes }, { data: empleado }] = await Promise.all([
+    idEmpleado
+      ? admin
+          .from('tareas')
+          .select('id, nombre, estado, fecha_limite, tipo, cliente:id_cliente(nombre)')
+          .contains('ids_responsables', [idEmpleado])
+          .neq('estado', 'terminado')
+          .order('fecha_limite', { ascending: true })
+          .limit(20)
+      : Promise.resolve({ data: [] }),
+    idEmpleado
+      ? admin
+          .from('time_logs')
+          .select('minutos')
+          .eq('id_empleado', idEmpleado)
+          .gte('fecha', inicioMes)
+      : Promise.resolve({ data: [] }),
+    idEmpleado ? admin.from('empleados').select('nombre').eq('id', idEmpleado).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+
+  const lista = (tareas ?? []) as unknown as { id: string; nombre: string; estado: string; fecha_limite: string | null; tipo: string; cliente: { nombre: string } | null }[]
+  const minutos = (fichajes ?? []).reduce((t, f) => t + Number((f as { minutos: number }).minutos ?? 0), 0)
+  const horas = `${Math.floor(minutos / 60)}h ${minutos % 60}m`
+  const atrasadas = lista.filter(t => t.fecha_limite && t.fecha_limite < hoy)
+  const nombre = (empleado as { nombre?: string } | null)?.nombre ?? ''
+
+  return (
+    <div className="p-8 w-full space-y-6">
+      <div>
+        <h2 className="text-[30px] font-bold text-[#111] leading-tight">Mi panel{nombre ? ` · ${nombre}` : ''}</h2>
+        <p className="text-[#6f6a62] text-sm mt-1">Tu trabajo de esta semana</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-[#dcd7cd] rounded-xl p-5">
+          <p className="text-[#6f6a62] text-sm">Tareas abiertas</p>
+          <p className="text-3xl font-bold text-[#111] mt-1">{lista.length}</p>
+          <p className="text-[#8a847a] text-xs mt-1">{atrasadas.length} con fecha pasada</p>
+        </div>
+        <div className="bg-white border border-[#dcd7cd] rounded-xl p-5">
+          <p className="text-[#6f6a62] text-sm">Horas fichadas este mes</p>
+          <p className="text-3xl font-bold text-[#111] mt-1">{horas}</p>
+        </div>
+        <div className="bg-white border border-[#dcd7cd] rounded-xl p-5">
+          <p className="text-[#6f6a62] text-sm">Siguiente entrega</p>
+          <p className="text-xl font-bold text-[#111] mt-1">
+            {lista[0]?.fecha_limite ? new Date(`${lista[0].fecha_limite}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'}
+          </p>
+          <p className="text-[#8a847a] text-xs mt-1 truncate">{lista[0]?.nombre ?? 'Sin tareas'}</p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-[#dcd7cd] rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#e6e1d8]">
+          <h3 className="text-[#111] font-semibold">Mis tareas</h3>
+        </div>
+        <div className="divide-y divide-[#eeeae2]">
+          {lista.length === 0 && <p className="px-6 py-6 text-[#8a847a] text-sm">No tienes tareas abiertas.</p>}
+          {lista.map(t => (
+            <Link key={t.id} href={`/tareas/vista-global?tarea=${t.id}`} className="flex items-center gap-3 px-6 py-3 hover:bg-[#f7f5f1]">
+              <span className="text-xs text-[#8a847a] w-24 flex-shrink-0">
+                {t.fecha_limite ? new Date(`${t.fecha_limite}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'}
+              </span>
+              <span className="flex-1 truncate text-[#1f1e1c] text-sm">{t.nombre}</span>
+              <span className="text-xs text-[#6f6a62] truncate max-w-40">{t.cliente?.nombre ?? ''}</span>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )

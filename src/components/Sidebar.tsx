@@ -67,6 +67,7 @@ const NAV_SECTIONS: { label: string; items: MenuItem[] }[] = [
 // El equipo ve lo mismo que dirección en PRINCIPAL, más el listado de clientes
 // del menú. Gestión y Equipo quedan solo para administración.
 const MENU_EMPLEADO: MenuItem[] = [
+  { href: '/dashboard', label: 'Mi panel',       icon: '📊' },
   { href: '/hub',       label: 'Hub',            icon: '🧭' },
   { href: '/tareas',    label: 'Tareas',         icon: '🗂️' },
   { href: '/fichar',    label: 'Fichar',         icon: '🕐' },
