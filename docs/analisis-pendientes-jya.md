@@ -6,29 +6,7 @@ Para cada punto: qué piden, qué hay hoy, qué hay que decidir y qué recomiend
 
 ---
 
-## 1. Recuadro de % de rentabilidad fuera, en el panel de todos los clientes
-
-**Qué piden.** En la ficha del cliente hay un recuadro con el % de rentabilidad.
-Quieren el mismo recuadro en el listado general de clientes.
-
-**Qué hay hoy.** En el panel de clientes **sí aparece el %**, pero **dentro de la
-columna Margen**, como texto secundario: `3.228,88 € (35,9 %)` en verde o rojo
-según el 50 %. No existe como recuadro propio.
-
-**Qué hay que decidir.**
-- **A)** Dejarlo así: el dato está, en la columna de margen.
-- **B)** Añadir una columna nueva “% Rentab.” independiente.
-- **C)** Poner arriba, junto a los totales, un recuadro con el % medio de la
-  cartera.
-
-**Recomendación.** **B**, columna propia y ordenable: en una reunión se compara
-mejor. La C es más vistosa pero no sirve para detectar al cliente malo.
-
-**Esfuerzo.** Bajo (una columna).
-
----
-
-## 2. Centrar las columnas del apartado “Tareas activas” — RESUELTO
+## (resuelto) Centrar las columnas de “Tareas activas”
 
 **Qué pedían.** “Coger las columnas y centrarlas más”.
 
@@ -42,7 +20,7 @@ izquierda y la fecha al centro. Centrar todo es un cambio de dos palabras.
 
 **Recomendación.** Dejarlo como está: el título a la izquierda se lee mejor.
 
-## 3. Quitar responsables y eliminar el bloque “Proyectos y servicios”
+## 1. Quitar responsables y eliminar el bloque “Proyectos y servicios”
 
 **Qué piden.** “Quitar responsables, ya no existen. (Bloque Proyectos y servicios
 eliminar)”.
@@ -73,7 +51,7 @@ servicio, que es lo que usáis para decidir.
 
 ---
 
-## 4. No coge fichajes de tiempo en Meta Ads (Verde Esmeralda, Prolaboral)
+## 2. No coge fichajes de tiempo en Meta Ads (Verde Esmeralda, Prolaboral)
 
 **Qué piden.** Hay tiempo dedicado a Meta Ads que no aparece en el servicio.
 
@@ -98,7 +76,7 @@ caso. Si son muchos, limpieza con regla: “si el departamento del fichaje tiene
 
 ---
 
-## 5. Agrupar Meta Ads en Verde Esmeralda
+## 3. Agrupar Meta Ads en Verde Esmeralda
 
 **Qué piden.** En “rentabilidad por servicio”, Verde Esmeralda tiene Meta España,
 Meta USA, Meta Italia… y quieren **una sola línea de Meta Ads**. O, si no, que se
@@ -120,7 +98,7 @@ A es más limpia pero se pierde el mercado; la C es un parche para un cliente.
 
 ---
 
-## 6. El caso del 3h45 al 100 % de rentabilidad
+## 4. El caso del 3h45 al 100 % de rentabilidad
 
 **Qué piden.** En SEO, con 3 h 45 fichadas, la ficha dice **100 % de
 rentabilidad**, y eso no puede ser.
@@ -143,7 +121,7 @@ Con eso lo cierro.
 
 ---
 
-## 7. Revisar la interna de HOSTING
+## 5. Revisar la interna de HOSTING
 
 **Qué piden.** “Revisar interna de HOSTING”.
 
@@ -157,7 +135,7 @@ pantalla de interna del servicio existe y funciona para el resto.
 
 ---
 
-## 8. Tareas de ejemplo que siguen fichadas
+## 6. Tareas de ejemplo que siguen fichadas
 
 **Qué piden.** “En /fichar y /análisis de equipo me salen fichadas las tareas de
 ejemplo que había borrado de tareas. ¿Eso se cuenta como fichaje?”
@@ -191,11 +169,9 @@ borra una tarea, ¿se borran sus fichajes o se conservan?
 
 | Punto | Tipo | Decisión necesaria |
 |---|---|---|
-| 1. Recuadro % en el panel | Cosmético | Columna nueva / dejarlo |
-| 2. Centrar columnas | Cosmético | Qué se centra |
-| 3. Quitar servicios | **Estructural** | A, B o C (B rompe la rentabilidad) |
-| 4. Fichajes sin imputar | Datos | Caso a caso o limpieza |
-| 5. Agrupar Meta | Producto | A, B o C |
-| 6. 3h45 al 100 % | Fallo | Reproducirlo |
-| 7. HOSTING | Sin definir | Qué revisar |
-| 8. Tareas de ejemplo | Datos | Borrar y fijar regla |
+| 1. Quitar servicios | **Estructural** | A, B o C (B rompe la rentabilidad) |
+| 2. Fichajes sin imputar | Datos | Caso a caso o limpieza |
+| 3. Agrupar Meta | Producto | A, B o C |
+| 4. 3h45 al 100 % | Fallo | Reproducirlo |
+| 5. HOSTING | Sin definir | Qué revisar |
+| 6. Tareas de ejemplo | Datos | Borrar y fijar regla |
