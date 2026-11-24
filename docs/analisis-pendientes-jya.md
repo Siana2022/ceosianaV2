@@ -28,25 +28,19 @@ mejor. La C es más vistosa pero no sirve para detectar al cliente malo.
 
 ---
 
-## 2. Centrar las columnas del apartado “Tareas activas”
+## 2. Centrar las columnas del apartado “Tareas activas” — RESUELTO
 
-**Qué piden.** “Coger las columnas y centrarlas más”.
+**Qué pedían.** “Coger las columnas y centrarlas más”.
 
-**Qué hay hoy.** La fila de tarea es una rejilla con anchos fijos. Cliente,
-departamento y fecha están **alineados a la izquierda o al centro según el
-campo**, no todos centrados.
+**Qué hay hoy.** Se sustituyó la fila flexible por una **rejilla de anchos
+fijos** (título, cliente 10 rem, responsables 10, departamento 7, fecha 9,
+cronómetro 7, estado 8). Las columnas ya no bailan entre filas y la fecha no se
+parte en dos líneas.
 
-**Qué hay que decidir.**
-- ¿Centrar **todas** las columnas (cliente, responsables, departamento, fecha)?
-- ¿O solo los **encabezados**, dejando los datos alineados como están?
+**Qué queda.** Solo una preferencia estética: hoy cliente y departamento van a la
+izquierda y la fecha al centro. Centrar todo es un cambio de dos palabras.
 
-**Recomendación.** Centrar **todo el bloque de metadatos** (responsables,
-departamento y fecha), y dejar el nombre de la tarea a la izquierda: es lo que se
-lee. Si se centra también el nombre, cuesta seguirlo de un vistazo.
-
-**Esfuerzo.** Muy bajo.
-
----
+**Recomendación.** Dejarlo como está: el título a la izquierda se lee mejor.
 
 ## 3. Quitar responsables y eliminar el bloque “Proyectos y servicios”
 
