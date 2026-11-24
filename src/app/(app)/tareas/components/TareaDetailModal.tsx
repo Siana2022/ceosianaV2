@@ -309,6 +309,12 @@ export default function TareaDetailModal({ tarea, onClose, isNew = false }: { ta
             <button onClick={cerrar} className="text-gray-500 hover:text-white text-xl flex-shrink-0">✕</button>
           </div>
 
+          {tarea.origen === 'fichaje' && (
+            <p className="mt-1.5 text-xs text-[#6f6a62]">
+              ⏱ Creada automáticamente al registrar tiempo en Fichar
+            </p>
+          )}
+
           {creador && (
             <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500">
               {creador.avatarUrl

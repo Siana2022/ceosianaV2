@@ -128,6 +128,8 @@ export interface Tarea {
   syncCalendar: boolean
   /** Solo reuniones y visitas: true si es con el cliente. */
   externa?: boolean
+  /** 'fichaje' si la creó el registro de tiempo; 'manual' si se planificó. */
+  origen?: 'manual' | 'fichaje'
   minutosAcumulados: number
   timerActivo: boolean
   chat: ChatMensaje[]

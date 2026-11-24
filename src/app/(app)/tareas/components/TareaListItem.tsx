@@ -50,6 +50,11 @@ export default function TareaListItem({ tarea, onAbrir }: { tarea: Tarea; onAbri
         })()}
         <span className="truncate whitespace-nowrap">{TIPO_TAREA_ICONO[tarea.tipo]} {tarea.nombre}</span>
         {tarea.recurrencia !== 'ninguna' && <span className="text-purple-400 ml-1.5 text-xs flex-shrink-0">🔁 {RECURRENCIA_LABEL[tarea.recurrencia]}</span>}
+        {tarea.origen === 'fichaje' && (
+          <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-700 flex-shrink-0" title="Creada al registrar tiempo en Fichar">
+            ⏱ fichaje
+          </span>
+        )}
       </button>
       <span className="text-gray-500 text-xs truncate text-left">🏢 {actions.nombreCliente(tarea.idCliente)}</span>
       <span className="text-gray-500 text-xs flex items-center justify-start gap-1 min-w-0">
