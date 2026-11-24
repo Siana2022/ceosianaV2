@@ -124,3 +124,27 @@ textarea::placeholder { color: #9B978E; }
 [data-theme="dark"] .border-b-gray-800  { border-color: #374151 !important; }
 [data-theme="dark"] .border-gray-700    { border-color: #4b5563 !important; }
 [data-theme="dark"] .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #374151 !important; }
+
+/* ================================================
+   Números en verde y ámbar → negro
+   Sobre el fondo beige no se leen. Afecta a importes,
+   totales y etiquetas que usaban tonos claros.
+   ================================================ */
+.text-green-400,
+.text-green-500,
+.text-green-600,
+.text-emerald-400,
+.text-emerald-500,
+.text-lime-400,
+.text-teal-400,
+.text-amber-400,
+.text-amber-500 {
+  color: #111111 !important;
+}
+
+/* Las etiquetas sobre fondo de color mantienen su contraste */
+[class*="bg-green-"] .text-green-400,
+[class*="bg-green-"] .text-green-500,
+[class*="bg-amber-"] .text-amber-400 {
+  color: #111111 !important;
+}
