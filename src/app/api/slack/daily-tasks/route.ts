@@ -2,13 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { sendSlackDM } from '@/lib/slack'
 
-// Called daily via Vercel cron (vercel.json) at 09:00h Madrid (07:00 UTC, weekdays only)
-// Sends each employee a DM with their pending tasks grouped by priority
+// Se ejecuta cada hora (vercel.json) y solo envía cuando en Madrid son las 9:00.
+// Así funciona igual en invierno y en verano, sin depender del UTC.
+// Envía a cada persona un DM con sus tareas pendientes agrupadas por prioridad.
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  // Solo a las 9:00 de Madrid (el cron corre cada hora en UTC)
+  const forzar = new URL(req.url).searchParams.get('force') === '1'
+  if (!forzar) {
+    const horaMadrid = new Intl.DateTimeFormat('es-ES', {
+      timeZone: 'Europe/Madrid',
+      hour: '2-digit',
+      hour12: false,
+    }).format(new Date())
+    if (horaMadrid !== '09') {
+      return NextResponse.json({ ok: true, omitido: `son las ${horaMadrid} en Madrid` })
+    }
   }
 
   const admin = createAdminClient()
