@@ -2,6 +2,11 @@
 
 Pendientes anotados durante las sesiones de trabajo.
 
+## Cerrados por decisión (no se tocan)
+
+- **Gantt: título completo** — se da por bueno tal y como está.
+- **Pipeline en fichajes** — se da por bueno; no se espera más comprobación.
+
 ## Tareas / interfaz
 
 - **Avatares del equipo**: solo Anais tiene foto. Cada persona debe subirla en
