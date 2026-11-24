@@ -214,7 +214,16 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
 
     // Marcar la tarea como en proceso si existe, o crearla si no existe; capturar su ID
     const cliParaTimer = clienteId && clienteId !== '__otros__' ? clienteId : null
-    const tareaActivaExiste = tareas.find(t => t.nombre.trim().toLowerCase() === descripcion.trim().toLowerCase() && t.idCliente === cliParaTimer)
+    // Buscar la tarea contra el servidor, no contra la lista cargada al abrir la
+    // página: esa lista puede estar desactualizada y acabaría creando un duplicado.
+    let tareaActivaExiste = tareas.find(t => t.nombre.trim().toLowerCase() === descripcion.trim().toLowerCase() && t.idCliente === cliParaTimer)
+    try {
+      const frescas = await fetch('/api/tareas').then(r => r.json()) as { id: string; nombre: string; idCliente: string | null; estado: string }[]
+      const encontrada = Array.isArray(frescas)
+        ? frescas.find(t => String(t.nombre).trim().toLowerCase() === descripcion.trim().toLowerCase() && (t.idCliente ?? null) === cliParaTimer)
+        : undefined
+      if (encontrada) tareaActivaExiste = encontrada as unknown as typeof tareaActivaExiste
+    } catch { /* si falla, seguimos con la lista local */ }
     let capturedTareaId: string | null = null
     if (tareaActivaExiste) {
       capturedTareaId = tareaActivaExiste.id
