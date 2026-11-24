@@ -20,7 +20,26 @@ izquierda y la fecha al centro. Centrar todo es un cambio de dos palabras.
 
 **Recomendación.** Dejarlo como está: el título a la izquierda se lee mejor.
 
-## 1. Quitar responsables y eliminar el bloque “Proyectos y servicios”
+## 1. Recuadro de % de rentabilidad en el panel de todos los clientes
+
+**Qué piden.** El recuadro con el % de rentabilidad que ya existe en la ficha,
+también en el listado general de clientes.
+
+**Qué hay hoy.** El porcentaje aparece **dentro de la columna Margen**
+(`3.228,88 € (35,9 %)`), en verde o rojo según el 50 %. No hay recuadro propio.
+
+**Qué hay que decidir.**
+- **A)** Dejarlo como está: el dato ya se ve.
+- **B)** Añadir una columna “% Rentab.” independiente y ordenable.
+- **C)** Un recuadro arriba con el % medio de la cartera.
+
+**Recomendación.** **B**: en la reunión se compara mejor cliente por cliente.
+
+**Esfuerzo.** Bajo.
+
+---
+
+## 2. Quitar responsables y eliminar el bloque “Proyectos y servicios”
 
 **Qué piden.** “Quitar responsables, ya no existen. (Bloque Proyectos y servicios
 eliminar)”.
@@ -51,7 +70,7 @@ servicio, que es lo que usáis para decidir.
 
 ---
 
-## 2. No coge fichajes de tiempo en Meta Ads (Verde Esmeralda, Prolaboral)
+## 3. No coge fichajes de tiempo en Meta Ads (Verde Esmeralda, Prolaboral)
 
 **Qué piden.** Hay tiempo dedicado a Meta Ads que no aparece en el servicio.
 
@@ -76,7 +95,7 @@ caso. Si son muchos, limpieza con regla: “si el departamento del fichaje tiene
 
 ---
 
-## 3. Agrupar Meta Ads en Verde Esmeralda
+## 4. Agrupar Meta Ads en Verde Esmeralda
 
 **Qué piden.** En “rentabilidad por servicio”, Verde Esmeralda tiene Meta España,
 Meta USA, Meta Italia… y quieren **una sola línea de Meta Ads**. O, si no, que se
@@ -98,7 +117,7 @@ A es más limpia pero se pierde el mercado; la C es un parche para un cliente.
 
 ---
 
-## 4. El caso del 3h45 al 100 % de rentabilidad
+## 5. El caso del 3h45 al 100 % de rentabilidad
 
 **Qué piden.** En SEO, con 3 h 45 fichadas, la ficha dice **100 % de
 rentabilidad**, y eso no puede ser.
@@ -121,7 +140,7 @@ Con eso lo cierro.
 
 ---
 
-## 5. Revisar la interna de HOSTING
+## 6. Revisar la interna de HOSTING
 
 **Qué piden.** “Revisar interna de HOSTING”.
 
@@ -135,7 +154,7 @@ pantalla de interna del servicio existe y funciona para el resto.
 
 ---
 
-## 6. Tareas de ejemplo que siguen fichadas
+## 7. Tareas de ejemplo que siguen fichadas
 
 **Qué piden.** “En /fichar y /análisis de equipo me salen fichadas las tareas de
 ejemplo que había borrado de tareas. ¿Eso se cuenta como fichaje?”
@@ -169,9 +188,10 @@ borra una tarea, ¿se borran sus fichajes o se conservan?
 
 | Punto | Tipo | Decisión necesaria |
 |---|---|---|
-| 1. Quitar servicios | **Estructural** | A, B o C (B rompe la rentabilidad) |
-| 2. Fichajes sin imputar | Datos | Caso a caso o limpieza |
-| 3. Agrupar Meta | Producto | A, B o C |
-| 4. 3h45 al 100 % | Fallo | Reproducirlo |
-| 5. HOSTING | Sin definir | Qué revisar |
-| 6. Tareas de ejemplo | Datos | Borrar y fijar regla |
+| 1. Recuadro % en el panel | Cosmético | Columna nueva o dejarlo |
+| 2. Quitar servicios | **Estructural** | A, B o C (B rompe la rentabilidad) |
+| 3. Fichajes sin imputar | Datos | Caso a caso o limpieza |
+| 4. Agrupar Meta | Producto | A, B o C |
+| 5. 3h45 al 100 % | Fallo | Reproducirlo |
+| 6. HOSTING | Sin definir | Qué revisar |
+| 7. Tareas de ejemplo | Datos | Borrar y fijar regla |
