@@ -103,6 +103,7 @@ interface RentabilidadServicioMes {
   responsables: RentabilidadResponsable[]
 }
 interface RentabilidadServicio {
+  notas?: string | null
   id: string
   nombre: string
   idDepartamento: string | null
@@ -1594,7 +1595,7 @@ export default function ClienteDetailClient({
           const coste_personal_srv = responsables.reduce((sum, r) => sum + r.coste, 0)
           const totalMin = horasPorServicio.get(s.id) ?? 0
 
-          return { id: s.id, nombre: s.nombre, facturado, responsables, coste_personal: coste_personal_srv, totalMin }
+          return { id: s.id, nombre: s.nombre, notas: s.notas ?? null, facturado, responsables, coste_personal: coste_personal_srv, totalMin }
         }).filter(s => s.facturado > 0 || s.coste_personal > 0)
 
         const sinAsignar = sinAsignarPorMes
@@ -1654,14 +1655,19 @@ export default function ClienteDetailClient({
                     <Fragment key={s.id}>
                       {/* Main service row */}
                       <tr className={`border-b ${multiResp ? 'border-gray-800/30 bg-gray-800/10' : 'border-gray-800/50 hover:bg-gray-800/30'}`}>
-                        <td className="px-6 py-3 text-white font-medium">{s.nombre}</td>
+                        <td className="px-6 py-3 text-[#111] font-medium">
+                          {s.nombre}
+                          {s.notas && <span className="ml-2 text-[11px] font-normal text-[#8a847a]">{s.notas}</span>}
+                        </td>
                         <td className="px-4 py-3 text-right font-mono text-blue-400 font-bold text-xs">
                           {s.totalMin > 0 ? fmtMin(s.totalMin) : <span className="text-gray-600">—</span>}
                         </td>
-                        <td className="px-4 py-3 text-right text-white">{s.facturado > 0 ? fmt(s.facturado) : <span className="text-gray-600">0 €</span>}</td>
-                        <td className="px-4 py-3 text-right text-gray-300">{s.coste_personal > 0 ? fmt(s.coste_personal) : <span className="text-gray-600">—</span>}</td>
-                        <td className={`px-4 py-3 text-right font-medium ${margenColor}`}>{fmt(margen)}</td>
-                        <td className={`px-4 py-3 text-right text-sm ${margenColor}`}>
+                        <td className="px-4 py-3 text-right text-[#111]">{s.facturado > 0 ? fmt(s.facturado) : <span className="text-[#8a847a]">0 €</span>}</td>
+                        <td className="px-4 py-3 text-right text-[#111]">{s.coste_personal > 0 ? fmt(s.coste_personal) : <span className="text-[#8a847a]">—</span>}</td>
+                        <td className="px-4 py-3 text-right font-medium text-[#111]">
+                          {sinDatosCoste ? <span className="text-[#8a847a]">—</span> : fmt(margen)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm text-[#111]">
                           {sinDatosCoste
                             ? <span className="text-yellow-500 text-xs" title="Sin datos de sueldo para este mes">⚠ sin coste</span>
                             : pct !== null ? `${pct.toFixed(1)}%` : '—'
@@ -1669,9 +1675,9 @@ export default function ClienteDetailClient({
                         </td>
                         <td className="px-6 py-3 text-right">
                           {eurHora != null ? (
-                            <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full ${
-                              eurHora >= umbralCostePorHora ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
-                            }`}>{eurHora.toFixed(0)}€/h</span>
+                            <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full bg-[#f3f1ec] text-[#111] border border-[#e0ddd7]">
+                              {eurHora.toFixed(0)}€/h
+                            </span>
                           ) : <span className="text-gray-600 text-xs">—</span>}
                         </td>
                       </tr>
@@ -1679,8 +1685,8 @@ export default function ClienteDetailClient({
                       {multiResp && s.responsables.map(r => (
                         <tr key={r.nombre} className="border-b border-gray-800/20 hover:bg-gray-800/20">
                           <td className="px-6 py-2 text-gray-500 text-xs pl-10">↳ {r.nombre}</td>
-                          <td className="px-4 py-2 text-right font-mono text-blue-400 text-xs">
-                            {r.minutos > 0 ? fmtMin(r.minutos) : <span className="text-gray-600">—</span>}
+                          <td className="px-4 py-2 text-right font-mono text-[#111] text-xs">
+                            {r.minutos > 0 ? fmtMin(r.minutos) : <span className="text-[#8a847a]">—</span>}
                           </td>
                           <td className="px-4 py-2 text-right text-gray-600 text-xs">—</td>
                           <td className="px-4 py-2 text-right text-gray-400 text-xs">{fmt(r.coste)}</td>

@@ -281,6 +281,8 @@ export default async function ClienteDetailPage({
     return {
       id: s.id,
       nombre: s.nombre ?? '',
+      // El mercado (ESPAÑA, USA, ITALIA…) vive en las notas del servicio
+      notas: ((s as { notas?: string | null }).notas ?? null),
       idDepartamento: (s as { id_departamento?: string | null }).id_departamento ?? null,
       meses,
     }
