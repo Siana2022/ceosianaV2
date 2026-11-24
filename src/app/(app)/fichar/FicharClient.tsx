@@ -111,14 +111,25 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
         return
       } catch { localStorage.removeItem(TIMER_KEY) }
     }
-    // Sin localStorage — busca un timer abierto en la BD (cubre cross-midnight: ayer y hoy)
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayStr = yesterday.toISOString().split('T')[0]
-    fetch(`/api/time-logs?mine=1&desde=${yesterdayStr}&hasta=${todayStr()}`)
+    // Sin localStorage — busca cualquier fichaje abierto del usuario, sea del día
+    // que sea. Si es de otro día no se reanuda el cronómetro (daría horas falsas):
+    // se avisa para que lo vea y lo cierre.
+    fetch('/api/time-logs?mios_abiertos=1')
       .then(r => r.ok ? r.json() : [])
       .then((logs: TimeLog[]) => {
         const activo = logs.find(l => !l.hora_fin)
-        if (!activo || !activo.hora_inicio) return
+        if (!activo) return
+
+        if (activo.fecha !== todayStr()) {
+          // Fichaje de un día anterior sin cerrar: se avisa, no se reanuda
+          setOrphanWarning({
+            mins: 0,
+            desc: `${activo.descripcion ?? ''} (del ${activo.fecha.split('-').reverse().join('/')})`,
+          })
+          return
+        }
+
+        if (!activo.hora_inicio) return
         const [hh, mm] = activo.hora_inicio.split(':').map(Number)
         const base = new Date(); base.setHours(hh, mm, 0, 0)
         const startTs = base.getTime()

@@ -68,6 +68,20 @@ export async function GET(req: NextRequest) {
     query = query.eq('id_empleado', id_empleado_filter)
   }
 
+  // Mis fichajes abiertos (cronómetro sin cerrar): cada uno ve los suyos
+  if (searchParams.get('mios_abiertos') === '1') {
+    if (!resolved.id) return NextResponse.json([])
+    const { data: abiertos, error: errAbiertos } = await createAdminClient()
+      .from('time_logs')
+      .select('id, descripcion, fecha, hora_inicio, minutos, cliente:id_cliente(id, nombre)')
+      .eq('id_empleado', resolved.id)
+      .is('hora_fin', null)
+      .order('fecha', { ascending: false })
+      .limit(10)
+    if (errAbiertos) return NextResponse.json({ error: errAbiertos.message }, { status: 500 })
+    return NextResponse.json(abiertos ?? [])
+  }
+
   // Timers activos (hora_fin IS NULL) — solo admin
   const activos = searchParams.get('activos')
   if (activos === '1') {
