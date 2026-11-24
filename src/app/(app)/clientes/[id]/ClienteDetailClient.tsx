@@ -1014,7 +1014,7 @@ export default function ClienteDetailClient({
             <div className={`border rounded-xl p-5 ${pct >= 50 ? 'bg-green-900/20 border-green-800/40' : pct > 0 ? 'bg-red-900/20 border-red-800/40' : 'bg-gray-900 border-gray-800'}`}>
               <p className="text-gray-400 text-sm">% Rentabilidad</p>
               <p className={`text-2xl font-bold mt-1 ${pct >= 50 ? 'text-green-400' : pct > 0 ? 'text-red-400' : 'text-gray-500'}`}>{facturacionFiltrada > 0 ? `${pct.toFixed(1)}%` : '—'}</p>
-              <p className={`text-xs mt-0.5 ${margen >= 0 ? 'text-green-400/70' : 'text-red-400/70'}`}>{fmt(margen)}</p>
+              <p className="text-xs mt-0.5 text-[#111]">{fmt(margen)}</p>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-400 text-sm">Gastos Directos</p>

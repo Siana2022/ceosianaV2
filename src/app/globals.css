@@ -164,3 +164,12 @@ textarea::placeholder { color: #9B978E; }
 [class*="bg-[#1"] .text-blue-300 {
   color: #f5f5f5 !important;
 }
+
+/* Variantes con opacidad (text-green-400/70, etc.) que quedaban fuera */
+[class*="text-green-400/"],
+[class*="text-green-500/"],
+[class*="text-emerald-400/"],
+[class*="text-amber-400/"],
+[class*="text-amber-500/"] {
+  color: #111111 !important;
+}
