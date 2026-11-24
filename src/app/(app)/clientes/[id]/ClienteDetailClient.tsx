@@ -1105,7 +1105,7 @@ export default function ClienteDetailClient({
                         </div>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5 ml-3.5">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.tipo === 'recurrente' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.tipo === 'recurrente' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
                           {s.tipo === 'recurrente' ? 'REC' : 'ONE'}
                         </span>
                         {s.precio_base && <span className="text-gray-500">{fmt(s.precio_base)}/mes</span>}

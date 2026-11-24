@@ -26,8 +26,9 @@ async function asegurarCliente(nombreProspecto: string, idProspecto: string) {
   }
 
   if (clienteId) {
-    // Los fichajes que se hicieron al prospecto pasan al cliente
+    // Los fichajes y las tareas que se hicieron al prospecto pasan al cliente
     await admin.from('time_logs').update({ id_cliente: clienteId }).eq('id_cliente', idProspecto)
+    await admin.from('tareas').update({ id_cliente: clienteId }).eq('id_cliente', idProspecto)
   }
 
   return clienteId ?? null

@@ -241,6 +241,7 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                 <th className="text-right px-4 py-3">Coste Personal</th>
                 <th className="text-right px-4 py-3">Coste Real/Hora</th>
                 <th className="text-right px-4 py-3">Margen</th>
+                <th className="text-right px-4 py-3">% Rentab.</th>
                 <th className="text-right px-4 py-3">Gastos Directos</th>
                 <th className="text-right px-4 py-3">Horas Destinadas</th>
                 <th className="text-right px-4 py-3">Ingreso/Hora</th>
@@ -290,12 +291,15 @@ export default function ClientesClient({ clientes, year, years, month, umbralCos
                   </td>
                   <td className="px-4 py-3 text-right">
                     {c.ingresos_total > 0 ? (
-                      <span className={`font-semibold ${c.margen_pct >= 50 ? 'text-green-400' : 'text-red-400'}`}>
-                        {fmt(c.resultado)} <span className="text-xs font-normal opacity-70">({c.margen_pct.toFixed(1)}%)</span>
+                      <span className="font-semibold text-[#111]">
+                        {fmt(c.resultado)}
                       </span>
                     ) : (
                       <span className="text-gray-600">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-[#111]">
+                    {c.ingresos_total > 0 ? `${c.margen_pct.toFixed(1)}%` : <span className="text-gray-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-orange-400">
                     {c.gastos_directos > 0 ? fmt(c.gastos_directos) : <span className="text-gray-600">—</span>}

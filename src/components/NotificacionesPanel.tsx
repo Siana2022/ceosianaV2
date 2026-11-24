@@ -203,15 +203,21 @@ export default function NotificacionesPanel({ rol, onCountUpdate }: Props) {
             <div className="px-4 py-8 text-center text-gray-500 text-xs">Cargando...</div>
           ) : (
             <div className="max-h-96 overflow-y-auto">
-              {/* Tareas activas */}
+              {/* Tareas activas, agrupadas por urgencia */}
               {tareas.length > 0 && (
                 <div>
-                  <div className="px-4 py-2 bg-gray-800/50">
-                    <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">
-                      Mis tareas ({tareas.length})
-                    </span>
-                  </div>
-                  {tareas.map(t => {
+                  {[
+                    { clave: 'retraso', titulo: 'Con retraso', lista: tareas.filter(t => t.fecha_limite && t.fecha_limite < hoy) },
+                    { clave: 'hoy', titulo: 'Para hoy', lista: tareas.filter(t => t.fecha_limite === hoy) },
+                    { clave: 'proximas', titulo: 'Próximas', lista: tareas.filter(t => t.fecha_limite && t.fecha_limite > hoy) },
+                  ].filter(g => g.lista.length > 0).map(grupo => (
+                    <div key={grupo.clave}>
+                      <div className={`px-4 py-2 ${grupo.clave === 'retraso' ? 'bg-red-500/10' : 'bg-gray-800/50'}`}>
+                        <span className={`text-[10px] uppercase tracking-wider font-medium ${grupo.clave === 'retraso' ? 'text-red-600' : 'text-gray-500'}`}>
+                          {grupo.titulo} ({grupo.lista.length})
+                        </span>
+                      </div>
+                      {grupo.lista.map(t => {
                     const urgencia = urgenciaTarea(t.fecha_limite, hoy)
                     const fechaLabel = labelFecha(t.fecha_limite, hoy)
                     return (
@@ -235,7 +241,9 @@ export default function NotificacionesPanel({ rol, onCountUpdate }: Props) {
                         {urgencia === 'hoy' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" />}
                       </Link>
                     )
-                  })}
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
 
