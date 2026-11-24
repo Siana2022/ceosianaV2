@@ -93,13 +93,15 @@ function appUrl(req: NextRequest): string {
 function slackMsgNuevaTarea(opts: {
   nombre: string; descripcion: string | null; menciones: string; fecha: string
   tareaId: string; base: string; cliente: string | null; departamento: string | null
+  enlace?: string | null
 }): string {
-  const { nombre, descripcion, menciones, fecha, tareaId, base, cliente, departamento } = opts
+  const { nombre, descripcion, menciones, fecha, tareaId, base, cliente, departamento, enlace } = opts
   const partes = [nombre, cliente ? cliente.toUpperCase() : null, departamento].filter(Boolean)
   const titulo = partes.join(' — ')
   const desc = descripcion?.trim() ? `\n_${descripcion.trim()}_` : ''
   const link = `<${base}/tareas/vista-global?tarea=${tareaId}|Ver tarea →>`
-  return `*${titulo}*${desc}\n👤 ${menciones}\n📅 ${fecha}\n🔗 ${link}\n---`
+  const enlaceInfo = enlace?.trim() ? `\n📎 ${enlace.trim()}` : ''
+  return `*${titulo}*${desc}\n👤 ${menciones}\n📅 ${fecha}${enlaceInfo}\n🔗 ${link}\n---`
 }
 
 interface ClienteInfo { canal: string | null; nombre: string | null }
@@ -273,7 +275,7 @@ export async function PATCH(req: NextRequest) {
     // Calendar + Slack: awaited (Vercel kills background IIFEs) pero con try/catch individuales
     const needsTareaFetch = body.fechaLimite || body.nombre || body.hora || body.syncCalendar !== undefined || body.estado === 'bloqueada' || body.estado === 'terminado' || (newResponsables && newResponsables.length > 0)
     if (needsTareaFetch) {
-      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente, id_departamento, id_servicio, tipo, minutos_acumulados').eq('id', id).maybeSingle()
+      const { data: tarea } = await supabase.from('tareas').select('nombre, fecha_limite, hora, ids_responsables, descripcion, sync_calendar, id_cliente, id_departamento, id_servicio, tipo, minutos_acumulados, enlace_info').eq('id', id).maybeSingle()
       if (tarea) {
         const respIds = (tarea.ids_responsables as string[]) ?? []
         try {
@@ -352,6 +354,7 @@ export async function PATCH(req: NextRequest) {
                   nombre: tarea.nombre as string, descripcion: tarea.descripcion as string,
                   menciones, fecha, tareaId: id, base,
                   cliente: clienteInfo.nombre, departamento: depNombre,
+                  enlace: tarea.enlace_info as string | null,
                 }))
                 // DM individual a cada nuevo responsable
                 const admin = createAdminClient()
