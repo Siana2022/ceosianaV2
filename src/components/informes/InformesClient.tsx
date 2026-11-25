@@ -6,7 +6,7 @@ import { evaluarFormula, variablesDeFila } from '@/lib/informes/formula'
 
 export interface Bloque {
   id: string
-  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas' | 'kpis' | 'embudo'
+  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas' | 'kpis' | 'embudo' | 'texto'
   titulo: string
   metrica: Metrica
   metricas?: Metrica[]
@@ -21,6 +21,9 @@ export interface Bloque {
   bg?: string
   color?: string
   tamano?: number
+  texto?: string
+  negrita?: boolean
+  alineacion?: 'izquierda' | 'centro' | 'derecha'
 }
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
@@ -109,6 +112,7 @@ export default function InformesClient({
   const [activo, setActivo] = useState<string | null>(informes[0]?.id ?? null)
   const [editando, setEditando] = useState(false)
   const [sel, setSel] = useState<string | null>(null)
+  const [guia, setGuia] = useState<{ x?: number; y?: number }>({})
   const [drag, setDrag] = useState<null | {
     id: string; modo: 'mover' | 'tamano'
     ox: number; oy: number; x: number; y: number; w: number; h: number
@@ -198,6 +202,22 @@ export default function InformesClient({
     }])
   }
 
+  const anadirTexto = () => {
+    const i = bloques.length
+    setBloques(prev => [...prev, {
+      id: crypto.randomUUID(),
+      tipo: 'texto',
+      titulo: '',
+      metrica: 'coste' as Metrica,
+      texto: 'Escribe aquí',
+      x: 16 + (i % 3) * 300,
+      y: 16 + Math.floor(i / 3) * 150,
+      w: 280,
+      h: 80,
+      bg: 'transparent',
+    }])
+  }
+
   const alMover = (e: React.PointerEvent) => {
     if (!drag) return
     const dx = e.clientX - drag.ox
@@ -205,7 +225,24 @@ export default function InformesClient({
     setBloques(prev => prev.map(b => {
       if (b.id !== drag.id) return b
       if (drag.modo === 'mover') {
-        return { ...b, x: Math.max(0, snap(drag.x + dx)), y: Math.max(0, snap(drag.y + dy)) }
+        let x = Math.max(0, snap(drag.x + dx))
+        let y = Math.max(0, snap(drag.y + dy))
+        const gx: number[] = [0]
+        const gy: number[] = [0]
+        for (const otro of prev) {
+          if (otro.id === b.id) continue
+          const j = prev.indexOf(otro)
+          const g = geo(otro, j)
+          gx.push(g.x, g.x + g.w, g.x + g.w / 2)
+          gy.push(g.y, g.y + g.h, g.y + g.h / 2)
+        }
+        const cerca = (v: number, lista: number[]) => lista.find(c => Math.abs(c - v) <= 6)
+        const sx = cerca(x, gx) ?? cerca(x + (b.w ?? 280), gx)
+        const sy = cerca(y, gy) ?? cerca(y + (b.h ?? 130), gy)
+        if (sx !== undefined) x = sx === 0 ? 0 : x + (sx - x)
+        if (sy !== undefined) y = sy === 0 ? 0 : y + (sy - y)
+        setGuia({ x: sx, y: sy })
+        return { ...b, x, y }
       }
       return { ...b, w: Math.max(140, snap(drag.w + dx)), h: Math.max(80, snap(drag.h + dy)) }
     }))
@@ -410,8 +447,9 @@ export default function InformesClient({
                 ['campanas', '▤ Tabla de campañas'],
                 ['kpis', '≡ Fila de KPIs'],
                 ['embudo', '⇩ Embudo'],
+                ['texto', 'T Texto'],
               ] as const).map(([t, label]) => (
-                <button key={t} onClick={() => setBloques(prev => [...prev, nuevoBloque(t)])} className="bg-white border border-[#d8d3c9] rounded-lg px-3 py-1 text-xs font-medium text-[#111] hover:border-[#3B63FB]">
+                <button key={t} onClick={() => { if (t === 'texto') { anadirTexto(); return } setBloques(prev => [...prev, nuevoBloque(t)]) }} className="bg-white border border-[#d8d3c9] rounded-lg px-3 py-1 text-xs font-medium text-[#111] hover:border-[#3B63FB]">
                   {label}
                 </button>
               ))}
@@ -494,7 +532,26 @@ export default function InformesClient({
                     <option value="28">Muy grande</option>
                   </select>
                 </label>
-                <span className="text-[10px] text-[#8a847a]">Arrastra el bloque para moverlo · esquina ◢ para redimensionar</span>
+                {b.tipo === 'texto' && (
+                  <>
+                    <button
+                      onClick={() => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, negrita: !x.negrita } : x))}
+                      className={`text-xs px-2 py-1 rounded border ${b.negrita ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-[#d8d3c9] text-[#111]'}`}
+                    >
+                      N
+                    </button>
+                    <select
+                      value={b.alineacion ?? 'izquierda'}
+                      onChange={e => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, alineacion: e.target.value as 'izquierda' | 'centro' | 'derecha' } : x))}
+                      className="text-xs border border-[#d8d3c9] rounded px-1 py-1"
+                    >
+                      <option value="izquierda">Izquierda</option>
+                      <option value="centro">Centro</option>
+                      <option value="derecha">Derecha</option>
+                    </select>
+                  </>
+                )}
+                <span className="text-[10px] text-[#8a847a]">Arrastra para mover · ◢ para redimensionar</span>
                 <button
                   onClick={() => { setBloques(prev => prev.filter(x => x.id !== b.id)); setSel(null) }}
                   className="ml-auto text-red-600 text-xs"
@@ -509,10 +566,17 @@ export default function InformesClient({
             className="relative m-4 bg-[#faf8f4] border border-[#e6e1d8] rounded-xl overflow-hidden select-none"
             style={{ height: Math.max(320, ...bloques.map((b, i) => geo(b, i).y + geo(b, i).h + 24)) }}
             onPointerMove={alMover}
-            onPointerUp={() => setDrag(null)}
+            onPointerUp={() => { setDrag(null); setGuia({}) }}
             onPointerLeave={() => setDrag(null)}
             onClick={() => setSel(null)}
           >
+            {guia.x !== undefined && (
+              <div className="absolute top-0 bottom-0 w-px bg-[#3B63FB] pointer-events-none" style={{ left: guia.x }} />
+            )}
+            {guia.y !== undefined && (
+              <div className="absolute left-0 right-0 h-px bg-[#3B63FB] pointer-events-none" style={{ top: guia.y }} />
+            )}
+
             {bloques.length === 0 && (
               <p className="absolute inset-0 flex items-center justify-center text-[#8a847a] text-sm">
                 Sin bloques. Añade un campo desde la derecha.
@@ -620,6 +684,22 @@ export default function InformesClient({
                       <span className="text-[#6f6a62] text-sm">{b.titulo}</span>
                     )}
                   </div>
+
+                  {b.tipo === 'texto' && (
+                    editando ? (
+                      <textarea
+                        value={b.texto ?? ''}
+                        onChange={e => setBloques(prev => prev.map((x, j) => j === i ? { ...x, texto: e.target.value } : x))}
+                        onPointerDown={e => e.stopPropagation()}
+                        className="w-full h-full bg-transparent border-0 outline-none resize-none"
+                        style={{ fontWeight: b.negrita ? 700 : 400, textAlign: b.alineacion === 'centro' ? 'center' : b.alineacion === 'derecha' ? 'right' : 'left' }}
+                      />
+                    ) : (
+                      <p className="whitespace-pre-wrap" style={{ fontWeight: b.negrita ? 700 : 400, textAlign: b.alineacion === 'centro' ? 'center' : b.alineacion === 'derecha' ? 'right' : 'left' }}>
+                        {b.texto}
+                      </p>
+                    )
+                  )}
 
                   {b.tipo === 'kpi' && (() => {
                     const varPct = variacion(b, total)
