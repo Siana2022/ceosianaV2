@@ -48,8 +48,8 @@ export async function verificarLlave(req: Request): Promise<LlaveMCP | null> {
 
   if (!data || !data.activo) return null
 
-  // Marca de uso, sin bloquear la respuesta
-  void admin.from('mcp_llaves').update({ ultimo_uso: new Date().toISOString() }).eq('hash', hash)
+  // Marca de uso (se espera: si no, en serverless no llega a guardarse)
+  await admin.from('mcp_llaves').update({ ultimo_uso: new Date().toISOString() }).eq('hash', hash)
 
   return {
     tipo: data.tipo as TipoLlave,
