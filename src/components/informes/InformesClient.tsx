@@ -51,12 +51,18 @@ export interface Calculada {
   formato: 'numero' | 'euro' | 'porcentaje' | 'x'
 }
 
+export interface Pagina {
+  id: string
+  nombre: string
+  bloques: Bloque[]
+}
+
 export interface Informe {
   id: string
   nombre: string
   descripcion: string | null
   tipo: string
-  config: { bloques?: Bloque[]; calculadas?: Calculada[] } | null
+  config: { bloques?: Bloque[]; calculadas?: Calculada[]; paginas?: Pagina[] } | null
   publico: boolean
   orden: number
 }
@@ -137,7 +143,21 @@ export default function InformesClient({
   const [fuente, setFuente] = useState<'google_ads' | 'ga4'>('google_ads')
 
   const informe = informes.find(i => i.id === activo) ?? null
-  const [bloques, setBloques] = useState<Bloque[]>(informe?.config?.bloques ?? [])
+  const [paginas, setPaginas] = useState<Pagina[]>(
+    informe?.config?.paginas
+      ?? [{ id: 'p1', nombre: 'Página 1', bloques: informe?.config?.bloques ?? [] }],
+  )
+  const [paginaActiva, setPaginaActiva] = useState(0)
+
+  const bloques = paginas[paginaActiva]?.bloques ?? []
+
+  function setBloques(acc: Bloque[] | ((prev: Bloque[]) => Bloque[])) {
+    setPaginas(prev => prev.map((pg, i) => {
+      if (i !== paginaActiva) return pg
+      const nuevos = typeof acc === 'function' ? acc(pg.bloques) : acc
+      return { ...pg, bloques: nuevos }
+    }))
+  }
   const [calculadas, setCalculadas] = useState<Calculada[]>(informe?.config?.calculadas ?? [])
 
   // Métricas de GA4 que usan los bloques marcados como GA4
@@ -274,7 +294,8 @@ export default function InformesClient({
 
   const seleccionar = (inf: Informe) => {
     setActivo(inf.id)
-    setBloques(inf.config?.bloques ?? [])
+    setPaginas(inf.config?.paginas ?? [{ id: 'p1', nombre: 'Página 1', bloques: inf.config?.bloques ?? [] }])
+    setPaginaActiva(0)
     setCalculadas(inf.config?.calculadas ?? [])
     setEditando(false)
   }
@@ -299,7 +320,7 @@ export default function InformesClient({
       await fetch(`/api/informes?id=${informe.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: { bloques, calculadas } }),
+        body: JSON.stringify({ config: { paginas, calculadas } }),
       })
       setEditando(false)
       router.refresh()
@@ -436,7 +457,7 @@ export default function InformesClient({
             <div>
               <h3 className="text-[#111] font-semibold">{informe.nombre}</h3>
               <p className="text-[#6f6a62] text-xs mt-0.5">
-                {bloques.length} bloques · Google Ads {cargando ? '· cargando…' : datos?.motivo ? `· ${datos.motivo}` : ''}
+                {bloques.length} bloques · {paginas[paginaActiva]?.nombre} {cargando ? '· cargando…' : datos?.motivo ? `· ${datos.motivo}` : ''}
               </p>
             </div>
             {esAdmin && (
@@ -527,6 +548,54 @@ export default function InformesClient({
               </div>
             </div>
           )}
+
+          <div className="mx-4 mt-4 flex items-center gap-2 flex-wrap">
+            {paginas.map((pg, i) => (
+              <button
+                key={pg.id}
+                onClick={() => { setPaginaActiva(i); setSel([]) }}
+                onDoubleClick={() => {
+                  const nombre = prompt('Nombre de la página', pg.nombre)
+                  if (nombre) setPaginas(prev => prev.map((x, j) => j === i ? { ...x, nombre } : x))
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                  i === paginaActiva
+                    ? 'bg-[#111] text-white border-[#111]'
+                    : 'bg-white text-[#1f1e1c] border-[#d8d3c9] hover:border-[#3B63FB]'
+                }`}
+                title="Doble clic para renombrar"
+              >
+                {pg.nombre}
+              </button>
+            ))}
+
+            {editando && (
+              <button
+                onClick={() => {
+                  setPaginas(prev => [...prev, { id: crypto.randomUUID(), nombre: `Página ${prev.length + 1}`, bloques: [] }])
+                  setPaginaActiva(paginas.length)
+                  setSel([])
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-dashed border-[#d8d3c9] text-[#111] hover:border-[#3B63FB]"
+              >
+                + Página
+              </button>
+            )}
+
+            {editando && paginas.length > 1 && (
+              <button
+                onClick={() => {
+                  const resto = paginas.filter((_, j) => j !== paginaActiva)
+                  setPaginas(resto)
+                  setPaginaActiva(Math.max(0, paginaActiva - 1))
+                  setSel([])
+                }}
+                className="ml-auto text-xs text-red-600"
+              >
+                Quitar esta página
+              </button>
+            )}
+          </div>
 
           {editando && sel.length > 0 && (() => {
             const b = bloques.find(x => x.id === sel[0])
