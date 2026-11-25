@@ -93,6 +93,35 @@ export async function GET(req: NextRequest) {
       ctr: m.impresiones > 0 ? Number(((m.clics / m.impresiones) * 100).toFixed(2)) : null,
     }))
 
+  // Periodo anterior (misma duración, justo antes) para las variaciones
+  const diasPeriodo = Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1
+  const hastaAnt = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10)
+  const desdeAnt = new Date(Date.parse(desde) - diasPeriodo * 86400000).toISOString().slice(0, 10)
+
+  const acumuladoAnterior = { impresiones: 0, clics: 0, coste: 0, conversiones: 0, valor: 0 }
+  try {
+    for (const cuenta of cuentas) {
+      const textoAnt = await llamarConTokenGuardado('search_search', {
+        customer_id: cuenta.id_externo,
+        resource: 'campaign',
+        fields: [
+          'metrics.impressions', 'metrics.clicks', 'metrics.cost_micros',
+          'metrics.conversions', 'metrics.conversions_value',
+        ],
+        conditions: [`segments.date BETWEEN '${desdeAnt}' AND '${hastaAnt}'`, 'metrics.impressions > 0'],
+        login_customer_id: cuenta.id_externo,
+      })
+      const filasAnt = JSON.parse(textoAnt) as Record<string, unknown>[]
+      for (const f of filasAnt) {
+        acumuladoAnterior.impresiones += Number(f['metrics.impressions'] ?? 0)
+        acumuladoAnterior.clics += Number(f['metrics.clicks'] ?? 0)
+        acumuladoAnterior.coste += Number(f['metrics.cost_micros'] ?? 0) / 1e6
+        acumuladoAnterior.conversiones += Number(f['metrics.conversions'] ?? 0)
+        acumuladoAnterior.valor += Number(f['metrics.conversions_value'] ?? 0)
+      }
+    }
+  } catch { /* si falla el periodo anterior, se devuelve sin variación */ }
+
   const totales = meses.reduce(
     (t, m) => ({
       impresiones: t.impresiones + m.impresiones,
@@ -115,6 +144,15 @@ export async function GET(req: NextRequest) {
       ctr: totales.impresiones > 0 ? Number(((totales.clics / totales.impresiones) * 100).toFixed(2)) : null,
     },
     porMes: meses,
+    anterior: {
+      ...acumuladoAnterior,
+      coste: Number(acumuladoAnterior.coste.toFixed(2)),
+      conversiones: Number(acumuladoAnterior.conversiones.toFixed(2)),
+      valor: Number(acumuladoAnterior.valor.toFixed(2)),
+      cpa: acumuladoAnterior.conversiones >= 0.5 ? Number((acumuladoAnterior.coste / acumuladoAnterior.conversiones).toFixed(2)) : null,
+      roas: acumuladoAnterior.coste > 0 ? Number((acumuladoAnterior.valor / acumuladoAnterior.coste).toFixed(2)) : null,
+      ctr: acumuladoAnterior.impresiones > 0 ? Number(((acumuladoAnterior.clics / acumuladoAnterior.impresiones) * 100).toFixed(2)) : null,
+    },
     porCampana: porCampana.slice(0, 30).map(c => ({
       ...c,
       coste: Number(c.coste.toFixed(2)),

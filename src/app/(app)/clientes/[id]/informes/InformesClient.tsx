@@ -6,9 +6,10 @@ import { evaluarFormula, variablesDeFila } from '@/lib/informes/formula'
 
 export interface Bloque {
   id: string
-  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas'
+  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas' | 'kpis' | 'embudo'
   titulo: string
   metrica: Metrica
+  metricas?: Metrica[]
 }
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
@@ -46,6 +47,7 @@ export interface Informe {
 
 interface Datos {
   totales: Record<string, number | null> | null
+  anterior?: Record<string, number | null> | null
   porMes: Record<string, number | string | null>[]
   porCampana: Record<string, number | string | null>[]
   motivo?: string
@@ -188,6 +190,13 @@ export default function InformesClient({
     return v === null || v === undefined ? null : Number(v)
   }
 
+  const variacion = (b: Bloque, actual: number | null): number | null => {
+    if (actual === null) return null
+    const previo = valorDe(b, datos?.anterior as Record<string, unknown> | null)
+    if (previo === null || previo === 0) return null
+    return ((actual - previo) / Math.abs(previo)) * 100
+  }
+
   const formatoDe = (b: Bloque) => {
     if (b.metrica.startsWith('calc:')) {
       const calc = calculadas.find(c => `calc:${c.id}` === b.metrica)
@@ -283,6 +292,8 @@ export default function InformesClient({
                 ['serie', '▮ Serie mensual'],
                 ['tabla', '▦ Tabla mensual'],
                 ['campanas', '▤ Tabla de campañas'],
+                ['kpis', '≡ Fila de KPIs'],
+                ['embudo', '⇩ Embudo'],
               ] as const).map(([t, label]) => (
                 <button key={t} onClick={() => setBloques(prev => [...prev, nuevoBloque(t)])} className="bg-white border border-[#d8d3c9] rounded-lg px-3 py-1 text-xs font-medium text-[#111] hover:border-[#3B63FB]">
                   {label}
@@ -471,6 +482,46 @@ export default function InformesClient({
                         ))}
                       </tbody>
                     </table>
+                  )}
+
+                  {b.tipo === 'kpis' && (
+                    <div className="flex flex-wrap gap-4">
+                      {(b.metricas ?? ['coste', 'conversiones', 'cpa', 'roas']).map(m => {
+                        const sub: Bloque = { ...b, metrica: m }
+                        const v = valorDe(sub, datos?.totales as Record<string, unknown> | null)
+                        const varPct = variacion(sub, v)
+                        return (
+                          <div key={m} className="min-w-28">
+                            <p className="text-[11px] text-[#8a847a]">{METRICAS[m]?.label ?? m}</p>
+                            <p className="text-2xl font-bold text-[#111]">{v === null ? '—' : formatoDe(sub)(v)}</p>
+                            {varPct !== null && (
+                              <p className="text-[11px] text-[#6f6a62]">{varPct >= 0 ? '▲' : '▼'} {Math.abs(varPct).toFixed(1)} %</p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {b.tipo === 'embudo' && (
+                    <div className="space-y-1">
+                      {(b.metricas ?? ['impresiones', 'clics', 'conversiones']).map((m, k, arr) => {
+                        const sub: Bloque = { ...b, metrica: m }
+                        const v = valorDe(sub, datos?.totales as Record<string, unknown> | null)
+                        const prev = k > 0 ? valorDe({ ...b, metrica: arr[k - 1] }, datos?.totales as Record<string, unknown> | null) : null
+                        const cr = v !== null && prev !== null && prev > 0 ? (v / prev) * 100 : null
+                        return (
+                          <div key={m} className="flex items-center gap-2">
+                            <span className="w-28 text-xs text-[#6f6a62]">{METRICAS[m]?.label ?? m}</span>
+                            <div className="flex-1 bg-[#f3f1ec] rounded h-6 overflow-hidden">
+                              <div className="h-full bg-[#3B63FB]" style={{ width: `${v && prev && prev > 0 ? Math.min((v / prev) * 100 * 3, 100) : 40}%` }} />
+                            </div>
+                            <span className="w-24 text-right text-sm text-[#111]">{v === null ? '—' : formatoDe(sub)(v)}</span>
+                            <span className="w-16 text-right text-[11px] text-[#8a847a]">{cr === null ? '' : `${cr.toFixed(1)} %`}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
 
                   {b.tipo === 'campanas' && (
