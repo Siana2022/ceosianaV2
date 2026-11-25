@@ -953,6 +953,9 @@ export default function ClienteDetailClient({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link href={`/clientes/${cliente.id}/informes`} className="bg-[#111] hover:bg-[#333] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Informes
+          </Link>
           <Link href={`/clientes/${cliente.id}/hub`} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
             Abrir hub
           </Link>
