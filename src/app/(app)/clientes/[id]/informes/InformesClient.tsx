@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { evaluarFormula, variablesDeFila } from '@/lib/informes/formula'
 
 export interface Bloque {
   id: string
@@ -12,12 +13,19 @@ export interface Bloque {
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
 
+export interface Calculada {
+  id: string
+  nombre: string
+  formula: string
+  formato: 'numero' | 'euro' | 'porcentaje' | 'x'
+}
+
 export interface Informe {
   id: string
   nombre: string
   descripcion: string | null
   tipo: string
-  config: { bloques?: Bloque[] } | null
+  config: { bloques?: Bloque[]; calculadas?: Calculada[] } | null
   publico: boolean
   orden: number
 }
@@ -40,7 +48,16 @@ const METRICAS: Record<Metrica, { label: string; formato: (v: number) => string 
   ctr: { label: 'CTR', formato: v => `${v.toFixed(2)} %` },
 }
 
+function formatearCalc(valor: number | null, formato: Calculada['formato']): string {
+  if (valor === null) return '—'
+  if (formato === 'euro') return `${valor.toLocaleString('es-ES', { maximumFractionDigits: 2 })} €`
+  if (formato === 'porcentaje') return `${valor.toFixed(2)} %`
+  if (formato === 'x') return `${valor.toFixed(2)}×`
+  return valor.toLocaleString('es-ES', { maximumFractionDigits: 2 })
+}
+
 const input = 'bg-white border border-[#d8d3c9] rounded-lg px-3 py-2 text-sm text-[#111] focus:outline-none focus:border-[#3B63FB]'
+const INPUT_CALC = input
 
 function nuevoBloque(tipo: Bloque['tipo']): Bloque {
   return { id: crypto.randomUUID(), tipo, titulo: METRICAS.coste.label, metrica: 'coste' }
@@ -64,6 +81,7 @@ export default function InformesClient({
 
   const informe = informes.find(i => i.id === activo) ?? null
   const [bloques, setBloques] = useState<Bloque[]>(informe?.config?.bloques ?? [])
+  const [calculadas, setCalculadas] = useState<Calculada[]>(informe?.config?.calculadas ?? [])
 
   // Cargar métricas de Google Ads según el periodo
   useEffect(() => {
@@ -85,6 +103,7 @@ export default function InformesClient({
   const seleccionar = (inf: Informe) => {
     setActivo(inf.id)
     setBloques(inf.config?.bloques ?? [])
+    setCalculadas(inf.config?.calculadas ?? [])
     setEditando(false)
   }
 
@@ -108,7 +127,7 @@ export default function InformesClient({
       await fetch(`/api/informes?id=${informe.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: { bloques } }),
+        body: JSON.stringify({ config: { bloques, calculadas } }),
       })
       setEditando(false)
       router.refresh()
@@ -123,6 +142,26 @@ export default function InformesClient({
   }
 
   const meses = useMemo(() => datos?.porMes ?? [], [datos])
+
+  // Valor de un bloque para una fila (mes) o para los totales
+  const valorDe = (b: Bloque, fila: Record<string, unknown> | null | undefined): number | null => {
+    if (!fila) return null
+    if (b.metrica.startsWith('calc:')) {
+      const calc = calculadas.find(c => `calc:${c.id}` === b.metrica)
+      if (!calc) return null
+      return evaluarFormula(calc.formula, variablesDeFila(fila))
+    }
+    const v = fila[b.metrica]
+    return v === null || v === undefined ? null : Number(v)
+  }
+
+  const formatoDe = (b: Bloque) => {
+    if (b.metrica.startsWith('calc:')) {
+      const calc = calculadas.find(c => `calc:${c.id}` === b.metrica)
+      return (v: number) => formatearCalc(v, calc?.formato ?? 'numero')
+    }
+    return METRICAS[b.metrica as Metrica]?.formato ?? ((v: number) => String(v))
+  }
 
   return (
     <div className="space-y-5">
@@ -203,8 +242,9 @@ export default function InformesClient({
           </div>
 
           {editando && (
-            <div className="px-6 py-3 border-b border-[#e6e1d8] bg-[#f7f5f1] flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-[#6f6a62]">Añadir:</span>
+            <div className="px-6 py-3 border-b border-[#e6e1d8] bg-[#f7f5f1] space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-[#6f6a62]">Añadir bloque:</span>
               {([
                 ['kpi', '· KPI'],
                 ['serie', '▮ Serie mensual'],
@@ -215,6 +255,50 @@ export default function InformesClient({
                   {label}
                 </button>
               ))}
+              </div>
+
+              {/* Métricas calculadas */}
+              <div className="border-t border-[#e6e1d8] pt-3">
+                <p className="text-xs text-[#6f6a62] mb-2">
+                  Métricas calculadas · variables: inversion, conversiones, cpa, roas, clics, impresiones, ctr, valor
+                </p>
+                <div className="space-y-2">
+                  {calculadas.map((c, i) => (
+                    <div key={c.id} className="flex items-center gap-2 flex-wrap">
+                      <input
+                        value={c.nombre}
+                        onChange={e => setCalculadas(prev => prev.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))}
+                        placeholder="Nombre"
+                        className={`${INPUT_CALC} w-40`}
+                      />
+                      <span className="text-xs text-[#6f6a62]">=</span>
+                      <input
+                        value={c.formula}
+                        onChange={e => setCalculadas(prev => prev.map((x, j) => j === i ? { ...x, formula: e.target.value } : x))}
+                        placeholder="inversion / conversiones"
+                        className={`${INPUT_CALC} flex-1 font-mono`}
+                      />
+                      <select
+                        value={c.formato}
+                        onChange={e => setCalculadas(prev => prev.map((x, j) => j === i ? { ...x, formato: e.target.value as Calculada['formato'] } : x))}
+                        className="text-xs border border-[#d8d3c9] rounded px-1 py-2"
+                      >
+                        <option value="numero">Número</option>
+                        <option value="euro">€</option>
+                        <option value="porcentaje">%</option>
+                        <option value="x">×</option>
+                      </select>
+                      <button onClick={() => setCalculadas(prev => prev.filter((_, j) => j !== i))} className="text-red-600 text-xs px-1">✕</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setCalculadas(prev => [...prev, { id: crypto.randomUUID(), nombre: 'Coste por clic', formula: 'inversion / clics', formato: 'euro' }])}
+                    className="bg-white border border-[#d8d3c9] rounded-lg px-3 py-1 text-xs font-medium text-[#111] hover:border-[#3B63FB]"
+                  >
+                    + Métrica calculada
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -224,7 +308,7 @@ export default function InformesClient({
             )}
 
             {bloques.map((b, i) => {
-              const total = datos?.totales?.[b.metrica]
+              const total = valorDe(b, datos?.totales as Record<string, unknown> | null)
               const grande = b.tipo === 'serie' || b.tipo === 'tabla' || b.tipo === 'campanas'
 
               return (
@@ -247,6 +331,11 @@ export default function InformesClient({
                             className="text-xs border border-[#d8d3c9] rounded px-1 py-1"
                           >
                             {Object.entries(METRICAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            {calculadas.length > 0 && (
+                              <optgroup label="Calculadas">
+                                {calculadas.map(c => <option key={c.id} value={`calc:${c.id}`}>{c.nombre}</option>)}
+                              </optgroup>
+                            )}
                           </select>
                           <button onClick={() => setBloques(prev => prev.filter((_, j) => j !== i))} className="text-red-600 text-xs px-1">✕</button>
                         </div>
@@ -258,7 +347,7 @@ export default function InformesClient({
 
                   {b.tipo === 'kpi' && (
                     <p className="text-3xl font-bold text-[#111]">
-                      {typeof total === 'number' ? METRICAS[b.metrica].formato(total) : '—'}
+                      {typeof total === 'number' ? formatoDe(b)(total) : '—'}
                     </p>
                   )}
 
@@ -266,11 +355,11 @@ export default function InformesClient({
                     <div className="flex items-end gap-1 h-32">
                       {meses.length === 0 && <span className="text-[#8a847a] text-sm">Sin datos en el periodo</span>}
                       {meses.map(m => {
-                        const valores = meses.map(x => Number(x[b.metrica] ?? 0))
+                        const valores = meses.map(x => valorDe(b, x) ?? 0)
                         const max = Math.max(...valores, 1)
-                        const v = Number(m[b.metrica] ?? 0)
+                        const v = valorDe(b, m) ?? 0
                         return (
-                          <div key={String(m.mes)} className="flex-1 flex flex-col items-center justify-end h-full gap-1" title={`${m.mes}: ${METRICAS[b.metrica].formato(v)}`}>
+                          <div key={String(m.mes)} className="flex-1 flex flex-col items-center justify-end h-full gap-1" title={`${m.mes}: ${formatoDe(b)(v)}`}>
                             <div className="w-full bg-[#3B63FB] rounded-t" style={{ height: `${Math.max((v / max) * 100, v > 0 ? 4 : 1)}%` }} />
                             <span className="text-[9px] text-[#8a847a]">{String(m.mes).slice(5)}</span>
                           </div>
@@ -284,14 +373,14 @@ export default function InformesClient({
                       <thead>
                         <tr className="text-[#6f6a62] text-xs uppercase">
                           <th className="text-left py-1">Mes</th>
-                          <th className="text-right py-1">{METRICAS[b.metrica].label}</th>
+                          <th className="text-right py-1">{b.titulo}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {meses.map(m => (
                           <tr key={String(m.mes)} className="border-t border-[#eeeae2]">
                             <td className="py-1 text-[#1f1e1c]">{String(m.mes)}</td>
-                            <td className="py-1 text-right text-[#111]">{METRICAS[b.metrica].formato(Number(m[b.metrica] ?? 0))}</td>
+                            <td className="py-1 text-right text-[#111]">{(() => { const v = valorDe(b, m); return v === null ? '—' : formatoDe(b)(v) })()}</td>
                           </tr>
                         ))}
                       </tbody>
