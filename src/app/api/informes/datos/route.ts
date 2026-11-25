@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
-import { llamarHerramienta } from '@/lib/server/mcpGoogle'
+import { llamarConTokenGuardado } from '@/lib/server/mcpGoogle'
 
 // GET /api/informes/datos?id_cliente=&desde=&hasta=
 // Devuelve métricas de Google Ads del cliente agrupadas por mes y por campaña.
@@ -32,19 +32,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ totales: null, motivo: 'Sin cuenta de Google Ads vinculada', porMes: [], porCampana: [] })
   }
 
-  const admin = createAdminClient()
-  const { data: conexion } = await admin.from('mcp_conexiones').select('access_token').eq('proveedor', 'google_ads').maybeSingle()
-  if (!conexion?.access_token) {
-    return NextResponse.json({ totales: null, motivo: 'Google Ads no conectado', porMes: [], porCampana: [] })
-  }
 
-  const token = String(conexion.access_token)
   const porMes = new Map<string, { impresiones: number; clics: number; coste: number; conversiones: number; valor: number }>()
   const porCampana: { campana: string; cuenta: string; impresiones: number; clics: number; coste: number; conversiones: number; valor: number }[] = []
 
   try {
     for (const cuenta of cuentas) {
-      const texto = await llamarHerramienta(token, 'search_search', {
+      const texto = await llamarConTokenGuardado('search_search', {
         customer_id: cuenta.id_externo,
         resource: 'campaign',
         fields: [

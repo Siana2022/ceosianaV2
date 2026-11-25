@@ -246,3 +246,61 @@ export async function llamarHerramienta(accessToken: string, tool: string, input
   if (rpcData?.result?.isError) throw new Error(texto || 'La herramienta devolvió un error')
   return texto
 }
+
+/**
+ * Ejecuta una herramienta del MCP de Google Ads con un token válido.
+ * Si el token guardado ha caducado, lo renueva y reintenta una vez.
+ */
+export async function llamarConTokenGuardado(
+  tool: string,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const { createAdminClient } = await import('./supabase-admin')
+  const admin = createAdminClient()
+
+  const { data: con } = await admin
+    .from('mcp_conexiones')
+    .select('id, access_token, refresh_token, expires_at, token_endpoint, client_id')
+    .eq('proveedor', 'google_ads')
+    .maybeSingle()
+
+  if (!con?.access_token) throw new Error('Google Ads no está conectado en ceosiana')
+
+  let token = String(con.access_token)
+  const caducado = con.expires_at ? new Date(String(con.expires_at)).getTime() <= Date.now() + 60_000 : false
+
+  async function renovar(): Promise<string> {
+    if (!con?.refresh_token || !con?.token_endpoint || !con?.client_id) {
+      throw new Error('La conexión de Google Ads necesita volver a autorizarse')
+    }
+    const t = await renovarToken({
+      tokenEndpoint: String(con.token_endpoint),
+      clientId: String(con.client_id),
+      refreshToken: String(con.refresh_token),
+    })
+    await admin
+      .from('mcp_conexiones')
+      .update({
+        access_token: t.access_token,
+        refresh_token: t.refresh_token ?? con.refresh_token,
+        expires_at: new Date(Date.now() + (t.expires_in ?? 3600) * 1000).toISOString(),
+        actualizado: new Date().toISOString(),
+      })
+      .eq('id', con.id)
+    return t.access_token
+  }
+
+  if (caducado) token = await renovar()
+
+  try {
+    return await llamarHerramienta(token, tool, input)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    // Token revocado o inválido en el servidor: renovar y reintentar una vez
+    if (msg.includes('401') || msg.toLowerCase().includes('invalid_token')) {
+      token = await renovar()
+      return await llamarHerramienta(token, tool, input)
+    }
+    throw e
+  }
+}

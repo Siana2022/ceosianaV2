@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
-import { llamarHerramienta } from '@/lib/server/mcpGoogle'
+import { llamarConTokenGuardado } from '@/lib/server/mcpGoogle'
 
 interface CuentaDisponible {
   id: string
@@ -26,10 +26,9 @@ export async function GET() {
     return NextResponse.json({ cuentas: [], motivo: 'Google Ads no está conectado' })
   }
 
-  const token = String(con.access_token)
 
   try {
-    const raicesTexto = await llamarHerramienta(token, 'customers_list_accessible_customers', {})
+    const raicesTexto = await llamarConTokenGuardado('customers_list_accessible_customers', {})
     const raices = (JSON.parse(raicesTexto) as unknown[])
       .map(x => String(x).replace(/\D/g, ''))
       .filter(Boolean)
@@ -39,7 +38,7 @@ export async function GET() {
 
     for (const raiz of raices) {
       try {
-        const texto = await llamarHerramienta(token, 'search_search', {
+        const texto = await llamarConTokenGuardado('search_search', {
           customer_id: raiz,
           resource: 'customer_client',
           fields: [
