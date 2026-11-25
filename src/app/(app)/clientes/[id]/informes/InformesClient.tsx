@@ -137,13 +137,13 @@ export default function InformesClient({
       .catch(() => setCatalogo(null))
   }, [idCliente])
 
-  const insertarCampo = (variable: string) => {
-    const idx = destino >= 0 ? destino : calculadas.length - 1
-    if (idx >= 0 && calculadas[idx]) {
-      setCalculadas(prev => prev.map((c, j) => j === idx ? { ...c, formula: (c.formula ? `${c.formula} ` : '') + variable } : c))
-      return
-    }
-    setCalculadas(prev => [...prev, { id: crypto.randomUUID(), nombre: variable, formula: variable, formato: 'numero' }])
+  const anadirBloqueDeCampo = (metrica: string, etiqueta: string) => {
+    setBloques(prev => [...prev, {
+      id: crypto.randomUUID(),
+      tipo: 'kpi',
+      titulo: etiqueta,
+      metrica: metrica as Metrica,
+    }])
   }
 
   const seleccionar = (inf: Informe) => {
@@ -410,7 +410,7 @@ export default function InformesClient({
                             {campos.map(c => (
                               <button
                                 key={c.variable}
-                                onClick={() => insertarCampo(c.variable)}
+                                onClick={() => anadirBloqueDeCampo(c.variable, c.etiqueta)}
                                 title={f.conectada ? `${c.variable} — clic para insertar` : `${c.variable} — falta conectar ${f.nombre}`}
                                 className={`text-[11px] px-2 py-1 rounded border ${
                                   f.conectada
@@ -419,16 +419,38 @@ export default function InformesClient({
                                 }`}
                               >
                                 {c.etiqueta}
+                                <span className="block text-[9px] opacity-60 font-mono">{c.variable}</span>
                               </button>
                             ))}
                           </div>
                         </div>
                       )
                     })}
+                    {calculadas.length > 0 && (
+                      <div>
+                        <div className="px-3 py-1.5 bg-[#faf8f4] flex items-center gap-2">
+                          <span className="text-[11px] font-semibold text-[#1f1e1c]">Calculadas</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 px-3 py-2">
+                          {calculadas.map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => anadirBloqueDeCampo(`calc:${c.id}`, c.nombre)}
+                              title={`${c.formula}`}
+                              className="text-[11px] px-2 py-1 rounded border bg-[#eef2ff] border-[#c7d2fe] text-[#111] hover:border-[#3B63FB]"
+                            >
+                              {c.nombre || 'sin nombre'}
+                              <span className="block text-[9px] opacity-60 font-mono">{c.formula}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {!catalogo && <p className="px-3 py-3 text-xs text-[#8a847a]">Cargando campos…</p>}
                   </div>
                   <p className="px-3 py-2 text-[10px] text-[#8a847a] border-t border-[#e6e1d8]">
-                    Haz clic en un campo para insertarlo en la fórmula que tengas seleccionada.
+                    Haz clic en un campo para crear un bloque con él.
                   </p>
                 </div>
               </div>
