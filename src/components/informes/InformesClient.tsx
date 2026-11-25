@@ -6,7 +6,7 @@ import { evaluarFormula, variablesDeFila } from '@/lib/informes/formula'
 
 export interface Bloque {
   id: string
-  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas' | 'kpis' | 'embudo' | 'texto'
+  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas' | 'kpis' | 'embudo' | 'texto' | 'imagen'
   titulo: string
   metrica: Metrica
   metricas?: Metrica[]
@@ -24,6 +24,7 @@ export interface Bloque {
   texto?: string
   negrita?: boolean
   alineacion?: 'izquierda' | 'centro' | 'derecha'
+  src?: string
 }
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
@@ -111,8 +112,15 @@ export default function InformesClient({
   const router = useRouter()
   const [activo, setActivo] = useState<string | null>(informes[0]?.id ?? null)
   const [editando, setEditando] = useState(false)
-  const [sel, setSel] = useState<string | null>(null)
+  const [sel, setSel] = useState<string[]>([])
   const [guia, setGuia] = useState<{ x?: number; y?: number }>({})
+
+  const alternarSel = (id: string, conMayus: boolean) => {
+    setSel(prev => {
+      if (!conMayus) return [id]
+      return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    })
+  }
   const [drag, setDrag] = useState<null | {
     id: string; modo: 'mover' | 'tamano'
     ox: number; oy: number; x: number; y: number; w: number; h: number
@@ -214,6 +222,22 @@ export default function InformesClient({
       y: 16 + Math.floor(i / 3) * 150,
       w: 280,
       h: 80,
+      bg: 'transparent',
+    }])
+  }
+
+  const anadirImagen = () => {
+    const i = bloques.length
+    setBloques(prev => [...prev, {
+      id: crypto.randomUUID(),
+      tipo: 'imagen',
+      titulo: '',
+      metrica: 'coste' as Metrica,
+      src: '',
+      x: 16 + (i % 3) * 300,
+      y: 16 + Math.floor(i / 3) * 150,
+      w: 240,
+      h: 120,
       bg: 'transparent',
     }])
   }
@@ -448,8 +472,9 @@ export default function InformesClient({
                 ['kpis', '≡ Fila de KPIs'],
                 ['embudo', '⇩ Embudo'],
                 ['texto', 'T Texto'],
+                ['imagen', '🖼 Imagen'],
               ] as const).map(([t, label]) => (
-                <button key={t} onClick={() => { if (t === 'texto') { anadirTexto(); return } setBloques(prev => [...prev, nuevoBloque(t)]) }} className="bg-white border border-[#d8d3c9] rounded-lg px-3 py-1 text-xs font-medium text-[#111] hover:border-[#3B63FB]">
+                <button key={t} onClick={() => { if (t === 'texto') { anadirTexto(); return } if (t === 'imagen') { anadirImagen(); return } setBloques(prev => [...prev, nuevoBloque(t)]) }} className="bg-white border border-[#d8d3c9] rounded-lg px-3 py-1 text-xs font-medium text-[#111] hover:border-[#3B63FB]">
                   {label}
                 </button>
               ))}
@@ -503,9 +528,56 @@ export default function InformesClient({
             </div>
           )}
 
-          {editando && sel && (() => {
-            const b = bloques.find(x => x.id === sel)
+          {editando && sel.length > 0 && (() => {
+            const b = bloques.find(x => x.id === sel[0])
             if (!b) return null
+
+            // Varios seleccionados: alinear
+            if (sel.length > 1) {
+              const alinear = (modo: 'izq' | 'centro' | 'der' | 'arriba' | 'medio' | 'abajo') => {
+                setBloques(prev => {
+                  const puntos = sel
+                    .map(id => { const idx = prev.findIndex(x => x.id === id); return { idx, g: idx >= 0 ? geo(prev[idx], idx) : null } })
+                    .filter(x => x.g) as { idx: number; g: { x: number; y: number; w: number; h: number } }[]
+                  if (puntos.length === 0) return prev
+                  const minX = Math.min(...puntos.map(p => p.g.x))
+                  const maxX = Math.max(...puntos.map(p => p.g.x + p.g.w))
+                  const minY = Math.min(...puntos.map(p => p.g.y))
+                  const maxY = Math.max(...puntos.map(p => p.g.y + p.g.h))
+                  const ancho = maxX - minX
+                  const copia = prev.map(x => ({ ...x }))
+                  for (const pto of puntos) {
+                    const x = copia[pto.idx]
+                    if (modo === 'izq') x.x = minX
+                    if (modo === 'der') x.x = maxX - pto.g.w
+                    if (modo === 'centro') x.x = Math.round(minX + (ancho - pto.g.w) / 2)
+                    if (modo === 'arriba') x.y = minY
+                    if (modo === 'abajo') x.y = maxY - pto.g.h
+                    if (modo === 'medio') x.y = Math.round(minY + (maxY - minY - pto.g.h) / 2)
+                  }
+                  return copia
+                })
+              }
+
+              return (
+                <div className="m-4 mb-0 flex flex-wrap items-center gap-2 bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-3 py-2">
+                  <span className="text-xs text-[#6f6a62]">{sel.length} bloques:</span>
+                  <button onClick={() => alinear('izq')} className="text-xs px-2 py-1 rounded bg-white border border-[#d8d3c9] text-[#111]">Alinear izquierda</button>
+                  <button onClick={() => alinear('centro')} className="text-xs px-2 py-1 rounded bg-white border border-[#d8d3c9] text-[#111]">Centrar</button>
+                  <button onClick={() => alinear('der')} className="text-xs px-2 py-1 rounded bg-white border border-[#d8d3c9] text-[#111]">Alinear derecha</button>
+                  <button onClick={() => alinear('arriba')} className="text-xs px-2 py-1 rounded bg-white border border-[#d8d3c9] text-[#111]">Arriba</button>
+                  <button onClick={() => alinear('medio')} className="text-xs px-2 py-1 rounded bg-white border border-[#d8d3c9] text-[#111]">Centro vertical</button>
+                  <button onClick={() => alinear('abajo')} className="text-xs px-2 py-1 rounded bg-white border border-[#d8d3c9] text-[#111]">Abajo</button>
+                  <button
+                    onClick={() => { setBloques(prev => prev.filter(x => !sel.includes(x.id))); setSel([]) }}
+                    className="ml-auto text-red-600 text-xs"
+                  >
+                    Quitar {sel.length}
+                  </button>
+                </div>
+              )
+            }
+
             return (
               <div className="m-4 mb-0 flex flex-wrap items-center gap-3 bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-3 py-2">
                 <span className="text-xs text-[#6f6a62]">Bloque:</span>
@@ -515,6 +587,37 @@ export default function InformesClient({
                     onChange={e => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, bg: e.target.value } : x))}
                     className="w-7 h-6 rounded border border-[#d8d3c9] bg-transparent" />
                 </label>
+                <div className="flex items-center gap-1">
+                  {['#ffffff', '#f3f1ec', '#111111', '#3B63FB', '#0f7a3d', '#b91c1c', '#C9A227', '#6b7280'].map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, bg: c } : x))}
+                      title={`Fondo ${c}`}
+                      className="w-5 h-5 rounded border border-[#d8d3c9]"
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    const idx = bloques.findIndex(x => x.id === b.id)
+                    const g = geo(b, idx)
+                    const copia = { ...b, id: crypto.randomUUID(), x: g.x + 24, y: g.y + 24 }
+                    setBloques(prev => [...prev, copia])
+                    setSel([copia.id])
+                  }}
+                  className="text-xs px-2 py-1 rounded bg-white border border-[#d8d3c9] text-[#111]"
+                >
+                  Duplicar
+                </button>
+                {b.tipo === 'imagen' && (
+                  <input
+                    value={b.src ?? ''}
+                    onChange={e => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, src: e.target.value } : x))}
+                    placeholder="URL de la imagen"
+                    className="text-xs border border-[#d8d3c9] rounded px-2 py-1 w-56"
+                  />
+                )}
                 <label className="flex items-center gap-1 text-xs text-[#1f1e1c]">
                   Texto
                   <input type="color" value={b.color ?? '#111111'}
@@ -553,7 +656,7 @@ export default function InformesClient({
                 )}
                 <span className="text-[10px] text-[#8a847a]">Arrastra para mover · ◢ para redimensionar</span>
                 <button
-                  onClick={() => { setBloques(prev => prev.filter(x => x.id !== b.id)); setSel(null) }}
+                  onClick={() => { setBloques(prev => prev.filter(x => x.id !== b.id)); setSel([]) }}
                   className="ml-auto text-red-600 text-xs"
                 >
                   Quitar bloque
@@ -568,7 +671,7 @@ export default function InformesClient({
             onPointerMove={alMover}
             onPointerUp={() => { setDrag(null); setGuia({}) }}
             onPointerLeave={() => setDrag(null)}
-            onClick={() => setSel(null)}
+            onClick={() => setSel([])}
           >
             {guia.x !== undefined && (
               <div className="absolute top-0 bottom-0 w-px bg-[#3B63FB] pointer-events-none" style={{ left: guia.x }} />
@@ -590,8 +693,8 @@ export default function InformesClient({
               return (
                 <div
                   key={b.id}
-                  onClick={e => { e.stopPropagation(); setSel(b.id) }}
-                  className={`informe-bloque absolute rounded-xl p-3 overflow-hidden ${sel === b.id ? 'ring-2 ring-[#3B63FB]' : 'border border-[#e6e1d8]'} ${editando ? 'cursor-move' : ''}`}
+                  onClick={e => { e.stopPropagation(); alternarSel(b.id, e.metaKey || e.ctrlKey || e.shiftKey) }}
+                  className={`informe-bloque absolute rounded-xl p-3 overflow-hidden ${sel.includes(b.id) ? 'ring-2 ring-[#3B63FB]' : 'border border-[#e6e1d8]'} ${editando ? 'cursor-move' : ''}`}
                   style={{
                     left: geo(b, i).x,
                     top: geo(b, i).y,
@@ -684,6 +787,14 @@ export default function InformesClient({
                       <span className="text-[#6f6a62] text-sm">{b.titulo}</span>
                     )}
                   </div>
+
+                  {b.tipo === 'imagen' && (
+                    b.src
+                      ? <img src={b.src} alt="" className="w-full h-full object-contain" draggable={false} />
+                      : <div className="w-full h-full flex items-center justify-center text-[11px] text-[#8a847a] border border-dashed border-[#d8d3c9] rounded">
+                          Pega una URL de imagen arriba
+                        </div>
+                  )}
 
                   {b.tipo === 'texto' && (
                     editando ? (
