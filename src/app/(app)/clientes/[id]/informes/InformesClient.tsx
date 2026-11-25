@@ -419,7 +419,7 @@ export default function InformesClient({
                 </div>
 
                 {/* Panel de campos disponibles */}
-                <div className="mt-3 lg:mt-0 lg:fixed lg:right-0 lg:top-16 lg:bottom-0 lg:w-80 lg:z-40 border border-[#d8d3c9] rounded-none lg:rounded-l-xl bg-white overflow-hidden flex flex-col shadow-xl">
+                <div className="mt-3 lg:mt-0 lg:fixed lg:right-0 lg:top-0 lg:bottom-0 lg:w-80 lg:max-w-[90vw] lg:z-40 border border-[#d8d3c9] rounded-none lg:rounded-l-xl bg-white overflow-hidden flex flex-col shadow-xl">
                   <div className="px-3 py-2 border-b border-[#e6e1d8] flex items-center gap-2">
                     <span className="text-xs font-semibold text-[#111]">Campos disponibles</span>
                     <input
@@ -429,7 +429,7 @@ export default function InformesClient({
                       className="ml-auto text-xs border border-[#d8d3c9] rounded px-2 py-1 w-40"
                     />
                   </div>
-                  <div className="max-h-56 lg:max-h-none lg:flex-1 overflow-y-auto divide-y divide-[#f0ece4]">
+                  <div className="max-h-56 lg:max-h-none lg:flex-1 overflow-y-auto overflow-x-hidden divide-y divide-[#f0ece4]">
                     {(catalogo?.fuentes ?? []).map(f => {
                       const campos = (catalogo?.campos ?? []).filter(c =>
                         c.fuente === f.id &&
@@ -450,7 +450,7 @@ export default function InformesClient({
                                 key={c.variable}
                                 onClick={() => anadirBloqueDeCampo(c.variable, c.etiqueta, f.id as 'google_ads' | 'ga4')}
                                 title={f.conectada ? `${c.variable} — clic para insertar` : `${c.variable} — falta conectar ${f.nombre}`}
-                                className={`text-[11px] px-2 py-1 rounded border ${
+                                className={`text-[11px] px-2 py-1 rounded border text-left max-w-full break-words leading-tight ${
                                   f.conectada
                                     ? 'bg-[#f3f1ec] border-[#d8d3c9] text-[#111] hover:border-[#3B63FB]'
                                     : 'bg-white border-dashed border-[#d8d3c9] text-[#a39c92]'
@@ -495,7 +495,7 @@ export default function InformesClient({
             </div>
           )}
 
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-4 ${editando ? 'lg:pr-80' : ''}`}>
             {bloques.length === 0 && (
               <p className="text-[#6f6a62] text-sm md:col-span-2">Sin bloques. Añade un KPI para empezar.</p>
             )}
