@@ -13,6 +13,20 @@ export interface Bloque {
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
 
+interface CampoCatalogo {
+  variable: string
+  etiqueta: string
+  tipo: 'metrica' | 'dimension'
+  fuente: string
+}
+
+interface FuenteCatalogo {
+  id: string
+  nombre: string
+  conectada: boolean
+  motivo?: string
+}
+
 export interface Calculada {
   id: string
   nombre: string
@@ -78,6 +92,9 @@ export default function InformesClient({
   const [datos, setDatos] = useState<Datos | null>(null)
   const [cargando, setCargando] = useState(true)
   const [periodo, setPeriodo] = useState<'30d' | 'mes' | 'ano'>('30d')
+  const [catalogo, setCatalogo] = useState<{ fuentes: FuenteCatalogo[]; campos: CampoCatalogo[] } | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [destino, setDestino] = useState<number>(-1)
 
   const informe = informes.find(i => i.id === activo) ?? null
   const [bloques, setBloques] = useState<Bloque[]>(informe?.config?.bloques ?? [])
@@ -99,6 +116,22 @@ export default function InformesClient({
       .catch(() => setDatos({ totales: null, porMes: [], porCampana: [], error: 'No se pudieron cargar los datos' }))
       .finally(() => setCargando(false))
   }, [idCliente, periodo])
+
+  useEffect(() => {
+    fetch(`/api/informes/campos?id_cliente=${idCliente}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setCatalogo(d))
+      .catch(() => setCatalogo(null))
+  }, [idCliente])
+
+  const insertarCampo = (variable: string) => {
+    const idx = destino >= 0 ? destino : calculadas.length - 1
+    if (idx >= 0 && calculadas[idx]) {
+      setCalculadas(prev => prev.map((c, j) => j === idx ? { ...c, formula: (c.formula ? `${c.formula} ` : '') + variable } : c))
+      return
+    }
+    setCalculadas(prev => [...prev, { id: crypto.randomUUID(), nombre: variable, formula: variable, formato: 'numero' }])
+  }
 
   const seleccionar = (inf: Informe) => {
     setActivo(inf.id)
@@ -274,6 +307,7 @@ export default function InformesClient({
                       <span className="text-xs text-[#6f6a62]">=</span>
                       <input
                         value={c.formula}
+                        onFocus={() => setDestino(i)}
                         onChange={e => setCalculadas(prev => prev.map((x, j) => j === i ? { ...x, formula: e.target.value } : x))}
                         placeholder="inversion / conversiones"
                         className={`${INPUT_CALC} flex-1 font-mono`}
@@ -297,6 +331,58 @@ export default function InformesClient({
                   >
                     + Métrica calculada
                   </button>
+                </div>
+
+                {/* Panel de campos disponibles */}
+                <div className="mt-3 border border-[#d8d3c9] rounded-lg bg-white overflow-hidden">
+                  <div className="px-3 py-2 border-b border-[#e6e1d8] flex items-center gap-2">
+                    <span className="text-xs font-semibold text-[#111]">Campos disponibles</span>
+                    <input
+                      value={busqueda}
+                      onChange={e => setBusqueda(e.target.value)}
+                      placeholder="Buscar campo…"
+                      className="ml-auto text-xs border border-[#d8d3c9] rounded px-2 py-1 w-40"
+                    />
+                  </div>
+                  <div className="max-h-56 overflow-y-auto divide-y divide-[#f0ece4]">
+                    {(catalogo?.fuentes ?? []).map(f => {
+                      const campos = (catalogo?.campos ?? []).filter(c =>
+                        c.fuente === f.id &&
+                        (busqueda === '' || c.etiqueta.toLowerCase().includes(busqueda.toLowerCase())),
+                      )
+                      if (campos.length === 0) return null
+                      return (
+                        <div key={f.id}>
+                          <div className="px-3 py-1.5 bg-[#faf8f4] flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-[#1f1e1c]">{f.nombre}</span>
+                            {!f.conectada && (
+                              <span className="text-[10px] text-[#8a847a]">· {f.motivo ?? 'sin conectar'}</span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1 px-3 py-2">
+                            {campos.map(c => (
+                              <button
+                                key={c.variable}
+                                onClick={() => insertarCampo(c.variable)}
+                                title={f.conectada ? `${c.variable} — clic para insertar` : `${c.variable} — falta conectar ${f.nombre}`}
+                                className={`text-[11px] px-2 py-1 rounded border ${
+                                  f.conectada
+                                    ? 'bg-[#f3f1ec] border-[#d8d3c9] text-[#111] hover:border-[#3B63FB]'
+                                    : 'bg-white border-dashed border-[#d8d3c9] text-[#a39c92]'
+                                }`}
+                              >
+                                {c.etiqueta}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {!catalogo && <p className="px-3 py-3 text-xs text-[#8a847a]">Cargando campos…</p>}
+                  </div>
+                  <p className="px-3 py-2 text-[10px] text-[#8a847a] border-t border-[#e6e1d8]">
+                    Haz clic en un campo para insertarlo en la fórmula que tengas seleccionada.
+                  </p>
                 </div>
               </div>
             </div>
