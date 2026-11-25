@@ -10,6 +10,8 @@ export interface Bloque {
   titulo: string
   metrica: Metrica
   metricas?: Metrica[]
+  formato?: 'auto' | 'euro' | 'porcentaje' | 'numero' | 'x'
+  decimales?: number
 }
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
@@ -207,6 +209,19 @@ export default function InformesClient({
   }
 
   const formatoDe = (b: Bloque) => {
+    const dec = b.decimales ?? 2
+    const elegido = b.formato ?? 'auto'
+
+    if (elegido !== 'auto') {
+      return (v: number) => {
+        const n = v.toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+        if (elegido === 'euro') return `${n} €`
+        if (elegido === 'porcentaje') return `${n} %`
+        if (elegido === 'x') return `${n}×`
+        return n
+      }
+    }
+
     if (b.metrica.startsWith('calc:')) {
       const calc = calculadas.find(c => `calc:${c.id}` === b.metrica)
       return (v: number) => formatearCalc(v, calc?.formato ?? 'numero')
@@ -454,6 +469,28 @@ export default function InformesClient({
                                 {calculadas.map(c => <option key={c.id} value={`calc:${c.id}`}>{c.nombre}</option>)}
                               </optgroup>
                             )}
+                          </select>
+                          <select
+                            value={b.formato ?? 'auto'}
+                            onChange={e => setBloques(prev => prev.map((x, j) => j === i ? { ...x, formato: e.target.value as Bloque['formato'] } : x))}
+                            className="text-xs border border-[#d8d3c9] rounded px-1 py-1"
+                            title="Formato del número"
+                          >
+                            <option value="auto">Auto</option>
+                            <option value="euro">€</option>
+                            <option value="porcentaje">%</option>
+                            <option value="numero">Número</option>
+                            <option value="x">×</option>
+                          </select>
+                          <select
+                            value={String(b.decimales ?? 2)}
+                            onChange={e => setBloques(prev => prev.map((x, j) => j === i ? { ...x, decimales: Number(e.target.value) } : x))}
+                            className="text-xs border border-[#d8d3c9] rounded px-1 py-1"
+                            title="Decimales"
+                          >
+                            <option value="0">0 dec</option>
+                            <option value="1">1 dec</option>
+                            <option value="2">2 dec</option>
                           </select>
                           <button onClick={() => setBloques(prev => prev.filter((_, j) => j !== i))} className="text-red-600 text-xs px-1">✕</button>
                         </div>
