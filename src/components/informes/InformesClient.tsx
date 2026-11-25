@@ -13,6 +13,14 @@ export interface Bloque {
   fuente?: 'google_ads' | 'ga4'
   formato?: 'auto' | 'euro' | 'porcentaje' | 'numero' | 'x'
   decimales?: number
+  // Lienzo libre
+  x?: number
+  y?: number
+  w?: number
+  h?: number
+  bg?: string
+  color?: string
+  tamano?: number
 }
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
@@ -100,6 +108,11 @@ export default function InformesClient({
   const router = useRouter()
   const [activo, setActivo] = useState<string | null>(informes[0]?.id ?? null)
   const [editando, setEditando] = useState(false)
+  const [sel, setSel] = useState<string | null>(null)
+  const [drag, setDrag] = useState<null | {
+    id: string; modo: 'mover' | 'tamano'
+    ox: number; oy: number; x: number; y: number; w: number; h: number
+  }>(null)
   const [nombreNuevo, setNombreNuevo] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
@@ -161,14 +174,41 @@ export default function InformesClient({
       .catch(() => setCatalogo(null))
   }, [idCliente])
 
+  const snap = (v: number) => Math.round(v / 8) * 8
+
+  const geo = (b: Bloque, i: number) => ({
+    x: b.x ?? 16 + (i % 3) * 300,
+    y: b.y ?? 16 + Math.floor(i / 3) * 150,
+    w: b.w ?? 280,
+    h: b.h ?? 130,
+  })
+
   const anadirBloqueDeCampo = (metrica: string, etiqueta: string, fuenteCampo: 'google_ads' | 'ga4') => {
+    const i = bloques.length
     setBloques(prev => [...prev, {
       id: crypto.randomUUID(),
       tipo: 'kpi',
       titulo: etiqueta,
       metrica: metrica as Metrica,
       fuente: fuenteCampo,
+      x: 16 + (i % 3) * 300,
+      y: 16 + Math.floor(i / 3) * 150,
+      w: 280,
+      h: 130,
     }])
+  }
+
+  const alMover = (e: React.PointerEvent) => {
+    if (!drag) return
+    const dx = e.clientX - drag.ox
+    const dy = e.clientY - drag.oy
+    setBloques(prev => prev.map(b => {
+      if (b.id !== drag.id) return b
+      if (drag.modo === 'mover') {
+        return { ...b, x: Math.max(0, snap(drag.x + dx)), y: Math.max(0, snap(drag.y + dy)) }
+      }
+      return { ...b, w: Math.max(140, snap(drag.w + dx)), h: Math.max(80, snap(drag.h + dy)) }
+    }))
   }
 
   const seleccionar = (inf: Informe) => {
@@ -425,9 +465,58 @@ export default function InformesClient({
             </div>
           )}
 
-          <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-4 `}>
+          {editando && sel && (() => {
+            const b = bloques.find(x => x.id === sel)
+            if (!b) return null
+            return (
+              <div className="m-4 mb-0 flex flex-wrap items-center gap-3 bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-3 py-2">
+                <span className="text-xs text-[#6f6a62]">Bloque:</span>
+                <label className="flex items-center gap-1 text-xs text-[#1f1e1c]">
+                  Fondo
+                  <input type="color" value={b.bg ?? '#ffffff'}
+                    onChange={e => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, bg: e.target.value } : x))}
+                    className="w-7 h-6 rounded border border-[#d8d3c9] bg-transparent" />
+                </label>
+                <label className="flex items-center gap-1 text-xs text-[#1f1e1c]">
+                  Texto
+                  <input type="color" value={b.color ?? '#111111'}
+                    onChange={e => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, color: e.target.value } : x))}
+                    className="w-7 h-6 rounded border border-[#d8d3c9] bg-transparent" />
+                </label>
+                <label className="flex items-center gap-1 text-xs text-[#1f1e1c]">
+                  Tamaño
+                  <select value={String(b.tamano ?? 0)}
+                    onChange={e => setBloques(prev => prev.map(x => x.id === b.id ? { ...x, tamano: Number(e.target.value) } : x))}
+                    className="text-xs border border-[#d8d3c9] rounded px-1 py-1">
+                    <option value="0">Normal</option>
+                    <option value="14">Pequeño</option>
+                    <option value="20">Grande</option>
+                    <option value="28">Muy grande</option>
+                  </select>
+                </label>
+                <span className="text-[10px] text-[#8a847a]">Arrastra el bloque para moverlo · esquina ◢ para redimensionar</span>
+                <button
+                  onClick={() => { setBloques(prev => prev.filter(x => x.id !== b.id)); setSel(null) }}
+                  className="ml-auto text-red-600 text-xs"
+                >
+                  Quitar bloque
+                </button>
+              </div>
+            )
+          })()}
+
+          <div
+            className="relative m-4 bg-[#faf8f4] border border-[#e6e1d8] rounded-xl overflow-hidden select-none"
+            style={{ height: Math.max(320, ...bloques.map((b, i) => geo(b, i).y + geo(b, i).h + 24)) }}
+            onPointerMove={alMover}
+            onPointerUp={() => setDrag(null)}
+            onPointerLeave={() => setDrag(null)}
+            onClick={() => setSel(null)}
+          >
             {bloques.length === 0 && (
-              <p className="text-[#6f6a62] text-sm md:col-span-2">Sin bloques. Añade un KPI para empezar.</p>
+              <p className="absolute inset-0 flex items-center justify-center text-[#8a847a] text-sm">
+                Sin bloques. Añade un campo desde la derecha.
+              </p>
             )}
 
             {bloques.map((b, i) => {
@@ -435,7 +524,37 @@ export default function InformesClient({
               const grande = b.tipo === 'serie' || b.tipo === 'tabla' || b.tipo === 'campanas'
 
               return (
-                <div key={b.id} className={`border border-[#e6e1d8] rounded-xl p-4 ${grande ? 'md:col-span-2' : ''}`}>
+                <div
+                  key={b.id}
+                  onClick={e => { e.stopPropagation(); setSel(b.id) }}
+                  className={`informe-bloque absolute rounded-xl p-3 overflow-hidden ${sel === b.id ? 'ring-2 ring-[#3B63FB]' : 'border border-[#e6e1d8]'} ${editando ? 'cursor-move' : ''}`}
+                  style={{
+                    left: geo(b, i).x,
+                    top: geo(b, i).y,
+                    width: geo(b, i).w,
+                    height: geo(b, i).h,
+                    background: b.bg ?? '#ffffff',
+                    color: b.color ?? '#111111',
+                    fontSize: b.tamano ? `${b.tamano}px` : undefined,
+                  }}
+                  onPointerDown={e => {
+                    if (!editando) return
+                    const g = geo(b, i)
+                    setDrag({ id: b.id, modo: 'mover', ox: e.clientX, oy: e.clientY, ...g })
+                  }}
+                >
+                  {editando && (
+                    <div
+                      className="absolute right-1 bottom-1 w-4 h-4 cursor-se-resize text-[#8a847a] text-[10px] leading-none flex items-center justify-center"
+                      onPointerDown={e => {
+                        e.stopPropagation()
+                        const g = geo(b, i)
+                        setDrag({ id: b.id, modo: 'tamano', ox: e.clientX, oy: e.clientY, ...g })
+                      }}
+                    >
+                      ◢
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-2 mb-2">
                     {editando ? (
                       <>

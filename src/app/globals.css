@@ -185,3 +185,9 @@ textarea::placeholder { color: #9B978E; }
 [class*="text-yellow-500/"] {
   color: #111111 !important;
 }
+
+/* Los bloques del informe heredan el color elegido */
+.informe-bloque,
+.informe-bloque * {
+  color: inherit !important;
+}
