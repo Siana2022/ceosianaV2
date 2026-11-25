@@ -323,7 +323,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
           ],
           conditions: [`segments.date BETWEEN '${desde}' AND '${hasta}'`, 'metrics.impressions > 0'],
           orderings: ['metrics.cost_micros DESC'],
-          login_customer_id: cuenta.id_externo,
+          login_customer_id: process.env.GOOGLE_ADS_MCC ?? '2333383997',
         })
 
         const filas = JSON.parse(texto) as Record<string, unknown>[]
@@ -420,7 +420,7 @@ async function ejecutar(nombre: string, args: Record<string, unknown>, llave: Ll
             "asset.type IN ('IMAGE','YOUTUBE_VIDEO')",
           ],
           orderings: ['metrics.impressions DESC'],
-          login_customer_id: cuenta.id_externo,
+          login_customer_id: process.env.GOOGLE_ADS_MCC ?? '2333383997',
           limit: limite,
         })
 

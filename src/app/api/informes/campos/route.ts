@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   // ¿El cliente tiene cuenta vinculada por plataforma?
   if (idCliente) {
-    const { data: cli } = await (await createClient()).from('clientes').select('ga4_propiedad').eq('id', idCliente).maybeSingle()
+    const { data: cli } = await admin.from('clientes').select('ga4_propiedad').eq('id', idCliente).maybeSingle()
     const propiedad = (cli as { ga4_propiedad?: string | null } | null)?.ga4_propiedad
     if (propiedad) disponibles.ga4 = { conectada: true }
     else disponibles.ga4 = { conectada: false, motivo: 'Vincula su propiedad en el hub' }
