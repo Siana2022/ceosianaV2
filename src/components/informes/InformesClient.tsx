@@ -10,7 +10,7 @@ export interface Bloque {
   titulo: string
   metrica: Metrica
   metricas?: Metrica[]
-  fuente?: 'google_ads' | 'ga4'
+  fuente?: 'google_ads' | 'ga4' | 'meta_ads'
   formato?: 'auto' | 'euro' | 'porcentaje' | 'numero' | 'x'
   decimales?: number
   // Lienzo libre
@@ -135,12 +135,13 @@ export default function InformesClient({
   const [guardando, setGuardando] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
   const [datosGa4, setDatosGa4] = useState<Datos | null>(null)
+  const [datosMeta, setDatosMeta] = useState<Datos | null>(null)
   const [cargando, setCargando] = useState(true)
   const [periodo, setPeriodo] = useState<'30d' | 'mes' | 'ano'>('30d')
   const [catalogo, setCatalogo] = useState<{ fuentes: FuenteCatalogo[]; campos: CampoCatalogo[] } | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [destino, setDestino] = useState<number>(-1)
-  const [fuente, setFuente] = useState<'google_ads' | 'ga4'>('google_ads')
+  const [fuente, setFuente] = useState<'google_ads' | 'ga4' | 'meta_ads'>('google_ads')
 
   const searchParams = useSearchParams()
   const quiereImprimir = searchParams.get('imprimir') === '1'
@@ -194,6 +195,16 @@ export default function InformesClient({
       .finally(() => setCargando(false))
   }, [idCliente, rango.desde, rango.hasta])
 
+  // Meta Ads (solo si hay bloques de Meta)
+  const hayMeta = bloques.some(b => b.fuente === 'meta_ads')
+  useEffect(() => {
+    if (!hayMeta) { setDatosMeta(null); return }
+    fetch(`/api/informes/datos?id_cliente=${idCliente}&fuente=meta_ads&desde=${rango.desde}&hasta=${rango.hasta}`)
+      .then(r => r.json())
+      .then(d => setDatosMeta(d))
+      .catch(() => setDatosMeta({ totales: null, porMes: [], porCampana: [], error: 'No se pudieron cargar los datos de Meta' }))
+  }, [idCliente, rango.desde, rango.hasta, hayMeta])
+
   // GA4 (solo si hay bloques de GA4)
   useEffect(() => {
     if (metricasGA4.length === 0) { setDatosGa4(null); return }
@@ -219,7 +230,7 @@ export default function InformesClient({
     h: b.h ?? 130,
   })
 
-  const anadirBloqueDeCampo = (metrica: string, etiqueta: string, fuenteCampo: 'google_ads' | 'ga4') => {
+  const anadirBloqueDeCampo = (metrica: string, etiqueta: string, fuenteCampo: 'google_ads' | 'ga4' | 'meta_ads') => {
     const i = bloques.length
     setBloques(prev => [...prev, {
       id: crypto.randomUUID(),
@@ -347,10 +358,10 @@ export default function InformesClient({
     router.refresh()
   }
 
-  const mesesDe = (b: Bloque) => (b.fuente === 'ga4' ? datosGa4?.porMes : datos?.porMes) ?? []
+  const mesesDe = (b: Bloque) => (b.fuente === 'ga4' ? datosGa4?.porMes : b.fuente === 'meta_ads' ? datosMeta?.porMes : datos?.porMes) ?? []
 
   // Valor de un bloque para una fila (mes) o para los totales
-  const datosDe = (b: Bloque) => (b.fuente === 'ga4' ? datosGa4 : datos)
+  const datosDe = (b: Bloque) => (b.fuente === 'ga4' ? datosGa4 : b.fuente === 'meta_ads' ? datosMeta : datos)
 
   const valorDe = (b: Bloque, fila: Record<string, unknown> | null | undefined): number | null => {
     if (!fila) return null
@@ -419,7 +430,7 @@ export default function InformesClient({
         ))}
 
         <div className="flex gap-1 bg-[#f3f1ec] rounded-lg p-1 ml-auto">
-          {([['google_ads', 'Google Ads'], ['ga4', 'GA4']] as const).map(([k, label]) => (
+          {([['google_ads', 'Google Ads'], ['meta_ads', 'Meta'], ['ga4', 'GA4']] as const).map(([k, label]) => (
             <button
               key={k}
               onClick={() => setFuente(k)}
@@ -1125,7 +1136,7 @@ export default function InformesClient({
                             {campos.map(c => (
                               <button
                                 key={c.variable}
-                                onClick={() => anadirBloqueDeCampo(c.variable, c.etiqueta, f.id as 'google_ads' | 'ga4')}
+                                onClick={() => anadirBloqueDeCampo(c.variable, c.etiqueta, f.id as 'google_ads' | 'ga4' | 'meta_ads')}
                                 title={f.conectada ? `${c.variable} — clic para insertar` : `${c.variable} — falta conectar ${f.nombre}`}
                                 className={`text-[11px] px-2 py-1 rounded border text-left max-w-full break-words leading-tight ${
                                   f.conectada

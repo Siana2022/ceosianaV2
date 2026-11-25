@@ -31,12 +31,14 @@ export const CAMPOS: Campo[] = [
   { variable: 'campana', etiqueta: 'Campaña', tipo: 'dimension', fuente: 'google_ads' },
 
   // Meta Ads
-  { variable: 'meta_inversion', etiqueta: 'Importe gastado', tipo: 'metrica', fuente: 'meta_ads' },
-  { variable: 'meta_impresiones', etiqueta: 'Impresiones', tipo: 'metrica', fuente: 'meta_ads' },
-  { variable: 'meta_clics', etiqueta: 'Clics', tipo: 'metrica', fuente: 'meta_ads' },
-  { variable: 'meta_compras', etiqueta: 'Compras', tipo: 'metrica', fuente: 'meta_ads' },
-  { variable: 'meta_valor', etiqueta: 'Valor de conversión', tipo: 'metrica', fuente: 'meta_ads' },
-  { variable: 'meta_frecuencia', etiqueta: 'Frecuencia', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'coste', etiqueta: 'Importe gastado', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'impresiones', etiqueta: 'Impresiones', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'clics', etiqueta: 'Clics', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'conversiones', etiqueta: 'Compras', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'valor', etiqueta: 'Valor de conversión', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'cpa', etiqueta: 'Coste por compra', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'roas', etiqueta: 'ROAS', tipo: 'metrica', fuente: 'meta_ads' },
+  { variable: 'ctr', etiqueta: 'CTR (%)', tipo: 'metrica', fuente: 'meta_ads' },
 
   // GA4
   { variable: 'sesiones', etiqueta: 'Sesiones', tipo: 'metrica', fuente: 'ga4' },

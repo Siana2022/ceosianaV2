@@ -179,3 +179,94 @@ export async function vistaPrevia(input: Record<string, unknown>) {
   const lista = (r.data ?? []) as { body?: string }[]
   return { preview_url: null, previews: lista }
 }
+
+export interface FilaMesMeta {
+  mes: string
+  coste: number
+  impresiones: number
+  clics: number
+  conversiones: number
+  valor: number
+  cpa: number | null
+  roas: number | null
+  ctr: number | null
+}
+
+/** Métricas de una cuenta publicitaria por mes y por campaña. */
+export async function metricasCuenta(cuenta: string, since: string, until: string) {
+  const id = cuenta.replace(/^act_/, '')
+
+  // Serie mensual
+  const insMes = await graph(`act_${id}/insights`, {
+    level: 'account',
+    fields: 'spend,impressions,clicks,ctr,actions,action_values,purchase_roas',
+    time_range: JSON.stringify({ since, until }),
+    time_increment: 'monthly',
+    limit: '200',
+  })
+
+  const filas = (insMes.data ?? []) as Record<string, unknown>[]
+  const porMes: FilaMesMeta[] = filas.map(f => {
+    const coste = Number(f.spend ?? 0)
+    const conv = accion(f.actions, 'omni_purchase')
+    const valor = valorAccion(f.action_values, 'omni_purchase')
+    const imp = Number(f.impressions ?? 0)
+    const clics = Number(f.clicks ?? 0)
+    return {
+      mes: String(f.date_start ?? '').slice(0, 7),
+      coste: Number(coste.toFixed(2)),
+      impresiones: imp,
+      clics,
+      conversiones: Number(conv.toFixed(2)),
+      valor: Number(valor.toFixed(2)),
+      cpa: conv > 0 ? Number((coste / conv).toFixed(2)) : null,
+      roas: coste > 0 ? Number((valor / coste).toFixed(2)) : null,
+      ctr: imp > 0 ? Number(((clics / imp) * 100).toFixed(2)) : null,
+    }
+  }).sort((a, b) => a.mes.localeCompare(b.mes))
+
+  const totales = porMes.reduce(
+    (t, m) => ({
+      coste: Number((t.coste + m.coste).toFixed(2)),
+      impresiones: t.impresiones + m.impresiones,
+      clics: t.clics + m.clics,
+      conversiones: Number((t.conversiones + m.conversiones).toFixed(2)),
+      valor: Number((t.valor + m.valor).toFixed(2)),
+    }),
+    { coste: 0, impresiones: 0, clics: 0, conversiones: 0, valor: 0 },
+  )
+
+  // Campañas del periodo
+  let porCampana: Record<string, unknown>[] = []
+  try {
+    const insCamp = await graph(`act_${id}/insights`, {
+      level: 'campaign',
+      fields: 'campaign_name,spend,impressions,clicks,actions,action_values',
+      time_range: JSON.stringify({ since, until }),
+      limit: '100',
+    })
+    porCampana = ((insCamp.data ?? []) as Record<string, unknown>[]).map(c => {
+      const coste = Number(c.spend ?? 0)
+      const conv = accion(c.actions, 'omni_purchase')
+      const valor = valorAccion(c.action_values, 'omni_purchase')
+      return {
+        campana: String(c.campaign_name ?? ''),
+        coste: Number(coste.toFixed(2)),
+        conversiones: Number(conv.toFixed(2)),
+        cpa: conv > 0 ? Number((coste / conv).toFixed(2)) : null,
+        roas: coste > 0 ? Number((valor / coste).toFixed(2)) : null,
+      }
+    }).sort((a, b) => Number(b.coste) - Number(a.coste))
+  } catch { /* sin campañas */ }
+
+  return {
+    porMes,
+    totales: {
+      ...totales,
+      cpa: totales.conversiones > 0 ? Number((totales.coste / totales.conversiones).toFixed(2)) : null,
+      roas: totales.coste > 0 ? Number((totales.valor / totales.coste).toFixed(2)) : null,
+      ctr: totales.impresiones > 0 ? Number(((totales.clics / totales.impresiones) * 100).toFixed(2)) : null,
+    },
+    porCampana,
+  }
+}

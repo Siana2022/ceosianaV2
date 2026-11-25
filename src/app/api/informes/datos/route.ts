@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { llamarConTokenGuardado } from '@/lib/server/mcpGoogle'
 import { serieConMetricas } from '@/lib/server/ga4'
+import { metricasCuenta } from '@/lib/server/meta'
 
 // GET /api/informes/datos?id_cliente=&desde=&hasta=
 // Devuelve métricas de Google Ads del cliente agrupadas por mes y por campaña.
@@ -13,7 +14,8 @@ export async function GET(req: NextRequest) {
 
   const q = new URL(req.url).searchParams
   const idCliente = q.get('id_cliente')
-  const fuente = q.get('fuente') === 'ga4' ? 'ga4' : 'google_ads'
+  const f = q.get('fuente')
+  const fuente = f === 'ga4' ? 'ga4' : f === 'meta_ads' ? 'meta_ads' : 'google_ads'
   const desde = q.get('desde') ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
   const hasta = q.get('hasta') ?? new Date().toISOString().slice(0, 10)
   if (!idCliente) return NextResponse.json({ error: 'id_cliente requerido' }, { status: 400 })
@@ -56,6 +58,79 @@ export async function GET(req: NextRequest) {
       })
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : 'Error de Google Analytics' }, { status: 502 })
+    }
+  }
+
+  // ── Meta Ads ─────────────────────────────────────────────────────────
+  if (fuente === 'meta_ads') {
+    if (!process.env.META_SYSTEM_USER_TOKEN) {
+      return NextResponse.json({ totales: null, motivo: 'Falta el token de Meta en el servidor', porMes: [], porCampana: [] })
+    }
+    const { data: serviciosM } = await supabase.from('servicios').select('id').eq('id_cliente', idCliente)
+    const idsM = (serviciosM ?? []).map(sv => sv.id)
+    const { data: cuentasM } = idsM.length
+      ? await supabase.from('cuenta_plataforma').select('id_externo, nombre')
+          .in('id_servicio', idsM).eq('plataforma', 'meta_ads').eq('activa', true)
+      : { data: [] }
+
+    if (!cuentasM || cuentasM.length === 0) {
+      return NextResponse.json({ totales: null, motivo: 'Este cliente no tiene cuenta de Meta vinculada', porMes: [], porCampana: [] })
+    }
+
+    try {
+      const acumulado = { coste: 0, impresiones: 0, clics: 0, conversiones: 0, valor: 0 }
+      const meses = new Map<string, Record<string, number>>()
+      const campanas: Record<string, unknown>[] = []
+
+      for (const c of cuentasM) {
+        const r = await metricasCuenta(String(c.id_externo), desde, hasta)
+        acumulado.coste += r.totales.coste
+        acumulado.impresiones += r.totales.impresiones
+        acumulado.clics += r.totales.clics
+        acumulado.conversiones += r.totales.conversiones
+        acumulado.valor += r.totales.valor
+        for (const m of r.porMes) {
+          const prev = meses.get(m.mes) ?? { coste: 0, impresiones: 0, clics: 0, conversiones: 0, valor: 0 }
+          meses.set(m.mes, {
+            coste: prev.coste + m.coste,
+            impresiones: prev.impresiones + m.impresiones,
+            clics: prev.clics + m.clics,
+            conversiones: prev.conversiones + m.conversiones,
+            valor: prev.valor + m.valor,
+          })
+        }
+        campanas.push(...r.porCampana.map(x => ({ ...x, cuenta: c.nombre })))
+      }
+
+      const porMes = [...meses.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([mes, v]) => ({
+        mes,
+        ...v,
+        coste: Number(v.coste.toFixed(2)),
+        conversiones: Number(v.conversiones.toFixed(2)),
+        valor: Number(v.valor.toFixed(2)),
+        cpa: v.conversiones > 0 ? Number((v.coste / v.conversiones).toFixed(2)) : null,
+        roas: v.coste > 0 ? Number((v.valor / v.coste).toFixed(2)) : null,
+        ctr: v.impresiones > 0 ? Number(((v.clics / v.impresiones) * 100).toFixed(2)) : null,
+      }))
+
+      return NextResponse.json({
+        fuente: 'meta_ads',
+        periodo: { desde, hasta },
+        totales: {
+          ...acumulado,
+          coste: Number(acumulado.coste.toFixed(2)),
+          conversiones: Number(acumulado.conversiones.toFixed(2)),
+          valor: Number(acumulado.valor.toFixed(2)),
+          cpa: acumulado.conversiones > 0 ? Number((acumulado.coste / acumulado.conversiones).toFixed(2)) : null,
+          roas: acumulado.coste > 0 ? Number((acumulado.valor / acumulado.coste).toFixed(2)) : null,
+          ctr: acumulado.impresiones > 0 ? Number(((acumulado.clics / acumulado.impresiones) * 100).toFixed(2)) : null,
+        },
+        anterior: null,
+        porMes,
+        porCampana: campanas.slice(0, 30),
+      })
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Error de Meta' }, { status: 502 })
     }
   }
 
