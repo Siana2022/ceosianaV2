@@ -10,6 +10,7 @@ export interface Bloque {
   titulo: string
   metrica: Metrica
   metricas?: Metrica[]
+  fuente?: 'google_ads' | 'ga4'
   formato?: 'auto' | 'euro' | 'porcentaje' | 'numero' | 'x'
   decimales?: number
 }
@@ -102,6 +103,7 @@ export default function InformesClient({
   const [nombreNuevo, setNombreNuevo] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
+  const [datosGa4, setDatosGa4] = useState<Datos | null>(null)
   const [cargando, setCargando] = useState(true)
   const [periodo, setPeriodo] = useState<'30d' | 'mes' | 'ano'>('30d')
   const [catalogo, setCatalogo] = useState<{ fuentes: FuenteCatalogo[]; campos: CampoCatalogo[] } | null>(null)
@@ -113,32 +115,44 @@ export default function InformesClient({
   const [bloques, setBloques] = useState<Bloque[]>(informe?.config?.bloques ?? [])
   const [calculadas, setCalculadas] = useState<Calculada[]>(informe?.config?.calculadas ?? [])
 
-  // Nombres reales de las métricas de GA4 que usan los bloques
+  // Métricas de GA4 que usan los bloques marcados como GA4
   const metricasGA4 = useMemo(() => {
     const base = new Set(Object.keys(METRICAS))
     const usadas = bloques
+      .filter(b => b.fuente === 'ga4')
       .map(b => b.metrica)
       .filter(m => !m.startsWith('calc:') && !base.has(m))
     return [...new Set(usadas)]
   }, [bloques])
 
-  // Cargar métricas de Google Ads según el periodo
-  useEffect(() => {
+  const rango = useMemo(() => {
     const hoy = new Date()
     let desde: string
-    let hasta = hoy.toISOString().slice(0, 10)
+    const hasta = hoy.toISOString().slice(0, 10)
     if (periodo === '30d') desde = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
     else if (periodo === 'mes') desde = `${hoy.toISOString().slice(0, 7)}-01`
     else desde = `${hoy.getFullYear()}-01-01`
+    return { desde, hasta }
+  }, [periodo])
 
+  // Google Ads (siempre disponible)
+  useEffect(() => {
     setCargando(true)
-    const extra = fuente === 'ga4' && metricasGA4.length > 0 ? `&metricas=${encodeURIComponent(metricasGA4.join(','))}` : ''
-    fetch(`/api/informes/datos?id_cliente=${idCliente}&fuente=${fuente}&desde=${desde}&hasta=${hasta}${extra}`)
+    fetch(`/api/informes/datos?id_cliente=${idCliente}&fuente=google_ads&desde=${rango.desde}&hasta=${rango.hasta}`)
       .then(r => r.json())
       .then(d => setDatos(d))
       .catch(() => setDatos({ totales: null, porMes: [], porCampana: [], error: 'No se pudieron cargar los datos' }))
       .finally(() => setCargando(false))
-  }, [idCliente, periodo, fuente, metricasGA4.join(',')])
+  }, [idCliente, rango.desde, rango.hasta])
+
+  // GA4 (solo si hay bloques de GA4)
+  useEffect(() => {
+    if (metricasGA4.length === 0) { setDatosGa4(null); return }
+    fetch(`/api/informes/datos?id_cliente=${idCliente}&fuente=ga4&desde=${rango.desde}&hasta=${rango.hasta}&metricas=${encodeURIComponent(metricasGA4.join(','))}`)
+      .then(r => r.json())
+      .then(d => setDatosGa4(d))
+      .catch(() => setDatosGa4({ totales: null, porMes: [], porCampana: [], error: 'No se pudieron cargar los datos de GA4' }))
+  }, [idCliente, rango.desde, rango.hasta, metricasGA4.join(',')])
 
   useEffect(() => {
     fetch(`/api/informes/campos?id_cliente=${idCliente}`)
@@ -147,12 +161,13 @@ export default function InformesClient({
       .catch(() => setCatalogo(null))
   }, [idCliente])
 
-  const anadirBloqueDeCampo = (metrica: string, etiqueta: string) => {
+  const anadirBloqueDeCampo = (metrica: string, etiqueta: string, fuenteCampo: 'google_ads' | 'ga4') => {
     setBloques(prev => [...prev, {
       id: crypto.randomUUID(),
       tipo: 'kpi',
       titulo: etiqueta,
       metrica: metrica as Metrica,
+      fuente: fuenteCampo,
     }])
   }
 
@@ -197,9 +212,11 @@ export default function InformesClient({
     router.refresh()
   }
 
-  const meses = useMemo(() => datos?.porMes ?? [], [datos])
+  const mesesDe = (b: Bloque) => (b.fuente === 'ga4' ? datosGa4?.porMes : datos?.porMes) ?? []
 
   // Valor de un bloque para una fila (mes) o para los totales
+  const datosDe = (b: Bloque) => (b.fuente === 'ga4' ? datosGa4 : datos)
+
   const valorDe = (b: Bloque, fila: Record<string, unknown> | null | undefined): number | null => {
     if (!fila) return null
     if (b.metrica.startsWith('calc:')) {
@@ -213,7 +230,7 @@ export default function InformesClient({
 
   const variacion = (b: Bloque, actual: number | null): number | null => {
     if (actual === null) return null
-    const previo = valorDe(b, datos?.anterior as Record<string, unknown> | null)
+    const previo = valorDe(b, datosDe(b)?.anterior as Record<string, unknown> | null)
     if (previo === null || previo === 0) return null
     return ((actual - previo) / Math.abs(previo)) * 100
   }
@@ -358,7 +375,7 @@ export default function InformesClient({
               ))}
               </div>
 
-              {/* Métricas calculadas */}
+              {/* Métricas calculadas (con hueco para el cajón lateral) */}
               <div className="border-t border-[#e6e1d8] pt-3">
                 <p className="text-xs text-[#6f6a62] mb-2">
                   Métricas calculadas · variables: inversion, conversiones, cpa, roas, clics, impresiones, ctr, valor
@@ -402,7 +419,7 @@ export default function InformesClient({
                 </div>
 
                 {/* Panel de campos disponibles */}
-                <div className="mt-3 border border-[#d8d3c9] rounded-lg bg-white overflow-hidden">
+                <div className="mt-3 lg:mt-0 lg:fixed lg:right-0 lg:top-16 lg:bottom-0 lg:w-80 lg:z-40 border border-[#d8d3c9] rounded-none lg:rounded-l-xl bg-white overflow-hidden flex flex-col shadow-xl">
                   <div className="px-3 py-2 border-b border-[#e6e1d8] flex items-center gap-2">
                     <span className="text-xs font-semibold text-[#111]">Campos disponibles</span>
                     <input
@@ -412,7 +429,7 @@ export default function InformesClient({
                       className="ml-auto text-xs border border-[#d8d3c9] rounded px-2 py-1 w-40"
                     />
                   </div>
-                  <div className="max-h-56 overflow-y-auto divide-y divide-[#f0ece4]">
+                  <div className="max-h-56 lg:max-h-none lg:flex-1 overflow-y-auto divide-y divide-[#f0ece4]">
                     {(catalogo?.fuentes ?? []).map(f => {
                       const campos = (catalogo?.campos ?? []).filter(c =>
                         c.fuente === f.id &&
@@ -431,7 +448,7 @@ export default function InformesClient({
                             {campos.map(c => (
                               <button
                                 key={c.variable}
-                                onClick={() => anadirBloqueDeCampo(c.variable, c.etiqueta)}
+                                onClick={() => anadirBloqueDeCampo(c.variable, c.etiqueta, f.id as 'google_ads' | 'ga4')}
                                 title={f.conectada ? `${c.variable} — clic para insertar` : `${c.variable} — falta conectar ${f.nombre}`}
                                 className={`text-[11px] px-2 py-1 rounded border ${
                                   f.conectada
@@ -456,7 +473,7 @@ export default function InformesClient({
                           {calculadas.map(c => (
                             <button
                               key={c.id}
-                              onClick={() => anadirBloqueDeCampo(`calc:${c.id}`, c.nombre)}
+                              onClick={() => anadirBloqueDeCampo(`calc:${c.id}`, c.nombre, fuente)}
                               title={`${c.formula}`}
                               className="text-[11px] px-2 py-1 rounded border bg-[#eef2ff] border-[#c7d2fe] text-[#111] hover:border-[#3B63FB]"
                             >
@@ -484,7 +501,7 @@ export default function InformesClient({
             )}
 
             {bloques.map((b, i) => {
-              const total = valorDe(b, datos?.totales as Record<string, unknown> | null)
+              const total = valorDe(b, datosDe(b)?.totales as Record<string, unknown> | null)
               const grande = b.tipo === 'serie' || b.tipo === 'tabla' || b.tipo === 'campanas'
 
               return (
@@ -573,9 +590,9 @@ export default function InformesClient({
 
                   {b.tipo === 'serie' && (
                     <div className="flex items-end gap-1 h-32">
-                      {meses.length === 0 && <span className="text-[#8a847a] text-sm">Sin datos en el periodo</span>}
-                      {meses.map(m => {
-                        const valores = meses.map(x => valorDe(b, x) ?? 0)
+                      {mesesDe(b).length === 0 && <span className="text-[#8a847a] text-sm">Sin datos en el periodo</span>}
+                      {mesesDe(b).map(m => {
+                        const valores = mesesDe(b).map(x => valorDe(b, x) ?? 0)
                         const max = Math.max(...valores, 1)
                         const v = valorDe(b, m) ?? 0
                         return (
@@ -597,7 +614,7 @@ export default function InformesClient({
                         </tr>
                       </thead>
                       <tbody>
-                        {meses.map(m => (
+                        {mesesDe(b).map(m => (
                           <tr key={String(m.mes)} className="border-t border-[#eeeae2]">
                             <td className="py-1 text-[#1f1e1c]">{String(m.mes)}</td>
                             <td className="py-1 text-right text-[#111]">{(() => { const v = valorDe(b, m); return v === null ? '—' : formatoDe(b)(v) })()}</td>
@@ -611,7 +628,7 @@ export default function InformesClient({
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                       {(b.metricas ?? ['coste', 'conversiones', 'cpa', 'roas']).map(m => {
                         const sub: Bloque = { ...b, metrica: m }
-                        const v = valorDe(sub, datos?.totales as Record<string, unknown> | null)
+                        const v = valorDe(sub, datosDe(sub)?.totales as Record<string, unknown> | null)
                         const varPct = variacion(sub, v)
                         return (
                           <div key={m} className="bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-3 py-3">
@@ -632,8 +649,8 @@ export default function InformesClient({
                     <div className="flex flex-wrap items-stretch gap-2">
                       {(b.metricas ?? ['impresiones', 'clics', 'conversiones']).map((m, k, arr) => {
                         const sub: Bloque = { ...b, metrica: m }
-                        const v = valorDe(sub, datos?.totales as Record<string, unknown> | null)
-                        const prev = k > 0 ? valorDe({ ...b, metrica: arr[k - 1] }, datos?.totales as Record<string, unknown> | null) : null
+                        const v = valorDe(sub, datosDe(sub)?.totales as Record<string, unknown> | null)
+                        const prev = k > 0 ? valorDe({ ...b, metrica: arr[k - 1] }, datosDe(b)?.totales as Record<string, unknown> | null) : null
                         const cr = v !== null && prev !== null && prev > 0 ? (v / prev) * 100 : null
                         return (
                           <div key={m} className="flex items-stretch gap-2">
