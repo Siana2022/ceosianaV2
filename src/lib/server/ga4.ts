@@ -194,3 +194,61 @@ export async function metricasEmbudo(propiedad: string, desde: string, hasta: st
     aov: compras > 0 ? Number((ingresos / compras).toFixed(2)) : null,
   }
 }
+
+export interface MesGA4 {
+  mes: string
+  sesiones: number
+  usuarios: number
+  carritos: number
+  compras: number
+  ingresos: number
+  aov: number | null
+}
+
+/** Serie mensual del embudo para una propiedad. */
+export async function serieMensual(propiedad: string, desde: string, hasta: string): Promise<MesGA4[]> {
+  const token = await tokenValido()
+  if (!token) throw new Error('Google Analytics no está conectado')
+
+  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/${propiedad}:runReport`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      dateRanges: [{ startDate: desde, endDate: hasta }],
+      dimensions: [{ name: 'yearMonth' }],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'totalUsers' },
+        { name: 'addToCarts' },
+        { name: 'ecommercePurchases' },
+        { name: 'purchaseRevenue' },
+      ],
+      orderBys: [{ dimension: { dimensionName: 'yearMonth' } }],
+    }),
+  })
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    throw new Error(`Analytics respondió ${res.status}: ${t.slice(0, 120)}`)
+  }
+
+  const data = await res.json().catch(() => ({})) as {
+    rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[]
+  }
+
+  return (data.rows ?? []).map(r => {
+    const yyyymm = String(r.dimensionValues?.[0]?.value ?? '')
+    const v = (r.metricValues ?? []).map(m => Number(m.value ?? 0))
+    const compras = v[3] ?? 0
+    const ingresos = v[4] ?? 0
+    return {
+      mes: `${yyyymm.slice(0, 4)}-${yyyymm.slice(4, 6)}`,
+      sesiones: v[0] ?? 0,
+      usuarios: v[1] ?? 0,
+      carritos: v[2] ?? 0,
+      compras,
+      ingresos: Number(ingresos.toFixed(2)),
+      aov: compras > 0 ? Number((ingresos / compras).toFixed(2)) : null,
+    }
+  })
+}

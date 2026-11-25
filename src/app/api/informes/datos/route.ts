@@ -3,6 +3,7 @@ import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { llamarConTokenGuardado } from '@/lib/server/mcpGoogle'
+import { serieMensual } from '@/lib/server/ga4'
 
 // GET /api/informes/datos?id_cliente=&desde=&hasta=
 // Devuelve métricas de Google Ads del cliente agrupadas por mes y por campaña.
@@ -12,11 +13,49 @@ export async function GET(req: NextRequest) {
 
   const q = new URL(req.url).searchParams
   const idCliente = q.get('id_cliente')
+  const fuente = q.get('fuente') === 'ga4' ? 'ga4' : 'google_ads'
   const desde = q.get('desde') ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
   const hasta = q.get('hasta') ?? new Date().toISOString().slice(0, 10)
   if (!idCliente) return NextResponse.json({ error: 'id_cliente requerido' }, { status: 400 })
 
   const supabase = await createClient()
+
+  // ── GA4 ──────────────────────────────────────────────────────────────
+  if (fuente === 'ga4') {
+    const { data: cliente } = await supabase.from('clientes').select('ga4_propiedad').eq('id', idCliente).maybeSingle()
+    const propiedad = (cliente as { ga4_propiedad?: string | null } | null)?.ga4_propiedad
+    if (!propiedad) {
+      return NextResponse.json({ totales: null, motivo: 'Este cliente no tiene GA4 vinculado', porMes: [], porCampana: [] })
+    }
+    try {
+      const meses = await serieMensual(propiedad, desde, hasta)
+      const totales = meses.reduce(
+        (t, m) => ({
+          sesiones: t.sesiones + m.sesiones,
+          usuarios: t.usuarios + m.usuarios,
+          carritos: t.carritos + m.carritos,
+          compras: t.compras + m.compras,
+          ingresos: Number((t.ingresos + m.ingresos).toFixed(2)),
+        }),
+        { sesiones: 0, usuarios: 0, carritos: 0, compras: 0, ingresos: 0 },
+      )
+      return NextResponse.json({
+        fuente: 'ga4',
+        periodo: { desde, hasta },
+        totales: {
+          ...totales,
+          aov: totales.compras > 0 ? Number((totales.ingresos / totales.compras).toFixed(2)) : null,
+          cr: totales.sesiones > 0 ? Number(((totales.compras / totales.sesiones) * 100).toFixed(2)) : null,
+        },
+        anterior: null,
+        porMes: meses,
+        porCampana: [],
+      })
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Error de Google Analytics' }, { status: 502 })
+    }
+  }
+
   const { data: servicios } = await supabase.from('servicios').select('id').eq('id_cliente', idCliente)
   const ids = (servicios ?? []).map(s => s.id)
   if (ids.length === 0) return NextResponse.json({ totales: null, porMes: [], porCampana: [] })

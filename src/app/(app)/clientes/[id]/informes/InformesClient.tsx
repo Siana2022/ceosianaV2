@@ -13,6 +13,7 @@ export interface Bloque {
 }
 
 export type Metrica = 'coste' | 'conversiones' | 'cpa' | 'roas' | 'clics' | 'impresiones' | 'ctr'
+  | 'sesiones' | 'usuarios' | 'carritos' | 'compras' | 'ingresos' | 'aov' | 'cr'
 
 interface CampoCatalogo {
   variable: string
@@ -55,6 +56,13 @@ interface Datos {
 }
 
 const METRICAS: Record<Metrica, { label: string; formato: (v: number) => string }> = {
+  sesiones: { label: 'Sesiones', formato: v => v.toLocaleString('es-ES', { maximumFractionDigits: 0 }) },
+  usuarios: { label: 'Usuarios', formato: v => v.toLocaleString('es-ES', { maximumFractionDigits: 0 }) },
+  carritos: { label: 'Añadidos al carrito', formato: v => v.toLocaleString('es-ES', { maximumFractionDigits: 0 }) },
+  compras: { label: 'Compras', formato: v => v.toLocaleString('es-ES', { maximumFractionDigits: 0 }) },
+  ingresos: { label: 'Ingresos', formato: v => `${v.toLocaleString('es-ES', { maximumFractionDigits: 0 })} €` },
+  aov: { label: 'AOV', formato: v => `${v.toFixed(2)} €` },
+  cr: { label: 'Conversión (%)', formato: v => `${v.toFixed(2)} %` },
   coste: { label: 'Inversión', formato: v => `${v.toLocaleString('es-ES', { maximumFractionDigits: 0 })} €` },
   conversiones: { label: 'Conversiones', formato: v => v.toFixed(1) },
   cpa: { label: 'CPA', formato: v => `${v.toFixed(2)} €` },
@@ -97,6 +105,7 @@ export default function InformesClient({
   const [catalogo, setCatalogo] = useState<{ fuentes: FuenteCatalogo[]; campos: CampoCatalogo[] } | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [destino, setDestino] = useState<number>(-1)
+  const [fuente, setFuente] = useState<'google_ads' | 'ga4'>('google_ads')
 
   const informe = informes.find(i => i.id === activo) ?? null
   const [bloques, setBloques] = useState<Bloque[]>(informe?.config?.bloques ?? [])
@@ -112,12 +121,12 @@ export default function InformesClient({
     else desde = `${hoy.getFullYear()}-01-01`
 
     setCargando(true)
-    fetch(`/api/informes/datos?id_cliente=${idCliente}&desde=${desde}&hasta=${hasta}`)
+    fetch(`/api/informes/datos?id_cliente=${idCliente}&fuente=${fuente}&desde=${desde}&hasta=${hasta}`)
       .then(r => r.json())
       .then(d => setDatos(d))
       .catch(() => setDatos({ totales: null, porMes: [], porCampana: [], error: 'No se pudieron cargar los datos' }))
       .finally(() => setCargando(false))
-  }, [idCliente, periodo])
+  }, [idCliente, periodo, fuente])
 
   useEffect(() => {
     fetch(`/api/informes/campos?id_cliente=${idCliente}`)
@@ -222,6 +231,18 @@ export default function InformesClient({
         ))}
 
         <div className="flex gap-1 bg-[#f3f1ec] rounded-lg p-1 ml-auto">
+          {([['google_ads', 'Google Ads'], ['ga4', 'GA4']] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setFuente(k)}
+              className={`px-3 py-1 rounded text-xs font-medium ${fuente === k ? 'bg-white text-[#111] shadow-sm' : 'text-[#6f6a62]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-1 bg-[#f3f1ec] rounded-lg p-1">
           {([['30d', '30 días'], ['mes', 'Este mes'], ['ano', 'Año']] as const).map(([k, label]) => (
             <button
               key={k}
