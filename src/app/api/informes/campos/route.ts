@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
       const set = new Set((cuentas ?? []).map(c => String(c.plataforma)))
       if (!set.has('google_ads')) disponibles.google_ads = { conectada: false, motivo: 'Este cliente no tiene cuenta de Google Ads vinculada' }
       if (!set.has('meta_ads')) disponibles.meta_ads = { conectada: false, motivo: 'Este cliente no tiene cuenta de Meta vinculada' }
-      if (!set.has('ga4')) disponibles.ga4 = { conectada: false, motivo: 'Este cliente no tiene GA4 vinculado' }
     }
   }
 
