@@ -1,0 +1,183 @@
+24 SEPTIEMBRE
+
+  -​   Clientes ganados en pipeline, que se creen como cliente si no están. → Punto 1
+
+
+  -​   En las tareas, que se pueda poner hora para que se asigne en calendar bien.-->
+       Cuando se crea una nueva tarea no se puede poner hora y por tanto no se vincula
+       bien con Calendar. Tiene que vincularse fecha y hora.
+
+
+  -​   Que en el Gantt, el título de la tarea salga completo. → revisar por ejemplo ceivan
+       medical que sale con puntos suspensivos (bajar tipo o ampliar campo).​
+
+
+
+
+  -​   Que pipeline aparezca a todo el mundo en los fichajes. A carlos no le sale y tiene
+       que fichar de la propuesta. → Punto 1
+
+  -​   Las reuniones/visitas terminadas, tendrían que irse a “tareas terminadas” → cuando
+       una visita o reunion esta terminada tiene que irse a tareas terminadas, no quedar en
+       reuniones o visitas. Ahi solo las pendientes
+
+
+
+
+  -​   Cuando ficho una tarea / reunión / visita - No se me cuenta en mi fichaje ni se asigna
+       el fichaje en la ficha de cliente → Las tareas, reuniones o visitas se tiene que
+       vincular en mi fichaje si o si. Son horas que se dedican. Esto ocurre cuando se ficha
+       desde tareas.
+-​   que si te equivocas en un mensaje del chat, puedas editarlo y/o borrarlo
+
+
+
+
+-​   Que se pueda “Añadir un checklist” en las tareas. → dentro de las tareas poder
+     añadir un checklist, no solo la descripción​
+
+
+
+
+-​   Que en la tarea creada se asigne a cada responsable asignado y se asigne bien el
+     tiempo. ( se ha asignado el del play y no el manual) - - ANAIS
+
+-​   Que en la descripción de las tareas se puedan adjuntar imágenes. CAMPO WYSING
+
+-​   Enlace de slack no se guarda - ANAIS → Pendiente de comprobación, volver a
+     meter los enlaces.
+
+-​   Hacer apartado de notificaciones - - ANAIS
+-​   Fichar a todos los responsables sea tarea, reunión o visita. No se vincula si es
+     reunión o visita. - - ANAIS
+
+
+-​   Que se puede editar el nombre de una plantilla - ANAIS
+
+
+-​   Que pueda eliminar una plantilla cuando la he importado al cliente - ANAIS
+
+-​   No me deja mover las tareas del checklist, ni modificarlas. - ANAIS
+
+
+
+
+-​   He puesto una tarea a nacho y no se le notifica a pesar que le menciono en el chat -
+     Añade Anaís que no aparece quien ah puesto el comentario. Sale una línea.
+-​   El botón lateral de notificaciones no funciona - ADRI
+   -​   Que en el perfil se pueda poner la foto y aparezca la foto con el responsables o
+        responsables en la tarea y cuando hable en el chat de la tarea.- ANAIS
+
+   -​   He fichado tiempo en la tarde de Ver Esmeralda, y no se asigna al fichaje - ANAIS
+
+   -​   Que las tareas se ordenen por fecha - ANAIS
+
+
+
+
+   -​   Seleccionar quien crea una tarea además de el encargado de la tarea para saber
+        quien te hace trabajar- NACHO → Una tarea ​
+        ​
+        Esta hecho, pero hacer mas grande el creado por y ver de añadir fuera​
+
+
+
+
+GLOBAL CEO SIANA
+  -​ No me deja añadir servicios nuevos como GPTAds, en la lista no me aparece.
+
+
+29/09/26
+
+Carlos: Cuando fichas con cronometro se queda la tarea activa y no mide el tiempo.
+Además aparece en tarea terminada con tiempo y todo ok. Vamos que crea una tarea bien y
+una mal
+
+Carlos: que cuando entres en tareas salga directamente filtrado por tu persona para ver tus
+tareas
+
+
+05/10/26
+Adri: cuando creo una tarea no se notifica a quién he añadido en esta, se debería enviar
+una notificación a slack
+
+
+ANAÍS: Tener una pantalla global con todas las tareas de todos los clientes y todas las
+personas. Para tener un vistazo global un listado de tareas ordenadas por fecha. Que sirva
+para todos
+
+POSIBLES AUTOMATIZACIONES
+-​   Todos los días a las 9:00h - Mensaje a slack en el grupo con tareas pendientes,
+     responsable (que se etiquete) y fecha límite. - - ANAIS
+-​   Cuando se nombre a alguien en el chat de una tarea, - ANAIS
+        -​ que le llegue notificación por slack al grupo del cliente con enlace a la tarea.
+            Y que además.
+        -​ Que llegue a apartado notificaciones
+
+
+
+
+-​   Cuando pongo una reunión de 4 y ficho 1h, realmente son 4h, no? o tiene que
+     ficharla cada uno? - He visto que sí. PERO cuando es tarea de dos personas,
+     debería ficharse cada uno lo suyo en la misma tarea y luego hacer el sumatorio en la
+     misma tarea. ​
+
+-​   He creado una reunión con una duración de 1 hora con carlos. No nos aparece en el
+     apartado fichaje, y a Carlos no le aparece como reunión terminada ni como fichaje. -
+     ANAIS
+
+
+
+
+-​   ¿Podemos crear un servicio que sea REUNIONES o visitas? Así sabremos cuanto
+     tiempo destinamos a reuniones y visitas por cliente. Hay crear un servicio que sea
+     reuniones, asginarlo a todos por base de datos y que podemos ver el tiempo que
+     dedicamos a reuniones por clientes
+
+
+
+
+-​   Checklist de tarea. Que las flechas se vean fijas junto con la X. y un poquito más
+     grande estaría genial.
+-​   Cuando se menciona en comentarios. Que en slack:
+        -​ Ponga información de la tarea/cliente/enlace a la tarea.
+
+
+
+
+-​   Cuando pones una tarea desde fichajes, se crea la tarea en “terminadas” y te sale
+     con departamento (porque en fichaje se rellena el campo tipo de servicio) , pero te
+     sale el campo de servicio vacío en la tarea. DEPARTAMENTO Y SERVICIO ES LO
+     MISMO, o sea que cuando pongas una cosa, se tiene que rellenar el servicio con lo
+     mismo, que es lo que se vincula con los clientes. Esto urgente. ( O PONER DESDE
+     FICHAJE AMBOS CAMPOS TAMBIÉN)
+           -​   Además, que si no está el servicio/departamento puesto en cliente, no
+                aparece en el desplegable. Deberían aparecer todos, y si no está en el
+                cliente, que se cree como fila dentro de la ficha del cliente.
+
+
+
+
+   -​   Las tareas de los procesos no se vinculan con fichar. Y deberían comportarse como
+        tareas. Tanto a nivel de fichaje como a nivel de pasar al bloque de terminadas
+        cuando se termine la tarea.
+   -​   Que se puedan crear procesos directamente desde el cliente, y luego si quiero,
+        poder guardarlo.
+   -​   Los procesos deberían poder repetirse (si se quiere) mes a mes sin tener que cargar
+        la plantilla. (Ej. escribir artículos) Realmente, cuando se termine la última fase,
+        tendría que ponerse todo a fecha inicial.
+   -​   Cuando la tarea del proceso esté terminada, esa tarea individual, tendrá que pasar a
+        terminadas.
+
+
+PROCESOS
+  -​ Además de que el tiempo destinado a la tarea de dentro del proceso no se suma al
+     fichaje
+
+
+
+
+TAREAS
+  -​ Hay tareas que se ponen como diarias y también aparecen los findes, no se si se
+     puede poner solo entre semana
+

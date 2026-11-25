@@ -1,0 +1,292 @@
+GLOBAL
+
+  -​   Ampliación de letra
+  -​   Cambiar color de fondo por beige/grisecito. ( web siana)
+  -​   Apartado tareas activas, coger las columnas y centrarlas más.
+
+
+
+
+  -​   Menú lateral con los clientes ( igual que clickup)
+
+
+
+
+  -​
+
+
+
+
+  -​   Fecha de captación ( que sea real) y por años (Desde el 2023)
+          -​ Juanjo revisa
+          -​ Anais cambia fechas cuando juanjo le de el ok.
+
+  -​   Habilitar otros años para ponerlas facturaciones por servicio de cliente.
+           -​   Juanjo avisa y crea histórico /evolución en la ficha de cada cliente. A modo
+                gráfico de barras, por año. Donde aparezca facturación. Y a partir de 2025,
+                tendría que aparecer facturación con coste y rentabilidad.
+           -​   Anaís crea años anteriores.
+
+
+FICHA DE CLIENTE
+
+  -​    Revisar porcentajes de rentabilidad. Aquí en seo, tiene 3h 45 minutos y pone
+  100% de rentabilidad.
+
+
+
+
+  -Ficha de cliente, meter recuadro por % de rentabilidad. y fuera en el panel de todos los
+  clientes
+
+
+
+
+   -​   Meter bloque de evolución de facturación por año por el gráfico de barras. (Explicado
+        arriba)
+   -​   Margenes de rentabilidad. (En rojo lo que sea menos del 50%, en verde el resto)
+
+
+
+
+   -​   Cuando cambies el mes arriba, que se filtre todo, incluído el bloque Horas fichadas
+        automáticamente.
+
+CLIENTE GLOBAL
+
+Mover columna de coste/hora al lado de coste de personal.
+
+
+INTERNA DE CADA SERVICIO
+Que salgan todos los clientes y que si queremos, ver desglose con un desplegable.
+
+
+
+
+   -​   Quitar responsables, ya no existen. ( Bloque Proyectos y servicios eliminar)
+   -​   Que la evolución mensual sea en gráfico de barras, no en tabla.
+
+   -​   Revisar interna de HOSTING.
+
+
+___________________________
+
+
+   -​   No coge fichajes de tiempo en Meta Ads. (ver verde, prolaboral…) en servicios.
+   -​   En verde Esmeralda, en el bloque “rentabilidad por servicio” debería estar aglutinado
+        todo meta Ads, todo web, No? O si no que en el bloque tambien saliera si es
+        meta-España, Meta USA…
+   -​   En / fichar y / análisis de equipo, me salen fichadas las tareas de ejemplo que había
+        borrado de tareas, ¿Eso se cuenta como fichaje?
+   -​   ¿Me puedo conectar ceosiana con claude?
+   -​   Se puede hacer como un bloque dentro de cada cliente en plan “ convertidor real”
+        donde:
+            -​ Se le reste a cada servicio facturado un 10%
+            -​ Se sume ese 10% en una partida que sea project.
+            -​ Se hagan los cálculos de rentabilidad con las horas en base a eso y las horas
+                de project destinadas.
+Panel personal del empleado en Ceosiana
+
+Idea​
+Cada persona de Siana tiene su propio panel con su trabajo: los clientes que lleva, sus
+proyectos de especialidad, sus tareas, su agenda, su comunicación (correo y Slack) y sus
+entregas. Los datos de cliente son comunes a la agencia, pero cada uno ve primero lo que
+le toca. Claude está integrado en toda la app para consultar y ayudar.
+
+Estructura: proyecto principal del cliente y proyectos de cada profesional
+
+Cada cliente tiene un proyecto principal (global). Dentro de él, como subproyectos, van los
+proyectos de cada profesional según su especialidad o plataforma:
+
+
+  None‎
+  Cliente: Olympikus
+
+   └── Proyecto principal · Olympikus                     (responsable de cuenta)
+
+          ├── Google Ads · Olympikus                      (experto en Google Ads)
+
+          ├── Meta Ads · Olympikus                        (experto en Meta)
+
+          ├── TikTok Ads · Olympikus                      (experto en TikTok)
+
+          ├── Analítica · Olympikus                       (experto en Analítica)
+
+          ├── SEO · Olympikus                             (experto en SEO)
+
+          └── Redes sociales · Olympikus                  (experto en redes)
+
+
+   ●​ El proyecto principal reúne lo común del cliente: responsable de cuenta, objetivos,
+      presupuesto total, calendario de acciones, base de conocimiento y portal del cliente.
+   ●​ Cada subproyecto tiene su experto responsable, sus tareas, los datos de su
+      plataforma, su registro de cambios y su propia visibilidad para el cliente.
+   ●​ El subproyecto hereda del principal el cliente, el equipo, las fechas clave y el acceso
+      al conocimiento común. El principal suma todo lo de sus subproyectos.
+   ●​ Un mismo profesional puede llevar varias especialidades del mismo cliente; en mi
+      caso, Google Ads y Analítica.
+   ●​ Un solo nivel de anidación: proyecto principal → subproyectos. Las partes más
+      pequeñas (por ejemplo, la campaña de Black Friday dentro de Meta Ads) se
+      gestionan como campañas o acciones.
+   ●​ Lista de especialidades ampliable: LinkedIn Ads, Pinterest Ads, Amazon Ads,
+      email… se añaden igual cuando haga falta.
+
+Contenido de cada subproyecto
+   ●​ Google Ads: cuentas vinculadas (por la MCC), inversión, conversiones, CPA/ROAS,
+      alertas, registro de cambios con el porqué, pruebas en curso y tareas.
+   ●​ Meta Ads (Facebook e Instagram): cuentas publicitarias del Business Manager,
+      inversión, resultados, CPA/ROAS, frecuencia y fatiga de creatividades, estado del
+      píxel y la API de conversiones, registro de cambios y tareas.
+   ●​ TikTok Ads: cuentas del Business Center, inversión, resultados, CPA/ROAS,
+      rendimiento de creatividades y Spark Ads, estado del píxel, registro de cambios y
+      tareas.
+   ●​ Analítica: propiedades de GA4 y contenedores de Tag Manager, conversiones
+      configuradas, incidencias de medición, cambios de etiquetado y tareas.
+   ●​ Resto de especialidades: el mismo esquema, con los datos de su herramienta,
+      registro de cambios, tareas y notas.
+
+Lo que se anota en un subproyecto se ve también en el proyecto principal, para que todo el
+equipo del cliente tenga el contexto.
+
+Vista conjunta de publicidad en el proyecto principal​
+ Resumen de todas las plataformas de pago del cliente (Google, Meta, TikTok…): inversión
+total frente a presupuesto, resultados y coste por resultado por plataforma, y tendencia
+mensual. Sirve para ver de un vistazo dónde rinde mejor la inversión y para el informe al
+cliente.
+
+Qué incluye el panel personal
+
+   1.​ Hoy. Resumen personal al entrar:​
+
+           ○​ mis reuniones;
+           ○​ mis tareas de hoy y las vencidas;
+           ○​ los correos y las menciones de Slack que esperan respuesta;
+           ○​ mis entregas próximas;
+           ○​ las alertas de mis especialidades (Google Ads, Meta, TikTok, Analítica…).
+   2.​ Mi especialidad. Todos mis subproyectos de todos mis clientes, juntos:​
+
+          ○​ Plataformas de publicidad (Google Ads, Meta, TikTok): todas mis cuentas con
+              inversión, coste por resultado y alertas, ordenadas por urgencia.
+          ○​ Analítica: todas mis propiedades con su estado de medición e incidencias
+              abiertas.
+          ○​ Mis tareas y cambios pendientes por especialidad.
+   3.​ Mis tareas. Las asignadas en Ceosiana, ordenadas por vencimiento y con alta rápida
+       desde cualquier pantalla.​
+
+   4.​ Calendario. Mi semana, con reuniones, tareas y las acciones de mis subproyectos, y
+       el cliente identificado en cada una.​
+
+   5.​ Correo con clientes.​
+
+          ○​ Bandeja solo con mis clientes, separada en «te esperan» y «esperas tú».
+          ○​ Leer, responder y escribir correos desde la app, con mi cuenta de Gmail y
+               manteniendo el hilo, los adjuntos y la firma.
+          ○​ Borradores con Claude, que usan el contexto del cliente y se pueden ajustar
+               de tono.
+          ○​ Nada se envía sin que el usuario pulse Enviar. También se puede guardar
+               como borrador en Gmail.
+          ○​ Lo enviado queda en el historial del cliente, y desde cualquier correo se
+               puede crear una tarea o una nota.
+   6.​ Slack.​
+
+           ○​ Canal del cliente dentro de su ficha, enlazado desde Ceosiana, con sus
+               mensajes recientes.
+           ○​ Menciones y mensajes directos sin responder en «Hoy», agrupados por
+               cliente.
+           ○​ Responder y escribir desde la app con mi propia cuenta de Slack.
+           ○​ Desde cualquier mensaje se puede crear una tarea o guardar una decisión
+               en el conocimiento, con enlace al mensaje original.
+           ○​ Avisos al canal del cliente: entrega lista, aprobación en el portal o alerta de
+               una plataforma. Siempre con confirmación o según la regla que defina el
+               responsable.
+   7.​ Mis clientes. Solo los que tengo asignados, más un buscador para el resto. Cada
+       ficha muestra el proyecto principal y sus subproyectos, con tareas del equipo,
+       correos, canal de Slack y base de conocimiento.​
+
+   8.​ Campañas. Lanzamientos de cada cliente (Black Friday, Navidad…) con fechas
+       clave, piezas por canal y plataforma (anuncios de Google, Meta y TikTok, landings,
+       emails, posts) y avance («12 de 30 piezas listas»). Cada pieza tiene un responsable
+       y una especialidad.​
+
+   9.​ Entregas. Lo que tengo que entregar o tengo pendiente de aprobación (informes,
+       creatividades, propuestas), con contador en el menú.​
+
+   10.​Reuniones. Antes, el contexto del cliente; después, el acta y los acuerdos, que se
+       convierten en tareas y en notas de conocimiento.​
+
+
+Calendario de acciones por cliente
+
+En el proyecto principal de cada cliente hay un calendario con todas las acciones
+planificadas, de todos sus subproyectos:
+
+   ●​ Fechas clave del cliente y lanzamientos de campañas (rebajas, Black Friday,
+      Navidad, temporada).
+   ●​ Acciones de cada especialidad: optimizaciones y cambios de presupuesto en
+      Google, Meta y TikTok, cambios de creatividades, implementaciones de Analítica,
+      publicaciones…
+   ●​ Entregas, informes y reuniones.
+Cada acción lleva su especialidad o plataforma (con un color o una etiqueta), su
+responsable, su fecha y su estado (planificada, en curso, hecha). Se puede ver por mes o
+como línea de tiempo, y filtrar por especialidad. Las acciones que me tocan aparecen
+también en mi calendario personal, y en el portal del cliente se muestra la parte marcada
+como compartida.
+
+Asistente Claude
+
+   ●​ Disponible en toda la app: un botón «Pregunta» siempre visible y, dentro de cada
+      cliente o subproyecto, un chat que ya conoce ese contexto.
+   ●​ Responde con datos reales: tareas, agenda, correos, mensajes de Slack, campañas,
+      acciones, entregas, base de conocimiento y métricas de todas las plataformas.
+      Ejemplos:
+          ○​ «¿Qué tengo pendiente con Seridom?»
+          ○​ «Resume el último mes de Olympikus en todas las plataformas»
+          ○​ «¿Dónde rinde mejor la inversión de Olympikus, en Google, Meta o TikTok?»
+          ○​ «¿Qué creatividades de Meta muestran fatiga?»
+          ○​ «¿Hay alguna incidencia de medición en mis propiedades?»
+   ●​ Además de responder, ayuda a hacer: redacta correos y mensajes de Slack, prepara
+      reuniones, resume hilos, crea tareas, notas o acciones y prepara el informe mensual.
+      Toda acción la confirma el usuario.
+   ●​ Respeta los permisos: solo usa lo que ese empleado puede ver.
+   ●​ Cita sus fuentes, para poder comprobarlo.
+
+Compartido con la agencia
+
+   ●​ Conocimiento: decisiones, aprendizajes, briefs y registros de cambios de cada
+      especialidad, visibles para quien trabaja con ese cliente.
+   ●​ Portal del cliente: lo gestiona el responsable de cuenta desde el proyecto principal.
+      El cliente ve el avance de sus proyectos, los resultados por plataforma y en conjunto,
+      el calendario de acciones compartido, las aprobaciones pendientes (que puede
+      aprobar o comentar) y la base de conocimiento común. Nunca ve lo interno: fee,
+      horas, notas internas, correos ni Slack.
+
+Datos y permisos
+
+   ●​ Ceosiana: empleados y sus especialidades, clientes asignados, proyectos y
+      subproyectos, canales de Slack de cada cliente, tareas, fichajes y dedicación. Hay
+      que confirmar que admite proyectos dentro de proyectos o añadir un campo
+      «proyecto principal».
+   ●​ Google Workspace: cada empleado conecta su Gmail (leer y enviar) y su Calendar,
+      con OAuth individual.
+   ●​ Slack: cada empleado conecta su cuenta, con OAuth individual. La app solo ve los
+      canales y mensajes a los que esa persona tiene acceso.
+   ●​ Google Ads: acceso a través de la MCC de Siana, limitado a los clientes asignados.
+   ●​ Meta Ads: acceso a través del Business Manager de Siana (cuentas publicitarias
+      compartidas con la agencia), limitado a los clientes asignados.
+   ●​ TikTok Ads: acceso a través del Business Center de Siana, limitado a los clientes
+      asignados.
+   ●​ Google Analytics y Tag Manager: acceso con la cuenta de cada experto, limitado a
+      sus propiedades.
+   ●​ Claude: API de Anthropic, llamada desde el servidor de la app con el contexto y los
+      permisos del usuario.
+   ●​ Roles:
+         ○​ experto: su panel y sus subproyectos;
+         ○​ responsable de cuenta: además, el proyecto principal, la vista conjunta de
+             publicidad, el portal del cliente y los avisos a Slack;
+         ○​ dirección: además, una vista global del equipo.
+
+Requisitos
+
+   ●​ Diseño adaptado a escritorio y móvil.
+   ●​ Marca Siana.
+

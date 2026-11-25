@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 // POST → crear informe
 export async function POST(req: NextRequest) {
   const perfil = await getPerfil()
-  if (perfil?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores' }, { status: 403 })
+  if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
   const { id_cliente, nombre, descripcion, tipo } = body as {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 // PATCH → guardar configuración del informe
 export async function PATCH(req: NextRequest) {
   const perfil = await getPerfil()
-  if (perfil?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores' }, { status: 403 })
+  if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest) {
 // DELETE
 export async function DELETE(req: NextRequest) {
   const perfil = await getPerfil()
-  if (perfil?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores' }, { status: 403 })
+  if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })

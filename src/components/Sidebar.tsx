@@ -72,6 +72,7 @@ const MENU_EMPLEADO: MenuItem[] = [
   { href: '/tareas',    label: 'Tareas',         icon: '🗂️' },
   { href: '/fichar',    label: 'Fichar',         icon: '🕐' },
   { href: '/editorial', label: 'Editorial',      icon: '📅' },
+  { href: '/informes',  label: 'Informes',       icon: '📋' },
   { href: '/alertas',   label: 'Notificaciones', icon: '🔔' },
   { href: '/perfil',    label: 'Mi perfil',      icon: '👤' },
 ]

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUB v2 · prototipo</title>
+<style>
+  :root{
+    --bg:#E4E2DC; --panel:#EBE9E3; --panel2:#F5F3EE; --line:#D8D4CB; --line2:#C8C4BD;
+    --ink:#111; --muted:#6B6B66; --soft:#8A8781; --blue:#2563EB; --purple:#7C3AED; --green:#059669;
+  }
+  html,body{height:100%}
+  body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column}
+  header.bar{display:flex;align-items:center;gap:14px;padding:10px 18px;background:#111;color:#fff;font-size:13px;flex-shrink:0}
+  header.bar .tag{background:#F7415C;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  header.bar strong{font-weight:600}
+  header.bar .muted{color:#8b8b8b}
+  header.bar .spacer{flex:1}
+  header.bar label{display:flex;align-items:center;gap:6px;color:#cfcfcf}
+  header.bar select{background:#222;color:#fff;border:1px solid #444;border-radius:6px;padding:4px 8px;font-size:12px}
+
+  .app{flex:1;display:flex;min-height:0}
+  aside{width:236px;flex:0 0 236px;background:#111;color:#fff;padding:16px 10px;display:flex;flex-direction:column;gap:16px;overflow:auto}
+  aside .brand{font-weight:700;letter-spacing:.4px;font-size:15px;padding:0 8px;color:#fff}
+  aside .brand small{display:block;color:#8b8b8b;font-weight:400;font-size:11px;letter-spacing:0}
+  aside nav{display:flex;flex-direction:column;gap:2px}
+  aside .sec{color:#7d7d7d;font-size:11px;letter-spacing:.08em;padding:10px 8px 4px}
+  aside a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;color:#d8d8d8;text-decoration:none;font-size:14px}
+  aside a:hover{background:#232323;color:#fff}
+  aside a.on{background:#2D2B28;color:#fff;box-shadow:inset 3px 0 0 var(--blue)}
+
+  main{flex:1;min-width:0;overflow:auto;padding:22px 26px}
+
+  h1{font-size:24px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .crumb{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .crumb a{color:var(--blue);text-decoration:none}
+
+  /* KPIs grandes, a todo el ancho */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-height:104px;display:flex;flex-direction:column;justify-content:center}
+  .kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+  .kpi .value{font-size:34px;line-height:1.15;font-weight:700;color:var(--ink);margin-top:2px}
+  .kpi .hint{font-size:12px;color:var(--soft);margin-top:2px}
+  .kpi.money .value{color:var(--green)}
+
+  /* Secciones plegables */
+  details.section{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:14px;overflow:hidden}
+  details.section > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:14px 18px;font-weight:600;font-size:15px}
+  details.section > summary::-webkit-details-marker{display:none}
+  details.section > summary .chev{color:var(--soft);transition:transform .15s;font-size:12px}
+  details.section[open] > summary .chev{transform:rotate(90deg)}
+  details.section > summary .count{margin-left:auto;font-size:12px;color:var(--softer,#8A8781);font-weight:500}
+  details.section .content{padding:0 18px 16px}
+
+  .t{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .t:last-child{border-bottom:0}
+  .badge{font-size:10px;padding:2px 7px;border-radius:999px;white-space:nowrap}
+  .b-espera{background:#ddd8cf;color:#4a4640}
+  .b-proceso{background:#dbeafe;color:#1e40af}
+  .b-bloqueada{background:#fee2e2;color:#991b1b}
+  .b-terminado{background:#d1fae5;color:#065f46}
+  .tname{flex:1;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tdate{font-size:11.5px;color:var(--soft)}
+
+  .btn{background:#111;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line2)}
+
+  .frame{border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#0b0b0b}
+  .frame .bar2{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#151515;color:#9a9a9a;font-size:11px}
+  .frame .bar2 .dot{width:8px;height:8px;border-radius:50%;background:#3a3a3a}
+  .frame iframe{display:block;width:100%;height:1180px;border:0;background:#0b0b0b}
+
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+  .client{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;cursor:pointer;text-decoration:none;color:var(--ink)}
+  .client:hover{border-color:var(--line2);background:var(--panel2)}
+  .client b{font-weight:600}
+  .client span{color:var(--soft);font-size:12px}
+  .note{background:#FEF3C7;border:1px solid #FCD34D;color:#78350F;border-radius:8px;padding:10px 12px;font-size:12px;margin-top:14px}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <span class="tag">PROTOTIPO</span>
+  <strong>HUB v2</strong>
+  <span class="muted">Creative Lab dentro de ceosiana</span>
+  <span class="spacer"></span>
+  <label>Ver como
+    <select id="rol" onchange="cambiarRol()">
+      <option value="admin">Juanjo / Anaís (dirección)</option>
+      <option value="empleado">Especialista</option>
+    </select>
+  </label>
+</header>
+
+<div class="app">
+  <aside id="side"></aside>
+  <main id="main"></main>
+</div>
+
+<script>
+const CLIENTES = [
+  {id:'ceivan', nombre:'Ceivan Medical', tareas:[
+    {n:'Revisar CPA de campaña Implantes', e:'proceso', d:'Hoy'},
+    {n:'Subir creatividades Black Friday', e:'espera', d:'18 nov'},
+    {n:'Pausar Display por bajo rendimiento', e:'terminado', d:'4 nov'},
+  ]},
+  {id:'alba', nombre:'Grupo Alba', tareas:[
+    {n:'Enviar presupuesto Q1 revisado', e:'bloqueada', d:'Ayer'},
+    {n:'Documentar decisiones de la reunión', e:'espera', d:'Hoy'},
+  ]},
+  {id:'verde', nombre:'Verde Hogar', tareas:[
+    {n:'Preparar informe mensual de octubre', e:'proceso', d:'Hoy'},
+    {n:'Añadir negativas del informe de búsquedas', e:'espera', d:'Jue'},
+  ]},
+];
+
+let rol='admin';
+let vista={pantalla:'hub', cliente:null};
+
+function cambiarRol(){ rol=document.getElementById('rol').value; render(); }
+function irHub(){ vista={pantalla:'hub', cliente:null}; render(); }
+function abrir(id){ vista={pantalla:'cliente', cliente:id}; render(); }
+
+function sidebar(){
+  const admin = rol==='admin';
+  const items = admin
+    ? [['Dashboard','📊'],['Hub','🧭'],['Tareas','🗂️'],['Fichar','🕐'],['Pipeline','🔮'],['Editorial','📅']]
+    : [['Hub','🧭'],['Tareas','🗂️'],['Fichar','🕐'],['Notificaciones','🔔']];
+  return `
+    <div class="brand">CEOSIANA<small>${admin?'Panel de dirección':'Control de tiempos'}</small></div>
+    <nav>${items.map(([t,i])=>`<a href="#" class="${t==='Hub'?'on':''}" onclick="irHub();return false"><span>${i}</span>${t}</a>`).join('')}</nav>
+    <div class="sec">CLIENTES</div>
+    ${CLIENTES.map(c=>`<a href="#" onclick="abrir('${c.id}');return false">${c.nombre}</a>`).join('')}
+  `;
+}
+
+function kpis(c){
+  const admin = rol==='admin';
+  const abiertas = c.tareas.filter(t=>t.e!=='terminado').length;
+  const base = [
+    {label:'Tareas abiertas', value:abiertas, hint:'de 3 en total'},
+    {label:'Horas este mes', value:'7h 20m', hint:'registradas a este cliente'},
+    {label:'Servicios activos', value:'2', hint:'Google Ads · Meta Ads'},
+  ];
+  if (admin) base.push({label:'Facturación mes', value:'9.000 €', hint:'MRR 3.000 €', money:true});
+  return `<div class="kpis">${base.map(k=>`
+    <div class="kpi ${k.money?'money':''}">
+      <span class="label">${k.label}</span>
+      <span class="value">${k.value}</span>
+      <span class="hint">${k.hint}</span>
+    </div>`).join('')}</div>`;
+}
+
+function filas(c){
+  return c.tareas.map(t=>`<div class="t">
+    <span class="badge b-${t.e}">${({espera:'En espera',proceso:'En proceso',bloqueada:'Bloqueada',terminado:'Terminada'})[t.e]}</span>
+    <span class="tname">${t.n}</span><span class="tdate">${t.d}</span>
+  </div>`).join('');
+}
+
+function pantallaHub(){
+  return `
+    <h1>Hub</h1>
+    <p class="sub">Elige un cliente</p>
+    <div class="grid">
+      ${CLIENTES.map(c=>`<a class="client" href="#" onclick="abrir('${c.id}');return false">
+        <b>${c.nombre}</b><span>${c.tareas.filter(t=>t.e!=='terminado').length} tareas</span></a>`).join('')}
+    </div>
+  `;
+}
+
+function pantallaCliente(){
+  const c = CLIENTES.find(x=>x.id===vista.cliente) || CLIENTES[0];
+  const admin = rol==='admin';
+  const abiertas = c.tareas.filter(t=>t.e!=='terminado').length;
+  return `
+    <div class="crumb"><a href="#" onclick="irHub();return false">Hub</a> · ${c.nombre}</div>
+
+    ${kpis(c)}
+
+    <details class="section" open>
+      <summary><span class="chev">▶</span> Tareas del cliente <span class="count">${abiertas} abiertas</span></summary>
+      <div class="content">
+        ${filas(c)}
+        <div style="margin-top:12px"><button class="btn ghost">+ Nueva tarea</button></div>
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary><span class="chev">▶</span> Creative Lab <span class="count">evaluar piezas y biblioteca</span></summary>
+      <div class="content">
+        <div class="frame">
+          <div class="bar2">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span style="margin-left:8px">Creative Lab · ${c.nombre}</span>
+            <a href="creative-lab.html" target="_blank" rel="noreferrer" style="margin-left:auto;color:#9ecbff;text-decoration:none">Abrir a pantalla completa ↗</a>
+          </div>
+          <iframe src="creative-lab.html?proyecto=ceivan-meta" title="Creative Lab" scrolling="no"></iframe>
+        </div>
+      </div>
+    </details>
+
+    ${admin?`
+    <details class="section">
+      <summary><span class="chev">▶</span> Conocimiento del cliente <span class="count">2 notas</span></summary>
+      <div class="content">
+        <div class="t"><span class="badge b-proceso">Decisión</span><span class="tname">Pausamos Display: CPA 38€ vs objetivo 25€</span><span class="tdate">4 nov</span></div>
+        <div class="t"><span class="badge b-espera">Aprendizaje</span><span class="tname">Vídeos de 15s rinden mejor en PMax que estáticos</span><span class="tdate">28 oct</span></div>
+      </div>
+    </details>`:''}
+  `;
+}
+
+function render(){
+  document.getElementById('side').innerHTML = sidebar();
+  document.getElementById('main').innerHTML = vista.pantalla==='hub' ? pantallaHub() : pantallaCliente();
+}
+render();
+</script>
+</body>
+</html>
