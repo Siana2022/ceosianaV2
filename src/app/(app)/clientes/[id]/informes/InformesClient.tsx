@@ -463,11 +463,21 @@ export default function InformesClient({
                     )}
                   </div>
 
-                  {b.tipo === 'kpi' && (
-                    <p className="text-3xl font-bold text-[#111]">
-                      {typeof total === 'number' ? formatoDe(b)(total) : '—'}
-                    </p>
-                  )}
+                  {b.tipo === 'kpi' && (() => {
+                    const varPct = variacion(b, total)
+                    return (
+                      <div>
+                        <p className="text-[42px] leading-none font-bold text-[#111]">
+                          {typeof total === 'number' ? formatoDe(b)(total) : '—'}
+                        </p>
+                        {varPct !== null && (
+                          <p className={`text-xs mt-2 ${varPct >= 0 ? 'text-[#0f7a3d]' : 'text-[#b91c1c]'}`}>
+                            {varPct >= 0 ? '▲' : '▼'} {Math.abs(varPct).toFixed(1)} %
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {b.tipo === 'serie' && (
                     <div className="flex items-end gap-1 h-32">
@@ -506,17 +516,19 @@ export default function InformesClient({
                   )}
 
                   {b.tipo === 'kpis' && (
-                    <div className="flex flex-wrap gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                       {(b.metricas ?? ['coste', 'conversiones', 'cpa', 'roas']).map(m => {
                         const sub: Bloque = { ...b, metrica: m }
                         const v = valorDe(sub, datos?.totales as Record<string, unknown> | null)
                         const varPct = variacion(sub, v)
                         return (
-                          <div key={m} className="min-w-28">
-                            <p className="text-[11px] text-[#8a847a]">{METRICAS[m]?.label ?? m}</p>
-                            <p className="text-2xl font-bold text-[#111]">{v === null ? '—' : formatoDe(sub)(v)}</p>
+                          <div key={m} className="bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-3 py-3">
+                            <p className="text-[10px] uppercase tracking-wide text-[#8a847a]">{METRICAS[m]?.label ?? m}</p>
+                            <p className="text-xl font-bold text-[#111] mt-1 leading-tight">{v === null ? '—' : formatoDe(sub)(v)}</p>
                             {varPct !== null && (
-                              <p className="text-[11px] text-[#6f6a62]">{varPct >= 0 ? '▲' : '▼'} {Math.abs(varPct).toFixed(1)} %</p>
+                              <p className={`text-[10px] mt-1 ${varPct >= 0 ? 'text-[#0f7a3d]' : 'text-[#b91c1c]'}`}>
+                                {varPct >= 0 ? '▲' : '▼'} {Math.abs(varPct).toFixed(1)} %
+                              </p>
                             )}
                           </div>
                         )
@@ -525,20 +537,24 @@ export default function InformesClient({
                   )}
 
                   {b.tipo === 'embudo' && (
-                    <div className="space-y-1">
+                    <div className="flex flex-wrap items-stretch gap-2">
                       {(b.metricas ?? ['impresiones', 'clics', 'conversiones']).map((m, k, arr) => {
                         const sub: Bloque = { ...b, metrica: m }
                         const v = valorDe(sub, datos?.totales as Record<string, unknown> | null)
                         const prev = k > 0 ? valorDe({ ...b, metrica: arr[k - 1] }, datos?.totales as Record<string, unknown> | null) : null
                         const cr = v !== null && prev !== null && prev > 0 ? (v / prev) * 100 : null
                         return (
-                          <div key={m} className="flex items-center gap-2">
-                            <span className="w-28 text-xs text-[#6f6a62]">{METRICAS[m]?.label ?? m}</span>
-                            <div className="flex-1 bg-[#f3f1ec] rounded h-6 overflow-hidden">
-                              <div className="h-full bg-[#3B63FB]" style={{ width: `${v && prev && prev > 0 ? Math.min((v / prev) * 100 * 3, 100) : 40}%` }} />
+                          <div key={m} className="flex items-stretch gap-2">
+                            {k > 0 && (
+                              <div className="flex flex-col items-center justify-center px-1">
+                                <span className="text-[10px] text-[#6f6a62]">{cr === null ? '' : `${cr.toFixed(1)} %`}</span>
+                                <span className="text-[#c9c4bb]">→</span>
+                              </div>
+                            )}
+                            <div className="bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-4 py-3 min-w-32">
+                              <p className="text-[10px] uppercase tracking-wide text-[#8a847a]">{METRICAS[m]?.label ?? m}</p>
+                              <p className="text-lg font-bold text-[#111] mt-0.5">{v === null ? '—' : formatoDe(sub)(v)}</p>
                             </div>
-                            <span className="w-24 text-right text-sm text-[#111]">{v === null ? '—' : formatoDe(sub)(v)}</span>
-                            <span className="w-16 text-right text-[11px] text-[#8a847a]">{cr === null ? '' : `${cr.toFixed(1)} %`}</span>
                           </div>
                         )
                       })}
