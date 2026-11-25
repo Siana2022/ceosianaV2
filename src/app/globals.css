@@ -173,3 +173,15 @@ textarea::placeholder { color: #9B978E; }
 [class*="text-amber-500/"] {
   color: #111111 !important;
 }
+
+/* Amarillos claros (avisos) → negro sobre el fondo beige */
+.text-yellow-200,
+.text-yellow-300,
+.text-yellow-400,
+.text-yellow-500,
+[class*="text-yellow-200/"],
+[class*="text-yellow-300/"],
+[class*="text-yellow-400/"],
+[class*="text-yellow-500/"] {
+  color: #111111 !important;
+}

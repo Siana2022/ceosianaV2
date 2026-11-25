@@ -470,8 +470,8 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
           <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-4 flex items-start gap-3">
             <span className="text-yellow-400 text-lg mt-0.5">⚠️</span>
             <div className="flex-1 min-w-0">
-              <p className="text-yellow-300 font-semibold text-sm">Timer abierto sin cerrar</p>
-              <p className="text-yellow-200/70 text-xs mt-0.5 line-clamp-2">
+              <p className="text-[#111] font-semibold text-sm">Timer abierto sin cerrar</p>
+              <p className="text-[#3a352f] text-xs mt-0.5 line-clamp-2">
                 Llevas <strong>{Math.floor(orphanWarning.mins / 60) > 0 ? `${Math.floor(orphanWarning.mins / 60)}h ${orphanWarning.mins % 60}m` : `${orphanWarning.mins}m`}</strong> en: &ldquo;{orphanWarning.desc}&rdquo;
               </p>
               <div className="flex gap-2 mt-2">
@@ -480,7 +480,7 @@ function TabFichar({ perfil, empleadoNombre, servicios, departamentos, clientes,
                   ⏹ Parar ahora
                 </button>
                 <button onClick={() => setOrphanWarning(null)}
-                  className="text-yellow-400/70 hover:text-yellow-300 text-xs px-2 py-1 rounded-lg hover:bg-yellow-500/10 transition-colors">
+                  className="text-[#6f6a62] hover:text-[#111] text-xs px-2 py-1 rounded-lg hover:bg-yellow-500/10 transition-colors">
                   Ignorar
                 </button>
               </div>
