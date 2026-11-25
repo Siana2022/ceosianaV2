@@ -502,7 +502,16 @@ export default function InformesClient({
             })}
           </div>
 
-          {datos?.error && <p className="px-6 py-3 text-red-600 text-xs border-t border-[#e6e1d8]">{datos.error}</p>}
+          {datos?.error && (
+            <div className="px-6 py-3 border-t border-[#e6e1d8] text-xs">
+              <span className="text-red-600">{datos.error}</span>
+              {datos.error.includes('Google Ads') && (
+                <a href={`/clientes/${idCliente}/hub`} className="ml-2 text-[#2c6fd0] underline">
+                  Ir al hub a reconectar
+                </a>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -273,11 +273,16 @@ export async function llamarConTokenGuardado(
     if (!con?.refresh_token || !con?.token_endpoint || !con?.client_id) {
       throw new Error('La conexión de Google Ads necesita volver a autorizarse')
     }
-    const t = await renovarToken({
-      tokenEndpoint: String(con.token_endpoint),
-      clientId: String(con.client_id),
-      refreshToken: String(con.refresh_token),
-    })
+    let t: Tokens
+    try {
+      t = await renovarToken({
+        tokenEndpoint: String(con.token_endpoint),
+        clientId: String(con.client_id),
+        refreshToken: String(con.refresh_token),
+      })
+    } catch {
+      throw new Error('La conexión de Google Ads ha caducado. Vuelve a conectarla desde el hub del cliente.')
+    }
     await admin
       .from('mcp_conexiones')
       .update({
