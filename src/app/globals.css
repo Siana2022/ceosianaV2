@@ -191,3 +191,14 @@ textarea::placeholder { color: #9B978E; }
 .informe-bloque * {
   color: inherit !important;
 }
+
+/* Impresión del informe a PDF */
+@media print {
+  [data-app-shell] > aside,
+  [data-app-shell] > nav,
+  .no-print { display: none !important; }
+  [data-app-shell] { display: block !important; background: #fff !important; }
+  [data-app-main] { overflow: visible !important; }
+  body { background: #fff !important; }
+  @page { size: A4 landscape; margin: 8mm; }
+}

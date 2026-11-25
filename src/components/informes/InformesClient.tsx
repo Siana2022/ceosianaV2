@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { evaluarFormula, variablesDeFila } from '@/lib/informes/formula'
 
 export interface Bloque {
   id: string
-  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas' | 'kpis' | 'embudo' | 'texto' | 'imagen'
+  tipo: 'kpi' | 'serie' | 'tabla' | 'campanas' | 'kpis' | 'embudo' | 'texto' | 'imagen' | 'combinado'
   titulo: string
   metrica: Metrica
   metricas?: Metrica[]
@@ -141,6 +141,10 @@ export default function InformesClient({
   const [busqueda, setBusqueda] = useState('')
   const [destino, setDestino] = useState<number>(-1)
   const [fuente, setFuente] = useState<'google_ads' | 'ga4'>('google_ads')
+
+  const searchParams = useSearchParams()
+  const quiereImprimir = searchParams.get('imprimir') === '1'
+  const [impreso, setImpreso] = useState(false)
 
   const informe = informes.find(i => i.id === activo) ?? null
   const [paginas, setPaginas] = useState<Pagina[]>(
@@ -291,6 +295,15 @@ export default function InformesClient({
       return { ...b, w: Math.max(140, snap(drag.w + dx)), h: Math.max(80, snap(drag.h + dy)) }
     }))
   }
+
+  useEffect(() => {
+    if (!quiereImprimir || impreso) return
+    const listo = !cargando && (metricasGA4.length === 0 || datosGa4 !== null || datosGa4 === undefined)
+    if (!listo) return
+    setImpreso(true)
+    const t = setTimeout(() => window.print(), 700)
+    return () => clearTimeout(t)
+  }, [quiereImprimir, impreso, cargando, datosGa4, metricasGA4.length])
 
   const seleccionar = (inf: Informe) => {
     setActivo(inf.id)
@@ -471,7 +484,13 @@ export default function InformesClient({
                   </>
                 ) : (
                   <>
-                    <button onClick={() => setEditando(true)} className="bg-[#111] text-white rounded-lg px-3 py-1.5 text-sm font-medium">Editar bloques</button>
+                    <button
+                      onClick={() => window.open(`/informes/${idCliente}?imprimir=1`, '_blank')}
+                      className="bg-white border border-[#d8d3c9] text-[#111] rounded-lg px-3 py-1.5 text-sm font-medium no-print"
+                    >
+                      PDF
+                    </button>
+                    <button onClick={() => setEditando(true)} className="bg-[#111] text-white rounded-lg px-3 py-1.5 text-sm font-medium no-print">Editar bloques</button>
                     <button onClick={borrar} className="text-red-600 text-sm px-2">Borrar</button>
                   </>
                 )}
@@ -490,6 +509,7 @@ export default function InformesClient({
                 ['serie', '▮ Serie mensual'],
                 ['tabla', '▦ Tabla mensual'],
                 ['campanas', '▤ Tabla de campañas'],
+                ['combinado', '▥ Barras + línea'],
                 ['kpis', '≡ Fila de KPIs'],
                 ['embudo', '⇩ Embudo'],
                 ['texto', 'T Texto'],
@@ -956,6 +976,59 @@ export default function InformesClient({
                       })}
                     </div>
                   )}
+
+                  {b.tipo === 'combinado' && (() => {
+                    const [m1, m2] = (b.metricas ?? ['coste', 'valor']) as Metrica[]
+                    const mLinea = (b.metricas?.[2] ?? 'roas') as Metrica
+                    const filas = mesesDe(b)
+                    if (filas.length === 0) return <p className="text-[#8a847a] text-sm">Sin datos en el periodo</p>
+
+                    const w = Math.max(360, filas.length * 46)
+                    const h = 180
+                    const pad = 8
+                    const anchoBarra = Math.min(14, (w - pad * 2) / (filas.length * 3))
+
+                    const v1 = filas.map(f => valorDe(b, f) ?? 0)
+                    const v2 = filas.map(f => valorDe({ ...b, metrica: m2 }, f) ?? 0)
+                    const vl = filas.map(f => valorDe({ ...b, metrica: mLinea }, f) ?? 0)
+                    const max1 = Math.max(...v1, 1)
+                    const max2 = Math.max(...v2, 1)
+                    const maxL = Math.max(...vl, 1)
+
+                    const baseY = h - 22
+                    const x0 = (i: number) => pad + i * ((w - pad * 2) / filas.length)
+                    const puntos = vl.map((v, i) => {
+                      const x = x0(i) + ((w - pad * 2) / filas.length) / 2
+                      const y = baseY - (v / maxL) * (baseY - pad)
+                      return `${x},${y}`
+                    }).join(' ')
+
+                    return (
+                      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full">
+                        {filas.map((f, i) => {
+                          const ancho = (w - pad * 2) / filas.length
+                          const cx = x0(i) + ancho / 2
+                          const h1 = (v1[i] / max1) * (baseY - pad)
+                          const h2 = (v2[i] / max2) * (baseY - pad)
+                          return (
+                            <g key={i}>
+                              <rect x={cx - anchoBarra - 1} y={baseY - h1} width={anchoBarra} height={h1} fill="#1f1e1c" rx="2" />
+                              <rect x={cx + 1} y={baseY - h2} width={anchoBarra} height={h2} fill="#9aa8d8" rx="2" />
+                              <text x={cx} y={h - 6} textAnchor="middle" fontSize="9" fill="#8a847a">
+                                {String(f.mes).slice(5)}
+                              </text>
+                            </g>
+                          )
+                        })}
+                        {vl.length > 1 && (
+                          <polyline points={puntos} fill="none" stroke="#3B63FB" strokeWidth="2" />
+                        )}
+                        {vl.map((v, i) => (
+                          <circle key={i} cx={x0(i) + ((w - pad * 2) / filas.length) / 2} cy={baseY - (v / maxL) * (baseY - pad)} r="3" fill="#3B63FB" />
+                        ))}
+                      </svg>
+                    )
+                  })()}
 
                   {b.tipo === 'embudo' && (
                     <div className="flex flex-wrap items-stretch gap-2">

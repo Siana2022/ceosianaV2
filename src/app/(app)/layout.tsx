@@ -21,9 +21,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const clientes = (rawClientes ?? []).map(c => ({ id: String(c.id), nombre: c.nombre as string }))
 
   return (
-    <div className="flex min-h-screen bg-[#E4E2DC]">
+    <div className="flex min-h-screen bg-[#E4E2DC]" data-app-shell>
       <Sidebar rol={rol} clientes={clientes} />
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto" data-app-main>
         {children}
       </main>
     </div>
