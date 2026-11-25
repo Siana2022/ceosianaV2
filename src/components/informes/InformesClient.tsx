@@ -791,7 +791,7 @@ export default function InformesClient({
                       ◢
                     </div>
                   )}
-                  <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
                     {editando ? (
                       <>
                         <input
@@ -853,7 +853,7 @@ export default function InformesClient({
                         </div>
                       </>
                     ) : (
-                      <span className="text-[#6f6a62] text-sm">{b.titulo}</span>
+                      <span className="text-[#6f6a62] text-sm truncate">{b.titulo}</span>
                     )}
                   </div>
 
@@ -885,9 +885,12 @@ export default function InformesClient({
                     const varPct = variacion(b, total)
                     return (
                       <div>
-                        <p className="text-[42px] leading-none font-bold text-[#111]">
+                        <p className="text-[38px] leading-tight font-bold truncate">
                           {typeof total === 'number' ? formatoDe(b)(total) : '—'}
                         </p>
+                        {total === null && (
+                          <p className="text-[10px] text-[#b91c1c] mt-1">sin datos en el periodo</p>
+                        )}
                         {varPct !== null && (
                           <p className={`text-xs mt-2 ${varPct >= 0 ? 'text-[#0f7a3d]' : 'text-[#b91c1c]'}`}>
                             {varPct >= 0 ? '▲' : '▼'} {Math.abs(varPct).toFixed(1)} %
