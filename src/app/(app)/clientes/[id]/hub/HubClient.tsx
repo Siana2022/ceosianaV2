@@ -65,6 +65,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   const [ga4Error, setGa4Error] = useState('')
   const [origen, setOrigen] = useState('')
   const [disponibles, setDisponibles] = useState<{ id: string; nombre: string; moneda: string }[]>([])
+  const [disponiblesMeta, setDisponiblesMeta] = useState<{ id: string; nombre: string; moneda: string }[]>([])
   const [cargandoDisp, setCargandoDisp] = useState(false)
   const [error, setError] = useState('')
 
@@ -226,9 +227,14 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
     if (disponibles.length || cargandoDisp) return
     setCargandoDisp(true)
     try {
-      const res = await fetch('/api/hub/cuentas/disponibles')
-      const d = await res.json().catch(() => ({}))
+      const [resGoogle, resMeta] = await Promise.all([
+        fetch('/api/hub/cuentas/disponibles?plataforma=google_ads'),
+        fetch('/api/hub/cuentas/disponibles?plataforma=meta_ads'),
+      ])
+      const d = await resGoogle.json().catch(() => ({}))
+      const m = await resMeta.json().catch(() => ({}))
       setDisponibles((d as { cuentas?: { id: string; nombre: string; moneda: string }[] }).cuentas ?? [])
+      setDisponiblesMeta((m as { cuentas?: { id: string; nombre: string; moneda: string }[] }).cuentas ?? [])
     } catch {
       setDisponibles([])
     } finally {
@@ -236,9 +242,10 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
     }
   }
 
-  const vincularCuenta = async (idServicio: string, idExterno: string) => {
+  const vincularCuenta = async (idServicio: string, idExterno: string, plataforma: 'google_ads' | 'meta_ads' = 'google_ads') => {
     if (!idExterno) return
-    const cuenta = disponibles.find(c => c.id === idExterno)
+    const lista = plataforma === 'meta_ads' ? disponiblesMeta : disponibles
+    const cuenta = lista.find(c => c.id === idExterno)
     if (!cuenta) return
     setError('')
     const res = await fetch('/api/hub/cuentas', {
@@ -246,7 +253,7 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id_servicio: idServicio,
-        plataforma: 'google_ads',
+        plataforma,
         id_externo: cuenta.id,
         nombre: cuenta.nombre,
         moneda: cuenta.moneda,
@@ -601,11 +608,14 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
         </summary>
         <div className="px-6 pb-5 space-y-3">
           <p className="text-gray-500 text-sm">
-            Indica qué cuenta de Google Ads corresponde a cada servicio. Es lo que permite traer sus datos y guardarlos en el conocimiento del cliente.
+            Indica qué cuenta de anuncios corresponde a cada servicio (Google Ads o Meta). Es lo que permite traer sus datos y guardarlos en el conocimiento del cliente.
           </p>
           {servicios.length === 0 && <p className="text-gray-600 text-sm">Este cliente no tiene servicios.</p>}
           {servicios.map(sv => {
-            const actual = cuentas.find(c => c.id_servicio === sv.id && c.plataforma === 'google_ads')
+            const esMeta = /meta/i.test(sv.nombre)
+            const plataforma: 'google_ads' | 'meta_ads' = esMeta ? 'meta_ads' : 'google_ads'
+            const lista = esMeta ? disponiblesMeta : disponibles
+            const actual = cuentas.find(c => c.id_servicio === sv.id && c.plataforma === plataforma)
             return (
               <div key={sv.id} className="flex flex-col sm:flex-row sm:items-center gap-2 border border-gray-800 rounded-lg px-4 py-3">
                 <span className="text-gray-200 text-sm flex-1 truncate">{sv.nombre}</span>
@@ -616,12 +626,12 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
                 )}
                 <select
                   value={actual?.id_externo ?? ''}
-                  onChange={e => vincularCuenta(sv.id, e.target.value)}
+                  onChange={e => vincularCuenta(sv.id, e.target.value, plataforma)}
                   disabled={cargandoDisp}
                   className={`sm:w-72 ${inputCls}`}
                 >
                   <option value="">{cargandoDisp ? 'Cargando cuentas…' : '— Elegir cuenta —'}</option>
-                  {disponibles.map(c => (
+                  {lista.map(c => (
                     <option key={c.id} value={c.id}>{c.nombre} · {c.id}</option>
                   ))}
                 </select>

@@ -9,11 +9,31 @@ interface CuentaDisponible {
   moneda: string
 }
 
-// GET /api/hub/cuentas/disponibles — cuentas de Google Ads accesibles con la
+// GET /api/hub/cuentas/disponibles?plataforma=google_ads|meta_ads — cuentas accesibles con la
 // conexión guardada, para poder vincularlas a los servicios del cliente.
-export async function GET() {
+export async function GET(req: Request) {
   const perfil = await getPerfil()
   if (!perfil) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const plataforma = new URL(req.url).searchParams.get('plataforma') ?? 'google_ads'
+
+  // Cuentas de Meta
+  if (plataforma === 'meta_ads') {
+    if (!process.env.META_SYSTEM_USER_TOKEN) {
+      return NextResponse.json({ cuentas: [], motivo: 'Falta META_SYSTEM_USER_TOKEN' })
+    }
+    try {
+      const { cuentasAnuncios } = await import('@/lib/server/meta')
+      const r = await cuentasAnuncios(200)
+      return NextResponse.json({
+        cuentas: r.ad_accounts
+          .filter(c => c.ad_account_id)
+          .map(c => ({ id: `act_${c.ad_account_id}`, nombre: c.ad_account_name, moneda: c.currency })),
+      })
+    } catch (e) {
+      return NextResponse.json({ cuentas: [], motivo: e instanceof Error ? e.message : 'Error de Meta' })
+    }
+  }
 
   const admin = createAdminClient()
   const { data: con } = await admin
