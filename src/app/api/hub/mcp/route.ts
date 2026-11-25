@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
         .from('mcp_conexiones')
         .update({
           access_token: t.access_token,
+          // El servidor rota el refresh token: hay que guardar el nuevo
+          refresh_token: t.refresh_token ?? con.refresh_token,
           expires_at: t.expires_in ? new Date(Date.now() + t.expires_in * 1000).toISOString() : null,
           updated_at: new Date().toISOString(),
         })
@@ -120,6 +122,7 @@ export async function POST(req: NextRequest) {
           .from('mcp_conexiones')
           .update({
             access_token: t.access_token,
+            refresh_token: t.refresh_token ?? con.refresh_token,
             expires_at: t.expires_in ? new Date(Date.now() + t.expires_in * 1000).toISOString() : null,
             updated_at: new Date().toISOString(),
           })
