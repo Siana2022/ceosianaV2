@@ -3,7 +3,7 @@ import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { llamarConTokenGuardado } from '@/lib/server/mcpGoogle'
-import { serieMensual } from '@/lib/server/ga4'
+import { serieConMetricas } from '@/lib/server/ga4'
 
 // GET /api/informes/datos?id_cliente=&desde=&hasta=
 // Devuelve métricas de Google Ads del cliente agrupadas por mes y por campaña.
@@ -27,28 +27,31 @@ export async function GET(req: NextRequest) {
     if (!propiedad) {
       return NextResponse.json({ totales: null, motivo: 'Este cliente no tiene GA4 vinculado', porMes: [], porCampana: [] })
     }
+    const metricasPedidas = (q.get('metricas') ?? '')
+      .split(',')
+      .map(m => m.trim())
+      .filter(Boolean)
+
     try {
-      const meses = await serieMensual(propiedad, desde, hasta)
-      const totales = meses.reduce(
-        (t, m) => ({
-          sesiones: t.sesiones + m.sesiones,
-          usuarios: t.usuarios + m.usuarios,
-          carritos: t.carritos + m.carritos,
-          compras: t.compras + m.compras,
-          ingresos: Number((t.ingresos + m.ingresos).toFixed(2)),
-        }),
-        { sesiones: 0, usuarios: 0, carritos: 0, compras: 0, ingresos: 0 },
-      )
+      if (metricasPedidas.length > 0) {
+        const { meses, totales } = await serieConMetricas(propiedad, desde, hasta, metricasPedidas)
+        return NextResponse.json({
+          fuente: 'ga4',
+          periodo: { desde, hasta },
+          totales,
+          anterior: null,
+          porMes: meses,
+          porCampana: [],
+        })
+      }
+
+      const base = await serieConMetricas(propiedad, desde, hasta, ['sessions', 'totalUsers', 'ecommercePurchases', 'purchaseRevenue'])
       return NextResponse.json({
         fuente: 'ga4',
         periodo: { desde, hasta },
-        totales: {
-          ...totales,
-          aov: totales.compras > 0 ? Number((totales.ingresos / totales.compras).toFixed(2)) : null,
-          cr: totales.sesiones > 0 ? Number(((totales.compras / totales.sesiones) * 100).toFixed(2)) : null,
-        },
+        totales: base.totales,
         anterior: null,
-        porMes: meses,
+        porMes: base.meses,
         porCampana: [],
       })
     } catch (e) {

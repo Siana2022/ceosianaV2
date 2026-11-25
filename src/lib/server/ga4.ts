@@ -252,3 +252,85 @@ export async function serieMensual(propiedad: string, desde: string, hasta: stri
     }
   })
 }
+
+export interface CampoGA4 {
+  variable: string   // apiName
+  etiqueta: string   // uiName
+  tipo: 'metrica' | 'dimension'
+  categoria: string
+}
+
+/** Esquema real de la propiedad: dimensiones y métricas disponibles. */
+export async function listarCampos(propiedad: string): Promise<CampoGA4[]> {
+  const token = await tokenValido()
+  if (!token) return []
+
+  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/${propiedad}/metadata`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`Analytics respondió ${res.status}`)
+
+  const data = await res.json().catch(() => ({})) as {
+    dimensions?: { apiName?: string; uiName?: string; category?: string }[]
+    metrics?: { apiName?: string; uiName?: string; category?: string }[]
+  }
+
+  const out: CampoGA4[] = []
+  for (const d of data.dimensions ?? []) {
+    if (!d.apiName) continue
+    out.push({ variable: d.apiName, etiqueta: d.uiName ?? d.apiName, tipo: 'dimension', categoria: d.category ?? '' })
+  }
+  for (const m of data.metrics ?? []) {
+    if (!m.apiName) continue
+    out.push({ variable: m.apiName, etiqueta: m.uiName ?? m.apiName, tipo: 'metrica', categoria: m.category ?? '' })
+  }
+  return out
+}
+
+/** Serie mensual con las métricas que se pidan (apiName de GA4). */
+export async function serieConMetricas(
+  propiedad: string,
+  desde: string,
+  hasta: string,
+  metricas: string[],
+): Promise<{ meses: Record<string, number | string>[]; totales: Record<string, number> }> {
+  const token = await tokenValido()
+  if (!token) throw new Error('Google Analytics no está conectado')
+  if (metricas.length === 0) return { meses: [], totales: {} }
+
+  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/${propiedad}:runReport`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      dateRanges: [{ startDate: desde, endDate: hasta }],
+      dimensions: [{ name: 'yearMonth' }],
+      metrics: metricas.map(m => ({ name: m })),
+      orderBys: [{ dimension: { dimensionName: 'yearMonth' } }],
+    }),
+  })
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    throw new Error(`Analytics respondió ${res.status}: ${t.slice(0, 140)}`)
+  }
+
+  const data = await res.json().catch(() => ({})) as {
+    rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[]
+  }
+
+  const totales: Record<string, number> = {}
+  for (const m of metricas) totales[m] = 0
+
+  const meses = (data.rows ?? []).map(r => {
+    const yyyymm = String(r.dimensionValues?.[0]?.value ?? '')
+    const fila: Record<string, number | string> = { mes: `${yyyymm.slice(0, 4)}-${yyyymm.slice(4, 6)}` }
+    metricas.forEach((m, i) => {
+      const v = Number(r.metricValues?.[i]?.value ?? 0)
+      fila[m] = v
+      totales[m] = (totales[m] ?? 0) + v
+    })
+    return fila
+  })
+
+  return { meses, totales }
+}

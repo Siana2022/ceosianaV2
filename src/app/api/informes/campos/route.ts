@@ -3,6 +3,7 @@ import { createClient } from '@/lib/server/supabase'
 import { createAdminClient } from '@/lib/server/supabase-admin'
 import { getPerfil } from '@/lib/server/perfil'
 import { CAMPOS, FUENTES, type FuenteDatos } from '@/lib/informes/campos'
+import { listarCampos } from '@/lib/server/ga4'
 
 // GET /api/informes/campos?id_cliente=... → catálogo de campos y disponibilidad
 export async function GET(req: NextRequest) {
@@ -51,12 +52,39 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // GA4: los campos reales de la propiedad del cliente
+  let campos = CAMPOS.filter(c => c.fuente !== 'ga4')
+
+  if (idCliente && disponibles.ga4.conectada) {
+    const { data: cli } = await admin.from('clientes').select('ga4_propiedad').eq('id', idCliente).maybeSingle()
+    const propiedad = (cli as { ga4_propiedad?: string | null } | null)?.ga4_propiedad
+    if (propiedad) {
+      try {
+        const reales = await listarCampos(propiedad)
+        campos = [
+          ...campos,
+          ...reales
+            .filter(c => c.tipo === 'metrica')
+            .map(c => ({
+              variable: c.variable,
+              etiqueta: c.etiqueta,
+              tipo: 'metrica' as const,
+              fuente: 'ga4' as const,
+              descripcion: c.categoria,
+            })),
+        ]
+      } catch (e) {
+        console.error('[campos ga4]', e)
+      }
+    }
+  }
+
   return NextResponse.json({
     fuentes: Object.entries(FUENTES).map(([id, nombre]) => ({
       id,
       nombre,
       ...disponibles[id as FuenteDatos],
     })),
-    campos: CAMPOS,
+    campos,
   })
 }

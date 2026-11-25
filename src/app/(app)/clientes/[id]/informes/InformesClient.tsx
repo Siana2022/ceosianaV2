@@ -113,6 +113,13 @@ export default function InformesClient({
   const [bloques, setBloques] = useState<Bloque[]>(informe?.config?.bloques ?? [])
   const [calculadas, setCalculadas] = useState<Calculada[]>(informe?.config?.calculadas ?? [])
 
+  // Nombres reales de las métricas de GA4 que usan los bloques
+  const metricasGA4 = useMemo(() => {
+    const conocidas = new Set((catalogo?.campos ?? []).filter(c => c.fuente === 'ga4').map(c => c.variable))
+    const usadas = bloques.map(b => b.metrica).filter(m => !m.startsWith('calc:') && conocidas.has(m))
+    return [...new Set(usadas)]
+  }, [bloques, catalogo])
+
   // Cargar métricas de Google Ads según el periodo
   useEffect(() => {
     const hoy = new Date()
@@ -123,12 +130,13 @@ export default function InformesClient({
     else desde = `${hoy.getFullYear()}-01-01`
 
     setCargando(true)
-    fetch(`/api/informes/datos?id_cliente=${idCliente}&fuente=${fuente}&desde=${desde}&hasta=${hasta}`)
+    const extra = fuente === 'ga4' && metricasGA4.length > 0 ? `&metricas=${encodeURIComponent(metricasGA4.join(','))}` : ''
+    fetch(`/api/informes/datos?id_cliente=${idCliente}&fuente=${fuente}&desde=${desde}&hasta=${hasta}${extra}`)
       .then(r => r.json())
       .then(d => setDatos(d))
       .catch(() => setDatos({ totales: null, porMes: [], porCampana: [], error: 'No se pudieron cargar los datos' }))
       .finally(() => setCargando(false))
-  }, [idCliente, periodo, fuente])
+  }, [idCliente, periodo, fuente, metricasGA4.join(',')])
 
   useEffect(() => {
     fetch(`/api/informes/campos?id_cliente=${idCliente}`)
@@ -208,6 +216,13 @@ export default function InformesClient({
     return ((actual - previo) / Math.abs(previo)) * 100
   }
 
+  const etiquetaDe = (metrica: string) => {
+    if (metrica.startsWith('calc:')) return calculadas.find(c => `calc:${c.id}` === metrica)?.nombre ?? metrica
+    return METRICAS[metrica as Metrica]?.label
+      ?? (catalogo?.campos ?? []).find(c => c.variable === metrica)?.etiqueta
+      ?? metrica
+  }
+
   const formatoDe = (b: Bloque) => {
     const dec = b.decimales ?? 2
     const elegido = b.formato ?? 'auto'
@@ -225,6 +240,10 @@ export default function InformesClient({
     if (b.metrica.startsWith('calc:')) {
       const calc = calculadas.find(c => `calc:${c.id}` === b.metrica)
       return (v: number) => formatearCalc(v, calc?.formato ?? 'numero')
+    }
+    const delCatalogo = (catalogo?.campos ?? []).find(c => c.variable === b.metrica)?.etiqueta
+    if (delCatalogo) {
+      return (v: number) => v.toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec })
     }
     return METRICAS[b.metrica as Metrica]?.formato ?? ((v: number) => String(v))
   }
@@ -582,7 +601,7 @@ export default function InformesClient({
                         const varPct = variacion(sub, v)
                         return (
                           <div key={m} className="bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-3 py-3">
-                            <p className="text-[10px] uppercase tracking-wide text-[#8a847a]">{METRICAS[m]?.label ?? m}</p>
+                            <p className="text-[10px] uppercase tracking-wide text-[#8a847a]">{etiquetaDe(m)}</p>
                             <p className="text-xl font-bold text-[#111] mt-1 leading-tight">{v === null ? '—' : formatoDe(sub)(v)}</p>
                             {varPct !== null && (
                               <p className={`text-[10px] mt-1 ${varPct >= 0 ? 'text-[#0f7a3d]' : 'text-[#b91c1c]'}`}>
@@ -611,7 +630,7 @@ export default function InformesClient({
                               </div>
                             )}
                             <div className="bg-[#f7f5f1] border border-[#e6e1d8] rounded-lg px-4 py-3 min-w-32">
-                              <p className="text-[10px] uppercase tracking-wide text-[#8a847a]">{METRICAS[m]?.label ?? m}</p>
+                              <p className="text-[10px] uppercase tracking-wide text-[#8a847a]">{etiquetaDe(m)}</p>
                               <p className="text-lg font-bold text-[#111] mt-0.5">{v === null ? '—' : formatoDe(sub)(v)}</p>
                             </div>
                           </div>
