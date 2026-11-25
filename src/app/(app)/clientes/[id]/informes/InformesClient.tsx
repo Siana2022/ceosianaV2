@@ -115,10 +115,12 @@ export default function InformesClient({
 
   // Nombres reales de las métricas de GA4 que usan los bloques
   const metricasGA4 = useMemo(() => {
-    const conocidas = new Set((catalogo?.campos ?? []).filter(c => c.fuente === 'ga4').map(c => c.variable))
-    const usadas = bloques.map(b => b.metrica).filter(m => !m.startsWith('calc:') && conocidas.has(m))
+    const base = new Set(Object.keys(METRICAS))
+    const usadas = bloques
+      .map(b => b.metrica)
+      .filter(m => !m.startsWith('calc:') && !base.has(m))
     return [...new Set(usadas)]
-  }, [bloques, catalogo])
+  }, [bloques])
 
   // Cargar métricas de Google Ads según el periodo
   useEffect(() => {
@@ -500,11 +502,23 @@ export default function InformesClient({
                             value={b.metrica}
                             onChange={e => {
                               const metrica = e.target.value as Metrica
-                              setBloques(prev => prev.map((x, j) => j === i ? { ...x, metrica, titulo: METRICAS[metrica].label } : x))
+                              const etiqueta = METRICAS[metrica]?.label
+                                ?? (catalogo?.campos ?? []).find(c => c.variable === metrica)?.etiqueta
+                                ?? metrica
+                              setBloques(prev => prev.map((x, j) => j === i ? { ...x, metrica, titulo: etiqueta } : x))
                             }}
                             className="text-xs border border-[#d8d3c9] rounded px-1 py-1"
                           >
-                            {Object.entries(METRICAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            <optgroup label="Google Ads">
+                              {Object.entries(METRICAS).filter(([k]) => !['sesiones','usuarios','carritos','compras','ingresos','aov','cr'].includes(k)).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            </optgroup>
+                            {(catalogo?.campos ?? []).filter(c => c.fuente === 'ga4').length > 0 && (
+                              <optgroup label="GA4">
+                                {(catalogo?.campos ?? []).filter(c => c.fuente === 'ga4' && c.tipo === 'metrica').map(c => (
+                                  <option key={c.variable} value={c.variable}>{c.etiqueta}</option>
+                                ))}
+                              </optgroup>
+                            )}
                             {calculadas.length > 0 && (
                               <optgroup label="Calculadas">
                                 {calculadas.map(c => <option key={c.id} value={`calc:${c.id}`}>{c.nombre}</option>)}
