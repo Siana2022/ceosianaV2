@@ -58,7 +58,7 @@ export default async function HubIndexPage({
   let cliente: { id: string; nombre: string; activo: boolean | null; token_portal?: string | null } | null = null
   { const { data } = await supabase
     .from('clientes')
-    .select('id, nombre, activo, token_portal')
+    .select('id, nombre, activo, token_portal, ga4_propiedad')
     .eq('id', clienteId)
     .maybeSingle()
     cliente = data }
@@ -66,7 +66,7 @@ export default async function HubIndexPage({
   if (!cliente) {
     const { data: sinToken } = await supabase
       .from('clientes')
-      .select('id, nombre, activo')
+      .select('id, nombre, activo, ga4_propiedad')
       .eq('id', clienteId)
       .maybeSingle()
     cliente = sinToken ?? null

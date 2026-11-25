@@ -21,7 +21,7 @@ import {
 } from './types'
 
 interface Props {
-  cliente: { id: string; nombre: string; activo: boolean | null; token_portal?: string | null }
+  cliente: { id: string; nombre: string; activo: boolean | null; token_portal?: string | null; ga4_propiedad?: string | null }
   servicios: HubServicio[]
   cuentas: HubCuenta[]
   tareas: HubTarea[]
@@ -60,6 +60,9 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
   const [creandoProceso, setCreandoProceso] = useState(false)
   const [token, setToken] = useState<string | null>(tokenPortal)
   const [creandoToken, setCreandoToken] = useState(false)
+  const [ga4Props, setGa4Props] = useState<{ propiedad: string; nombre: string; cuenta: string }[]>([])
+  const [ga4Conectado, setGa4Conectado] = useState<boolean | null>(null)
+  const [ga4Error, setGa4Error] = useState('')
   const [origen, setOrigen] = useState('')
   const [disponibles, setDisponibles] = useState<{ id: string; nombre: string; moneda: string }[]>([])
   const [cargandoDisp, setCargandoDisp] = useState(false)
@@ -254,6 +257,27 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
       setError((d as { error?: string }).error ?? 'No se pudo vincular la cuenta')
       return
     }
+    router.refresh()
+  }
+
+  const cargarGa4 = async () => {
+    try {
+      const res = await fetch('/api/hub/ga4/propiedades')
+      const d = await res.json().catch(() => ({}))
+      setGa4Conectado(Boolean((d as { conectado?: boolean }).conectado))
+      setGa4Props((d as { propiedades?: { propiedad: string; nombre: string; cuenta: string }[] }).propiedades ?? [])
+      setGa4Error((d as { error?: string }).error ?? '')
+    } catch {
+      setGa4Conectado(false)
+    }
+  }
+
+  const vincularGa4 = async (propiedad: string) => {
+    await fetch('/api/hub/ga4/vincular', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_cliente: cliente.id, propiedad }),
+    })
     router.refresh()
   }
 
@@ -514,6 +538,45 @@ export default function HubClient({ cliente, servicios, cuentas, tareas, accione
             </button>
           </div>
           <p className="text-gray-600 text-[11px] mt-2">Registrar crea también el fichaje de ese tiempo en el servicio.</p>
+        </div>
+      </details>
+
+      {/* Analítica (GA4) */}
+      <details
+        className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
+        onToggle={e => { if ((e.currentTarget as HTMLDetailsElement).open) void cargarGa4() }}
+      >
+        <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-white font-semibold text-[17px]">
+          <span className="text-gray-500 text-[10px]">▶</span> Analítica (GA4)
+          <span className="ml-auto text-gray-500 text-xs font-normal">
+            {cliente.ga4_propiedad ? 'vinculada' : 'sin vincular'}
+          </span>
+        </summary>
+        <div className="px-6 pb-5 space-y-3">
+          <p className="text-gray-500 text-sm">
+            Propiedad de Google Analytics de este cliente. Se usa para el embudo de compra y las métricas de la web.
+          </p>
+
+          {ga4Conectado === false && (
+            <a href="/api/hub/ga4/connect" className="inline-block bg-[#3B63FB] hover:bg-[#2f55e0] text-white rounded-lg px-4 py-2 text-sm font-semibold">
+              Conectar Google Analytics
+            </a>
+          )}
+
+          {ga4Conectado && (
+            <select
+              value={cliente.ga4_propiedad ?? ''}
+              onChange={e => vincularGa4(e.target.value)}
+              className={`sm:w-96 ${inputCls}`}
+            >
+              <option value="">— Elegir propiedad —</option>
+              {ga4Props.map(p => (
+                <option key={p.propiedad} value={p.propiedad}>{p.nombre} · {p.cuenta}</option>
+              ))}
+            </select>
+          )}
+
+          {ga4Error && <p className="text-red-400 text-xs">{ga4Error}</p>}
         </div>
       </details>
 
