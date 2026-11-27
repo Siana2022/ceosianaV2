@@ -29,6 +29,15 @@ export default async function ComercialPage({
     supabase.from('clientes').select('id, nombre, activo').order('nombre'),
   ])
 
+  // Años disponibles: los que tienen captaciones, más el actual
+  const aniosSet = new Set<number>([new Date().getFullYear()])
+  for (const c of captaciones ?? []) {
+    const y = parseInt(String(c.fecha_inicio ?? '').slice(0, 4))
+    if (y) aniosSet.add(y)
+  }
+  aniosSet.add(anio)
+  const anios = [...aniosSet].sort((a, b) => b - a)
+
   // Clientes sin ninguna captación registrada
   const conCaptacion = new Set((captaciones ?? []).map(c => c.id_cliente))
   const sinAsignar = (clientes ?? [])
@@ -94,6 +103,7 @@ export default async function ComercialPage({
       resumenMantenedor={resumenMantenedor}
       anio={anio}
       sinAsignar={sinAsignar}
+      anios={anios}
     />
   )
 }
