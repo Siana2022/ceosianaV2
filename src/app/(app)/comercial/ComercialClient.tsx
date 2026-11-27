@@ -41,10 +41,12 @@ interface CaptacionForm {
   fecha_fin: string
 }
 
-export default function ComercialClient({ captaciones, empleados, resumenCaptador, resumenMantenedor, anio, sinAsignar = [] }: Props & { sinAsignar?: { id: string; nombre: string }[] }) {
+export default function ComercialClient({ captaciones, empleados, resumenCaptador, resumenMantenedor, anio, sinAsignar = [], anios = [] }: Props & { sinAsignar?: { id: string; nombre: string }[]; anios?: number[] }) {
   const router = useRouter()
   const currentYear = new Date().getFullYear()
-  const years = [currentYear - 1, currentYear, currentYear + 1]
+  const years = anios.length > 0
+    ? anios
+    : [currentYear - 1, currentYear, currentYear + 1]
 
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
