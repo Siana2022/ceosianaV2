@@ -15,6 +15,7 @@ export default async function ComercialPage({
     { data: captaciones },
     { data: ingresos },
     { data: empleados },
+    { data: clientes },
   ] = await Promise.all([
     supabase
       .from('captacion_clientes')
@@ -25,7 +26,14 @@ export default async function ComercialPage({
       .select('id, valor, id_cliente')
       .eq('anio', anio),
     supabase.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('clientes').select('id, nombre, activo').order('nombre'),
   ])
+
+  // Clientes sin ninguna captación registrada
+  const conCaptacion = new Set((captaciones ?? []).map(c => c.id_cliente))
+  const sinAsignar = (clientes ?? [])
+    .filter(c => c.activo !== false && !conCaptacion.has(c.id))
+    .map(c => ({ id: String(c.id), nombre: String(c.nombre) }))
 
   // Build revenue map per client
   const revByCliente = new Map<string, number>()
@@ -85,6 +93,7 @@ export default async function ComercialPage({
       resumenCaptador={resumenCaptador}
       resumenMantenedor={resumenMantenedor}
       anio={anio}
+      sinAsignar={sinAsignar}
     />
   )
 }
