@@ -47,29 +47,32 @@ export default async function ComercialPage({
   const revByCaptador = new Map<string, { id: string; nombre: string; revenue: number; clientes: number }>()
   const revByMantenedor = new Map<string, { id: string; nombre: string; revenue: number; clientes: number }>()
 
-  for (const [clienteId, rev] of revByCliente) {
-    const cap = captacionByCliente.get(clienteId)
-    if (!cap) continue
-    if (cap.id_captador) {
-      const cur = revByCaptador.get(cap.id_captador)
-      const emp = (empleados ?? []).find(e => e.id === cap.id_captador)
-      revByCaptador.set(cap.id_captador, {
-        id: cap.id_captador,
-        nombre: emp?.nombre ?? cap.id_captador,
-        revenue: (cur?.revenue ?? 0) + rev,
-        clientes: (cur?.clientes ?? 0) + 1,
-      })
-    }
-    if (cap.id_mantenedor) {
-      const cur = revByMantenedor.get(cap.id_mantenedor)
-      const emp = (empleados ?? []).find(e => e.id === cap.id_mantenedor)
-      revByMantenedor.set(cap.id_mantenedor, {
-        id: cap.id_mantenedor,
-        nombre: emp?.nombre ?? cap.id_mantenedor,
-        revenue: (cur?.revenue ?? 0) + rev,
-        clientes: (cur?.clientes ?? 0) + 1,
-      })
-    }
+  // Solo las captaciones del año elegido (aunque no tengan ingresos ese año)
+  const captacionesAnio = (captaciones ?? []).filter(c => {
+    const f = String(c.fecha_inicio ?? '')
+    return f.startsWith(String(anio))
+  })
+
+  const sumar = (
+    mapa: typeof revByCaptador,
+    idEmpleado: string | null,
+    rev: number,
+  ) => {
+    if (!idEmpleado) return
+    const cur = mapa.get(idEmpleado)
+    const emp = (empleados ?? []).find(e => e.id === idEmpleado)
+    mapa.set(idEmpleado, {
+      id: idEmpleado,
+      nombre: emp?.nombre ?? idEmpleado,
+      revenue: (cur?.revenue ?? 0) + rev,
+      clientes: (cur?.clientes ?? 0) + 1,
+    })
+  }
+
+  for (const c of captacionesAnio) {
+    const rev = revByCliente.get(c.id_cliente) ?? 0
+    sumar(revByCaptador, c.id_captador, rev)
+    sumar(revByMantenedor, c.id_mantenedor, rev)
   }
 
   const resumenCaptador = [...revByCaptador.values()].sort((a, b) => b.revenue - a.revenue)
