@@ -41,19 +41,29 @@ interface CaptacionForm {
   fecha_fin: string
 }
 
-export default function ComercialClient({ captaciones, empleados, resumenCaptador, resumenMantenedor, anio }: Props) {
+export default function ComercialClient({ captaciones, empleados, resumenCaptador, resumenMantenedor, anio, sinAsignar = [] }: Props & { sinAsignar?: { id: string; nombre: string }[] }) {
   const router = useRouter()
   const currentYear = new Date().getFullYear()
   const years = [currentYear - 1, currentYear, currentYear + 1]
 
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
+  const [clienteNuevo, setClienteNuevo] = useState<string | null>(null)
   const [form, setForm] = useState<CaptacionForm>({ id_captador: '', id_mantenedor: '', fecha_inicio: '', fecha_fin: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
 
+  const openNueva = (idCliente: string) => {
+    setEditId(null)
+    setClienteNuevo(idCliente)
+    setForm({ id_captador: '', id_mantenedor: '', fecha_inicio: new Date().toISOString().slice(0, 10), fecha_fin: '' })
+    setError('')
+    setShowModal(true)
+  }
+
   const openEdit = (c: Captacion) => {
+    setClienteNuevo(null)
     setEditId(c.id)
     setForm({
       id_captador: c.id_captador ?? '',
@@ -70,10 +80,11 @@ export default function ComercialClient({ captaciones, empleados, resumenCaptado
     setSaving(true); setError('')
     try {
       const res = await fetch('/api/captacion', {
-        method: 'PUT',
+        method: editId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editId,
+          id_cliente: clienteNuevo,
           id_captador: form.id_captador || null,
           id_mantenedor: form.id_mantenedor || null,
           fecha_inicio: form.fecha_inicio || null,
@@ -224,12 +235,39 @@ export default function ComercialClient({ captaciones, empleados, resumenCaptado
         </table>
       </div>
 
+      {sinAsignar.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-800 flex items-center gap-2">
+            <h3 className="text-white font-semibold">Clientes sin asignar</h3>
+            <span className="text-xs text-amber-600 bg-amber-500/10 border border-amber-700/40 rounded-full px-2 py-0.5">
+              {sinAsignar.length}
+            </span>
+            <span className="text-gray-500 text-xs ml-2">No tienen captador ni mantenedor registrado</span>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {sinAsignar
+              .filter(c => c.nombre.toLowerCase().includes(search.toLowerCase()))
+              .map(c => (
+                <div key={c.id} className="flex items-center gap-3 px-6 py-2.5 border-b border-gray-800/50">
+                  <span className="text-gray-200 text-sm flex-1 truncate">{c.nombre}</span>
+                  <button
+                    onClick={() => openNueva(c.id)}
+                    className="text-xs px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                  >
+                    Asignar
+                  </button>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Modal: Edit captacion */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-              <h3 className="text-white font-semibold">Editar asignación</h3>
+              <h3 className="text-white font-semibold">{editId ? 'Editar asignación' : 'Asignar cliente'}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
             <form onSubmit={handleSubmit}>
