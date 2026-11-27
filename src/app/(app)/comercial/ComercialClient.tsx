@@ -119,10 +119,13 @@ export default function ComercialClient({ captaciones, empleados, resumenCaptado
             <>
               <p className="text-white text-lg font-bold">{topCaptador.nombre}</p>
               <p className="text-green-400 text-xl font-bold mt-1">{fmt(topCaptador.revenue)}</p>
-              <p className="text-gray-500 text-xs mt-1">{topCaptador.clientes} clientes</p>
+              <p className="text-gray-500 text-xs mt-1">{topCaptador.clientes} cliente{topCaptador.clientes === 1 ? '' : 's'}</p>
+              {topCaptador.revenue === 0 && (
+                <p className="text-amber-600 text-[11px] mt-1">Sin ingresos cargados en {anio}</p>
+              )}
             </>
           ) : (
-            <p className="text-gray-500 text-sm">Sin datos</p>
+            <p className="text-gray-500 text-sm">Sin captaciones en {anio}</p>
           )}
           {resumenCaptador.length > 1 && (
             <div className="mt-3 pt-3 border-t border-gray-800 space-y-1">
@@ -142,10 +145,13 @@ export default function ComercialClient({ captaciones, empleados, resumenCaptado
             <>
               <p className="text-white text-lg font-bold">{topMantenedor.nombre}</p>
               <p className="text-blue-400 text-xl font-bold mt-1">{fmt(topMantenedor.revenue)}</p>
-              <p className="text-gray-500 text-xs mt-1">{topMantenedor.clientes} clientes</p>
+              <p className="text-gray-500 text-xs mt-1">{topMantenedor.clientes} cliente{topMantenedor.clientes === 1 ? '' : 's'}</p>
+              {topMantenedor.revenue === 0 && (
+                <p className="text-amber-600 text-[11px] mt-1">Sin ingresos cargados en {anio}</p>
+              )}
             </>
           ) : (
-            <p className="text-gray-500 text-sm">Sin datos</p>
+            <p className="text-gray-500 text-sm">Sin captaciones en {anio}</p>
           )}
           {resumenMantenedor.length > 1 && (
             <div className="mt-3 pt-3 border-t border-gray-800 space-y-1">
